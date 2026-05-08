@@ -10,6 +10,9 @@ pycache/
 .AppleDouble
 .LSOverride
 
+# Local incoming demo staging
+demo/
+
 # Build outputs
 dist/
 build/
@@ -28,6 +31,17 @@ WZRD.VID-macOS.zip
 *.m4a
 *.gif
 *.log
+
+
+# Release-safe demo assets
+!assets/demos/
+!assets/demos/*.mp4
+!assets/demos/*.gif
+!assets/screenshots/
+!assets/screenshots/*.png
+!assets/screenshots/*.jpg
+!assets/screenshots/*.jpeg
+!assets/screenshots/*.webp
 
 # Temp folders
 tmp/

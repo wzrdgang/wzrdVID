@@ -81,11 +81,35 @@ open "dist/WZRD.VID.app"
 
 ## Screenshots / Demos
 
-Brand preview:
+### Demo Video
 
-![//wzrdVID brand preview](assets/branding/wzrdvid_brand_preview_sheet.png)
+[Watch demo video](assets/demos/wzrdvid-demo.mp4)
 
-Public screenshots, GIFs, demo presets, and small generated examples can live under `examples/`. This repository intentionally does not include copyrighted sample media.
+<video src="assets/demos/wzrdvid-demo.mp4" controls width="720"></video>
+
+If GitHub does not render the video player, use the direct demo video link above.
+
+### App Screenshots
+
+<p>
+  <a href="assets/screenshots/demo1.png">
+    <img src="assets/screenshots/demo1.png" width="260" alt="WZRD.VID source timeline screenshot">
+  </a>
+  <a href="assets/screenshots/demo2.png">
+    <img src="assets/screenshots/demo2.png" width="260" alt="WZRD.VID style controls screenshot">
+  </a>
+  <a href="assets/screenshots/demo3.png">
+    <img src="assets/screenshots/demo3.png" width="260" alt="WZRD.VID output controls screenshot">
+  </a>
+</p>
+
+### Brand System
+
+<a href="assets/branding/wzrdvid_brand_preview_sheet.png">
+  <img src="assets/branding/wzrdvid_brand_preview_sheet.png" width="520" alt="//wzrdVID brand system preview">
+</a>
+
+This repository includes WZRD.VID UI/demo media only. It intentionally does not include third-party sample footage, commercial music, or copyrighted source media.
 
 ## Requirements
 
