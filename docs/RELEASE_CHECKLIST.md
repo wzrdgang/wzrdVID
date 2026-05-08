@@ -20,7 +20,7 @@ Use this before tagging or publishing a public WZRD.VID release.
 ## Verification
 
 ```bash
-python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
+python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
 ./build_app.sh
 ```
 

@@ -1,10 +1,21 @@
 """Visual theme for WZRD.VID."""
 
+import platform
 from pathlib import Path
 
 
 def _ui_asset(name: str) -> str:
     return (Path(__file__).resolve().parent / "assets" / "ui" / name).as_posix()
+
+
+SANS_FONT_STACK = '"Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif'
+
+if platform.system() == "Darwin":
+    MONO_FONT_STACK = 'Menlo, Monaco, "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace'
+elif platform.system() == "Windows":
+    MONO_FONT_STACK = '"Cascadia Mono", Consolas, "JetBrains Mono", "DejaVu Sans Mono", "Liberation Mono", Menlo, Monaco, monospace'
+else:
+    MONO_FONT_STACK = '"DejaVu Sans Mono", "Liberation Mono", "JetBrains Mono", "Cascadia Mono", Consolas, Menlo, Monaco, monospace'
 
 
 PALETTE = {
@@ -56,7 +67,7 @@ def app_stylesheet() -> str:
     QMainWindow, QScrollArea, QWidget {{
         background: {PALETTE["paper"]};
         color: {PALETTE["black"]};
-        font-family: "Avenir Next", "Helvetica Neue", Arial;
+        font-family: {SANS_FONT_STACK};
         font-size: 14px;
     }}
 
@@ -97,7 +108,7 @@ def app_stylesheet() -> str:
         background: transparent;
         border: 0;
         padding: 0;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 48px;
         font-weight: 900;
         letter-spacing: 0;
@@ -117,7 +128,7 @@ def app_stylesheet() -> str:
         border: 2px solid {PALETTE["black"]};
         border-radius: 10px;
         padding: 3px 8px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 10px;
         font-weight: 900;
     }}
@@ -129,7 +140,7 @@ def app_stylesheet() -> str:
         border: 3px solid {PALETTE["black"]};
         border-radius: 12px;
         padding: 7px 9px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 12px;
         font-weight: 900;
     }}
@@ -140,7 +151,7 @@ def app_stylesheet() -> str:
         color: {PALETTE["ink"]};
         border: 0;
         padding: 0 8px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 10px;
         font-weight: 900;
     }}
@@ -152,7 +163,7 @@ def app_stylesheet() -> str:
         border: 3px solid {PALETTE["black"]};
         border-radius: 12px;
         padding: 6px 9px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 12px;
         font-weight: 900;
     }}
@@ -183,7 +194,7 @@ def app_stylesheet() -> str:
         border: 3px solid {PALETTE["black"]};
         border-radius: 13px;
         padding: 6px 10px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 12px;
         font-weight: 900;
     }}
@@ -203,7 +214,7 @@ def app_stylesheet() -> str:
         background-color: {PALETTE["black"]};
         background-image: url("{log_static}");
         color: {PALETTE["mint"]};
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 14px;
         min-height: 34px;
     }}
@@ -263,7 +274,7 @@ def app_stylesheet() -> str:
         border: 3px solid {PALETTE["black"]};
         border-radius: 13px;
         color: {PALETTE["muted"]};
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 15px;
         font-weight: 900;
         padding: 10px;
@@ -276,7 +287,7 @@ def app_stylesheet() -> str:
         border: 3px solid {PALETTE["black"]};
         border-radius: 12px;
         padding: 6px 10px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 12px;
         font-weight: 900;
     }}
@@ -292,7 +303,7 @@ def app_stylesheet() -> str:
         border: 2px solid {PALETTE["black"]};
         border-radius: 10px;
         padding: 3px 9px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 10px;
         font-weight: 900;
     }}
@@ -308,7 +319,7 @@ def app_stylesheet() -> str:
         background-color: transparent;
         background-image: url("{registration}");
         color: {PALETTE["black"]};
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 10px;
         font-weight: 900;
         padding: 0;
@@ -328,7 +339,7 @@ def app_stylesheet() -> str:
         border: 2px solid {PALETTE["black"]};
         border-radius: 9px;
         padding: 3px 8px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 10px;
         font-weight: 900;
     }}
@@ -405,7 +416,7 @@ def app_stylesheet() -> str:
     }}
 
     QTextEdit {{
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 12px;
         background-color: {PALETTE["black"]};
         background-image: url("{log_static}");
@@ -457,7 +468,7 @@ def app_stylesheet() -> str:
         color: {PALETTE["off_white"]};
         border: 1px solid {PALETTE["black"]};
         padding: 5px 7px;
-        font-family: Menlo, Monaco, monospace;
+        font-family: {MONO_FONT_STACK};
         font-size: 11px;
         font-weight: 900;
     }}

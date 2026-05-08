@@ -6,7 +6,7 @@ WZRD.VID has two different download paths, and they are meant for different peop
 
 GitHub's **Code -> Download ZIP** button downloads the repository source files. It does not include the packaged macOS app bundle. That ZIP is small because generated build output is excluded.
 
-Use the source ZIP if you want to inspect the code, run from source, modify the app, or build your own local copy.
+Use the source ZIP if you want to inspect the code, run from source, modify the app, build your own local copy, or run WZRD.VID on Windows/Linux from source.
 
 ## Release ZIP = Double-Click App
 
@@ -36,15 +36,23 @@ Packaged builds belong in GitHub Releases, not in the git history.
 
 ## Run From Source
 
-From a source checkout or GitHub source ZIP:
+From a source checkout or GitHub source ZIP on macOS/Linux:
 
 ```bash
 cd ~/Downloads/wzrdVID-main
-brew install ffmpeg
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-./run.sh
+python run.py
+```
+
+Windows users can run from source with:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run.py
 ```
 
 ## Build Locally

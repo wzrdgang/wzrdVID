@@ -12,4 +12,4 @@ fi
 VENV_PYTHON="$PWD/.venv/bin/python"
 "$VENV_PYTHON" -m pip install --upgrade pip
 "$VENV_PYTHON" -m pip install -r requirements.txt
-"$VENV_PYTHON" app.py
+"$VENV_PYTHON" run.py

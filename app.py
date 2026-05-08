@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import random
 import sys
 import traceback
@@ -14,7 +15,7 @@ from pathlib import Path
 import cv2
 from PIL import Image
 from PySide6.QtCore import QThread, QTimer, QUrl, Signal, Qt
-from PySide6.QtGui import QDesktopServices, QFont, QIcon, QImage, QPixmap
+from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -66,14 +67,32 @@ from renderer import (
     fit_frame_to_output,
     render_project,
 )
-from theme import PALETTE, app_stylesheet
+from theme import MONO_FONT_STACK, PALETTE, app_stylesheet
 
 
 APP_NAME = "WZRD.VID"
 APP_SUBTITLE = "ANSI motion lab // lo-fi frames // cursed little files"
-SETTINGS_PATH = (
-    Path.home() / "Library" / "Application Support" / "WZRD.VID" / "settings.json"
-)
+
+
+def _user_data_dir() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "WZRD.VID"
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        return base / "WZRD.VID"
+    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "wzrdvid"
+
+
+def _default_app_font() -> QFont:
+    families = set(QFontDatabase.families())
+    for family in ("Avenir Next", "Helvetica Neue", "Segoe UI", "Arial"):
+        if family in families:
+            return QFont(family, 13)
+    return QFont("sans-serif", 13)
+
+
+SETTINGS_PATH = _user_data_dir() / "settings.json"
 PREVIEW_DIR = SETTINGS_PATH.parent / "Previews"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 APP_ICON_PATH = ASSETS_DIR / "wzrd_vid_icon.png"
@@ -1860,15 +1879,15 @@ class MainWindow(QMainWindow):
             return
 
         missing_text = ", ".join(missing)
+        guidance = ffmpeg_utils.install_guidance()
         QMessageBox.warning(
             self,
             APP_NAME,
             f"WZRD.VID needs {missing_text} before it can render video.\n\n"
-            "Install ffmpeg with Homebrew:\n\n"
-            "brew install ffmpeg\n\n"
+            f"{guidance}\n\n"
             "Then restart the app.",
         )
-        self.append_log(f"Missing media tools: {missing_text}. Install with: brew install ffmpeg")
+        self.append_log(f"Missing media tools: {missing_text}. {guidance}")
 
     def _load_video_preview(self, path: str, start_seconds: float | None = None) -> None:
         capture = cv2.VideoCapture(path)
@@ -2278,7 +2297,7 @@ class MainWindow(QMainWindow):
             "<div style='"
             f"background: rgb({bg[0]}, {bg[1]}, {bg[2]}); "
             f"color: rgb({fg[0]}, {fg[1]}, {fg[2]}); "
-            "font-family: Menlo, Monaco, monospace; "
+            f"font-family: {MONO_FONT_STACK}; "
             "font-size: 18px; font-weight: 900; "
             "padding: 8px; border-radius: 8px;'>"
             f"{html.escape(blocks)}"
@@ -3215,7 +3234,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar, False)
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app.setFont(QFont("Avenir Next", 13))
+    app.setFont(_default_app_font())
     if APP_ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(APP_ICON_PATH)))
     window = MainWindow()

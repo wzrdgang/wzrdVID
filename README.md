@@ -4,7 +4,7 @@
 
 **ANSI motion lab // lo-fi frames // cursed little files**
 
-//wzrdVID is a local macOS textmode/glitch/compression-art video engine. It turns videos and photos into strange compressed little objects: ANSI motion, chunky blocks, terminal drift, VHS damage, ugly cuts, audio-reactive hits, and phone-sendable MP4s.
+//wzrdVID is a local desktop textmode/glitch/compression-art video engine. It turns videos and photos into strange compressed little objects: ANSI motion, chunky blocks, terminal drift, VHS damage, ugly cuts, audio-reactive hits, and phone-sendable MP4s.
 
 It is inspired by ANSI graphics, late-night cable TV, old internet media tools, lo-fi broadcast artifacts, public-access video, tape labels, and underground mixtape utility software. The point is simple: give your clips the Sam treatment, remix the pipeline, and ship weird little files.
 
@@ -13,7 +13,7 @@ The output is a normal `.mp4`. It visually looks like terminal/video-art output,
 
 ## Download Options
 
-If you just want to use the app, do **not** use GitHub's green **Code -> Download ZIP** button. That ZIP is only the source code.
+If you just want to use the app on macOS, do **not** use GitHub's green **Code -> Download ZIP** button. That ZIP is only the source code.
 
 Use the packaged app download instead:
 
@@ -21,7 +21,7 @@ Use the packaged app download instead:
 
 ### Option A - Download the Mac app
 
-For most people:
+For most macOS users:
 
 1. Go to **Releases** on GitHub.
 2. Download `WZRD.VID-macOS.zip`.
@@ -32,23 +32,40 @@ Notes:
 
 - The GitHub **Code -> Download ZIP** button is source code only. It does not include the packaged `WZRD.VID.app` because build output is intentionally ignored.
 - If macOS blocks the app because it is unsigned or unnotarized, right-click `WZRD.VID.app` and choose **Open**.
-- `ffmpeg` and `ffprobe` are still required unless/until they are bundled. Install them with:
-
-```bash
-brew install ffmpeg
-```
+- `ffmpeg` and `ffprobe` are still required unless/until they are bundled. Install them with `brew install ffmpeg`.
 
 ### Option B - Run from source ZIP
 
-The GitHub source ZIP is only about a few MB because it excludes build output.
+The GitHub source ZIP is only about a few MB because it excludes build output. Windows and Linux users should use this path for now. Install ffmpeg first using the platform notes below.
+
+macOS/Linux:
 
 ```bash
 cd ~/Downloads/wzrdVID-main
-brew install ffmpeg
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-./run.sh
+python run.py
+```
+
+Windows PowerShell:
+
+```powershell
+cd $env:USERPROFILE\Downloads\wzrdVID-main
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run.py
+```
+
+Windows Command Prompt:
+
+```bat
+cd %USERPROFILE%\Downloads\wzrdVID-main
+py -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+python run.py
 ```
 
 ### Option C - Build the Mac app locally
@@ -59,6 +76,105 @@ brew install ffmpeg
 ./build_app.sh
 open "dist/WZRD.VID.app"
 ```
+
+## Platform Support
+
+WZRD.VID is currently tested primarily on macOS.
+
+Linux and Windows users can usually run from source with Python + ffmpeg. Cross-platform source runs are best-effort/experimental, and packaged Windows/Linux builds are not currently provided.
+
+Install ffmpeg/ffprobe for your platform:
+
+macOS:
+
+```bash
+brew install ffmpeg
+```
+
+Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install ffmpeg
+```
+
+Fedora:
+
+```bash
+sudo dnf install ffmpeg
+```
+
+Arch:
+
+```bash
+sudo pacman -S ffmpeg
+```
+
+Windows:
+
+```powershell
+winget install Gyan.FFmpeg
+```
+
+Or download from <https://ffmpeg.org/download.html>. Make sure `ffmpeg.exe` and `ffprobe.exe` are on PATH.
+
+See `docs/CROSS_PLATFORM.md` for more source-run details and known caveats.
+
+## Requirements
+
+- Python 3.10 or newer
+- ffmpeg and ffprobe
+- Python dependencies from `requirements.txt`
+
+## Install And Run
+
+macOS/Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```
+
+Windows PowerShell:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run.py
+```
+
+Windows Command Prompt:
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+python run.py
+```
+
+Convenience launchers are also included:
+
+- macOS/Linux: `./run.sh`
+- Windows: `run_windows.bat`
+
+The app checks for `ffmpeg` and `ffprobe` at startup and shows platform-specific install guidance if either is missing.
+
+## Build The macOS App
+
+```bash
+./build_app.sh
+```
+
+Output:
+
+```text
+dist/WZRD.VID.app
+```
+
+The build script regenerates branding assets, icon assets, UI textures, then packages the app with PyInstaller. The Finder/Dock icon comes from `assets/wzrd_vid.icns`.
 
 ## Features
 
@@ -110,49 +226,6 @@ If GitHub does not render the video player, use the direct demo video link above
 </a>
 
 This repository includes WZRD.VID UI/demo media only. It intentionally does not include third-party sample footage, commercial music, or copyrighted source media.
-
-## Requirements
-
-- macOS on Apple Silicon or Intel
-- Python 3.10 or newer
-- ffmpeg and ffprobe
-
-Install ffmpeg with Homebrew:
-
-```bash
-brew install ffmpeg
-```
-
-## Install And Run
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-./run.sh
-```
-
-You can also run directly after installing requirements:
-
-```bash
-python app.py
-```
-
-The app checks for `ffmpeg` and `ffprobe` at startup and shows the Homebrew install command if either is missing.
-
-## Build The macOS App
-
-```bash
-./build_app.sh
-```
-
-Output:
-
-```text
-dist/WZRD.VID.app
-```
-
-The build script regenerates branding assets, icon assets, UI textures, then packages the app with PyInstaller. The Finder/Dock icon comes from `assets/wzrd_vid.icns`.
 
 ## Workflow
 
@@ -226,8 +299,8 @@ You are responsible for the rights to any video, photo, or audio you import, ren
 ## Troubleshooting
 
 - If the app will not open, right-click `WZRD.VID.app` and choose **Open**. This is common for unsigned or unnotarized local builds.
-- If `ffmpeg` or `ffprobe` is missing, install them with `brew install ffmpeg`.
-- If you are running from source, install requirements first and launch with `./run.sh`.
+- If `ffmpeg` or `ffprobe` is missing, install ffmpeg for your platform. macOS: `brew install ffmpeg`; Debian/Ubuntu: `sudo apt install ffmpeg`; Fedora: `sudo dnf install ffmpeg`; Arch: `sudo pacman -S ffmpeg`; Windows: install ffmpeg and add `ffmpeg.exe`/`ffprobe.exe` to PATH.
+- If you are running from source, install requirements first and launch with `python run.py`. macOS/Linux users can also use `./run.sh`; Windows users can use `run_windows.bat`.
 - If you downloaded the GitHub source ZIP and expected an app bundle, use the GitHub Releases download instead. The source ZIP does not include `dist/WZRD.VID.app`.
 
 ## Contributing

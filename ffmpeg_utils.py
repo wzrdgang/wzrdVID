@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -12,12 +13,11 @@ from typing import Callable
 
 
 LogCallback = Callable[[str], None] | None
-COMMON_BINARY_DIRS = [
+MACOS_HOMEBREW_DIRS = [
     Path("/opt/homebrew/bin"),
     Path("/usr/local/bin"),
-    Path("/usr/bin"),
-    Path("/bin"),
 ]
+UNIX_FALLBACK_DIRS = [Path("/usr/bin"), Path("/bin")]
 
 
 class FFmpegError(RuntimeError):
@@ -30,16 +30,45 @@ def _log(log: LogCallback, message: str) -> None:
 
 
 def require_binary(name: str) -> str:
-    path = shutil.which(name)
-    if path:
-        return path
-    for directory in COMMON_BINARY_DIRS:
-        candidate = directory / name
-        if candidate.exists() and candidate.is_file():
-            return str(candidate)
-    raise FFmpegError(
-        f"Could not find '{name}' on PATH. Install ffmpeg with Homebrew: brew install ffmpeg"
-    )
+    """Return an ffmpeg/ffprobe executable path with platform-aware fallbacks."""
+    for binary_name in _binary_names(name):
+        path = shutil.which(binary_name)
+        if path:
+            return path
+
+    for directory in _common_binary_dirs():
+        for binary_name in _binary_names(name):
+            candidate = directory / binary_name
+            if candidate.exists() and candidate.is_file():
+                return str(candidate)
+
+    raise FFmpegError(f"Could not find '{name}'. {install_guidance()}")
+
+
+def _binary_names(name: str) -> list[str]:
+    if platform.system() == "Windows" and not name.lower().endswith(".exe"):
+        return [name, f"{name}.exe"]
+    return [name]
+
+
+def _common_binary_dirs() -> list[Path]:
+    system = platform.system()
+    if system == "Darwin":
+        return MACOS_HOMEBREW_DIRS + UNIX_FALLBACK_DIRS
+    if system == "Windows":
+        return []
+    return [Path("/usr/local/bin")] + UNIX_FALLBACK_DIRS
+
+
+def install_guidance() -> str:
+    system = platform.system()
+    if system == "Darwin":
+        return "Install ffmpeg with Homebrew: brew install ffmpeg"
+    if system == "Windows":
+        return "Install ffmpeg and make sure ffmpeg.exe and ffprobe.exe are on PATH. Try: winget install Gyan.FFmpeg"
+    if system == "Linux":
+        return "Install ffmpeg with your package manager, for example: sudo apt install ffmpeg, sudo dnf install ffmpeg, or sudo pacman -S ffmpeg"
+    return "Install ffmpeg and make sure ffmpeg and ffprobe are on PATH."
 
 
 def run_command(args: list[str], log: LogCallback = None) -> subprocess.CompletedProcess[str]:
