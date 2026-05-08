@@ -83,9 +83,9 @@ open "dist/WZRD.VID.app"
 
 ### Demo Video
 
-[Watch demo video](assets/demos/wzrdvid-demo.mp4)
+[Watch demo video](assets/demos/demo.mp4)
 
-<video src="assets/demos/wzrdvid-demo.mp4" controls width="720"></video>
+<video src="assets/demos/demo.mp4" controls width="720"></video>
 
 If GitHub does not render the video player, use the direct demo video link above.
 
