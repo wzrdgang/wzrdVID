@@ -25,6 +25,12 @@ If you touch packaging, also run:
 ./build_app.sh
 ```
 
+## Contribution Terms
+
+By submitting a pull request or other contribution, you agree that Sam Howell and the official WZRD.VID project may use, modify, reproduce, distribute, and incorporate your contribution into WZRD.VID and related official project materials.
+
+Contributions are welcome, but contributing does not grant extra rights to redistribute, repackage, sell, host, or ship modified builds outside the project license.
+
 ## Branding
 
-The source code is AGPL-3.0, but the //wzrdVID name, logos, and visual identity are reserved. Do not ship competing branded builds or imply official endorsement without permission. Forks should use their own identity unless permission is granted.
+The //wzrdVID name, logos, icons, artwork, and visual identity are reserved. Do not ship competing branded builds, repackage the app, or imply official endorsement without permission.

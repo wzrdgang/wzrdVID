@@ -4,10 +4,10 @@ Use this before tagging or publishing a public WZRD.VID release.
 
 ## Legal / Docs
 
-- [ ] `LICENSE` exists and contains AGPL-3.0.
+- [ ] `LICENSE` exists and contains the WZRD.VID Source-Available License.
 - [ ] `NOTICE.md` exists and preserves Sam Howell branding ownership language.
 - [ ] `THIRD_PARTY_NOTICES.md` lists ffmpeg/ffprobe, PySide6/Qt, OpenCV, Pillow, numpy, and PyInstaller.
-- [ ] README has current install, run, build, rights, and media-rights sections.
+- [ ] README has current install, run, build, source-available rights, and media-rights sections.
 - [ ] No copyrighted sample media is included.
 
 ## Hygiene

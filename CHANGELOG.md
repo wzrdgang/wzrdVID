@@ -10,3 +10,4 @@
 - Batch preset rendering.
 - Pastel broadcast/ANSI UI identity and procedural branding assets.
 - PyInstaller macOS app packaging for `dist/WZRD.VID.app`.
+- Clarified source-available licensing before first packaged release.

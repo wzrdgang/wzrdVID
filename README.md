@@ -180,13 +180,15 @@ python3 scripts/generate_icon.py
 
 ## Rights / Branding
 
-WZRD.VID source code is licensed under AGPL-3.0. You may use, study, modify, and share the source code under that license.
+WZRD.VID is source-available and free for personal, noncommercial use. You may inspect the code, run it locally, modify it for yourself, and submit contributions back to the official project.
 
-//wzrdVID branding, logos, and visual identity are reserved by Sam Howell. The source code license does not grant trademark rights or permission to use official branding in a way that implies endorsement, official status, or a competing branded product.
+You may not redistribute modified or unmodified builds, sell or repackage the app, use it commercially, host it as a service, or use it as the basis for a competing product without prior written permission.
 
-Forks, remixes, and experiments are welcome. If you redistribute a modified build publicly, use your own name/branding unless you have permission to use the official //wzrdVID identity.
+//wzrdVID branding, logos, icons, artwork, and visual identity are reserved by Sam Howell. You may use the name only to refer to the official project in a truthful and non-misleading way. You may not use the official branding for another product, modified build, paid redistribution, hosted service, or anything implying endorsement without permission.
 
-Commercial licensing, branded redistribution, paid integrations, custom builds, and support are available by arrangement.
+Commercial licensing, custom builds, integrations, branded redistribution, and support are available by arrangement.
+
+Generated outputs are yours to use subject to your own rights in the media you import. WZRD.VID does not claim ownership of videos, images, or audio you create with the app.
 
 ## Not Included
 
@@ -214,8 +216,10 @@ See `SECURITY.md` for vulnerability reporting.
 
 ## License
 
-Source code: AGPL-3.0. See `LICENSE`.
+Project license: source-available, free for personal noncommercial use. See `LICENSE`.
 
 Branding/trademarks: reserved. See `NOTICE.md`.
+
+Plain-language license FAQ: see `docs/LICENSE_FAQ.md`.
 
 Third-party notices: see `THIRD_PARTY_NOTICES.md`.

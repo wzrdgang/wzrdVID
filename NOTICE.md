@@ -1,9 +1,11 @@
 # NOTICE
 
-Copyright © 2026 Sam Howell
+Copyright (c) 2026 Sam Howell
 
-//wzrdVID and related logos/branding are trademarks of Sam Howell.
+//wzrdVID and related logos/branding are trademarks and visual identity assets of Sam Howell.
 
-The software license does not grant permission to use //wzrdVID branding, logos, or visual identity for competing products, paid redistribution, or anything implying official endorsement without permission.
+WZRD.VID is distributed under the WZRD.VID Source-Available License. The license permits personal, noncommercial use, local modification, learning, experimentation, and contributions back to the official project.
+
+The license does not grant permission to redistribute modified or unmodified builds, sell or repackage the app, create hosted/SaaS versions, build competing products from this code, or use //wzrdVID branding, logos, icons, artwork, or visual identity for another product without prior written permission.
 
 Commercial licensing, branded redistribution, paid integrations, custom builds, and support are available by arrangement.
