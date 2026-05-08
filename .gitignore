@@ -17,6 +17,9 @@ build/
 .pyinstaller-cache/
 .pip-cache/
 
+# Release packages
+WZRD.VID-macOS.zip
+
 # Render/output media
 *.mp4
 *.mov

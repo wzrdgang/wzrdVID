@@ -29,6 +29,26 @@ python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py scr
 - [ ] Branding assets are bundled.
 - [ ] App icon appears correctly in Finder/Dock.
 
+
+## Release Asset
+
+- [ ] Run `./build_app.sh`.
+- [ ] Run `scripts/package_release.sh`.
+- [ ] Confirm `WZRD.VID-macOS.zip` exists.
+- [ ] Upload `WZRD.VID-macOS.zip` to GitHub Releases.
+- [ ] Tag release `v0.1.0`.
+- [ ] Release title: `WZRD.VID v0.1.0`.
+- [ ] Release notes include:
+
+```text
+//wzrdVID
+ANSI motion lab // lo-fi frames // cursed little files
+
+Initial public release.
+```
+
+- [ ] Confirm download instructions point normal users to Releases, not the Code ZIP.
+
 ## GitHub Metadata
 
 Suggested description:

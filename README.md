@@ -10,6 +10,50 @@ It is inspired by ANSI graphics, late-night cable TV, old internet media tools, 
 
 The output is a normal `.mp4`. It visually looks like terminal/video-art output, but it is not a terminal playback file.
 
+
+## Download Options
+
+### Option A - Download the Mac app
+
+For most people:
+
+1. Go to **Releases** on GitHub.
+2. Download `WZRD.VID-macOS.zip`.
+3. Unzip it.
+4. Open `WZRD.VID.app`.
+
+Notes:
+
+- The GitHub **Code -> Download ZIP** button is source code only. It does not include the packaged `WZRD.VID.app` because build output is intentionally ignored.
+- If macOS blocks the app because it is unsigned or unnotarized, right-click `WZRD.VID.app` and choose **Open**.
+- `ffmpeg` and `ffprobe` are still required unless/until they are bundled. Install them with:
+
+```bash
+brew install ffmpeg
+```
+
+### Option B - Run from source ZIP
+
+The GitHub source ZIP is only about a few MB because it excludes build output.
+
+```bash
+cd ~/Downloads/wzrdVID-main
+brew install ffmpeg
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+./run.sh
+```
+
+### Option C - Build the Mac app locally
+
+```bash
+cd ~/Downloads/wzrdVID-main
+brew install ffmpeg
+./build_app.sh
+open "dist/WZRD.VID.app"
+```
+
 ## Features
 
 - Multi-source timeline for videos and photos.
@@ -145,6 +189,14 @@ Commercial licensing, branded redistribution, paid integrations, custom builds, 
 - No rights to media you process.
 
 You are responsible for the rights to any video, photo, or audio you import, render, post, remix, or redistribute.
+
+
+## Troubleshooting
+
+- If the app will not open, right-click `WZRD.VID.app` and choose **Open**. This is common for unsigned or unnotarized local builds.
+- If `ffmpeg` or `ffprobe` is missing, install them with `brew install ffmpeg`.
+- If you are running from source, install requirements first and launch with `./run.sh`.
+- If you downloaded the GitHub source ZIP and expected an app bundle, use the GitHub Releases download instead. The source ZIP does not include `dist/WZRD.VID.app`.
 
 ## Contributing
 
