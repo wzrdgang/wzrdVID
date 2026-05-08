@@ -13,6 +13,12 @@ The output is a normal `.mp4`. It visually looks like terminal/video-art output,
 
 ## Download Options
 
+If you just want to use the app, do **not** use GitHub's green **Code -> Download ZIP** button. That ZIP is only the source code.
+
+Use the packaged app download instead:
+
+[Download WZRD.VID from GitHub Releases](https://github.com/wzrdgang/wzrdVID/releases)
+
 ### Option A - Download the Mac app
 
 For most people:
