@@ -1,6 +1,10 @@
 # //wzrdVID
 
-![//wzrdVID wordmark](assets/branding/wzrdvid_primary.png)
+<p align="center">
+  <img src="assets/logo/wzrdvid-github-banner.png"
+       alt="//wzrdVID banner"
+       width="900">
+</p>
 
 **ANSI motion lab // lo-fi frames // cursed little files**
 
