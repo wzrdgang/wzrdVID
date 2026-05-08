@@ -1,0 +1,31 @@
+# Python / local env
+.venv/
+__pycache__/
+pycache/
+*.py[cod]
+*$py.class
+
+# macOS / editor
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build outputs
+dist/
+build/
+*.spec
+.pyinstaller-cache/
+.pip-cache/
+
+# Render/output media
+*.mp4
+*.mov
+*.mp3
+*.wav
+*.m4a
+*.gif
+*.log
+
+# Temp folders
+tmp/
+temp/

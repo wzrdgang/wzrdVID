@@ -1,0 +1,18 @@
+<svg width="1500" height="350" viewBox="0 0 1500 350" xmlns="http://www.w3.org/2000/svg">
+  <title>//wzrdVID compact</title>
+  <rect x="42" y="56" width="1390" height="236" rx="28" fill="#ff7fb9" stroke="#090807" stroke-width="9"/>
+  <rect x="24" y="38" width="1390" height="236" rx="28" fill="#f6b8d4" stroke="#090807" stroke-width="9"/>
+  <path d="M95 82h30L84 258H54L95 82Z" fill="#090807"/>
+  <path d="M148 82h30l-41 176h-30l41-176Z" fill="#090807"/>
+  <rect x="68" y="70" width="16" height="190" fill="#baf4c8" opacity="0.75"/>
+  <text x="214" y="210" font-family="Arial Black, Arial, sans-serif" font-size="132" font-weight="900" fill="#75d992" opacity="0.45">wzrdVID</text>
+  <text x="220" y="216" font-family="Arial Black, Arial, sans-serif" font-size="132" font-weight="900" fill="#ff7fb9" opacity="0.62">wzrdVID</text>
+  <text x="210" y="205" font-family="Arial Black, Arial, sans-serif" font-size="132" font-weight="900" fill="#090807">wzrdVID</text>
+  <text x="238" y="270" font-family="Menlo, monospace" font-size="25" font-weight="900" fill="#090807">sam.mode / wzrdgang</text>
+  <text x="870" y="84" font-family="Menlo, monospace" font-size="23" font-weight="900" fill="#090807">VTR-B // TXT FEED // SYNC 29.97</text>
+  <rect x="1265" y="254" width="82" height="16" fill="#090807"/>
+  <rect x="1132" y="70" width="18" height="13" fill="#090807"/>
+  <rect x="1164" y="70" width="12" height="13" fill="#ff7fb9"/>
+  <rect x="1188" y="70" width="24" height="13" fill="#090807"/>
+  <rect x="1228" y="70" width="14" height="13" fill="#baf4c8"/>
+</svg>
