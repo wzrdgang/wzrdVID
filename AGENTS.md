@@ -1,0 +1,197 @@
+# AGENTS.md
+
+Repo-specific operating guide for coding agents working on //wzrdVID.
+
+## 1. Project Summary
+
+//wzrdVID is a local-first creative video tool. The desktop app turns videos and photos into ANSI/text-art, chunky block, glitch, VHS, and compression-art MP4s with optional audio mixing and size optimization. The public site markets and documents the app, hosts demo assets, and includes WZRD.VID Lite, a static browser-only 15/30/60 second chaos-cut prototype.
+
+Current hosting/deployment model:
+
+- Desktop app: Python/PySide6 source run, plus macOS `.app` built locally with PyInstaller via `./build_app.sh` and packaged with `scripts/package_release.sh` for GitHub Releases.
+- Website: static GitHub Pages site from `main` branch, `/docs` folder, custom domain `wzrdvid.com` from `docs/CNAME`.
+- GitHub Actions: not present in this checkout.
+
+Product boundaries:
+
+- Desktop app remains the full local renderer and primary macOS packaged app.
+- Windows/Linux source runs are best-effort only; packaged Windows/Linux builds are not currently official.
+- WZRD.VID Lite is browser-only, local-file/no-upload, and not the full desktop renderer.
+- The project is source-available for personal noncommercial use; branding is reserved.
+
+## 2. Tech Stack
+
+- Desktop GUI: Python 3, PySide6 QWidget UI.
+- Rendering: OpenCV, Pillow, numpy, ffmpeg/ffprobe helpers.
+- Packaging: PyInstaller, macOS `.app`, ad-hoc codesign in `build_app.sh`.
+- Public site: static HTML/CSS/JS under `docs/`.
+- Lite prototype: vanilla browser JavaScript, Canvas, MediaRecorder, object URLs; no backend and no uploads.
+- Package manager: `pip` with `requirements.txt`; shell launchers create/use `.venv`.
+- Hosting target: GitHub Pages from `docs/`.
+- Test/lint tools: no formal test runner or formatter is configured. Use syntax/static checks listed below.
+
+## 3. Repo Structure
+
+- `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling, render worker threads, drag/drop and file picker wiring.
+- `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, optimization handoff.
+- `ffmpeg_utils.py`: ffmpeg/ffprobe discovery, probing, encoding, muxing, source audio building, audio mixing, optimization/transcode helpers.
+- `presets.py`: ANSI/chunky style presets and descriptions.
+- `theme.py`: PySide6 stylesheet and UI asset references.
+- `run.py`, `run.sh`, `run_windows.bat`: source launchers.
+- `build_app.sh`: macOS PyInstaller build, asset regeneration, Qt pruning, Info.plist versioning, ad-hoc signing.
+- `scripts/package_release.sh`: creates `WZRD.VID-macOS.zip` from `dist/WZRD.VID.app` using `ditto`.
+- `scripts/generate_branding.py`, `scripts/generate_icon.py`, `scripts/generate_logo.py`, `scripts/generate_ui_textures.py`: generated branding/icon/texture asset scripts.
+- `assets/`: desktop app assets, generated branding/icon/UI textures, public demo screenshots and demo video.
+- `docs/`: GitHub Pages static site and project documentation. `docs/index.html` is the landing page; `docs/lite/` is the Lite app.
+- `docs/assets/`: Pages copies of selected public assets.
+- `examples/`: placeholder docs for safe example media.
+- `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`: generated/local outputs; do not edit or commit.
+- `demo/`: ignored local staging for demo media; do not treat as release-safe source.
+
+Generated/build outputs that should not be edited directly:
+
+- `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`.
+- `WZRD.VID-macOS.zip`.
+- Generated assets in `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/wzrd_vid.*`, and `assets/wzrd_vid.iconset/` should normally be changed through their scripts, not hand-edited.
+- `docs/assets/` contains deployable copies for Pages; update intentionally when public site assets change.
+
+## 4. Agent Operating Rules
+
+- Read `AGENTS.md` before every task.
+- Read `docs/agent-log.md` before every task.
+- Read `docs/agent-impact-map.md` before architecture, flow, rendering, deployment, or asset work.
+- Read `docs/agent-change-playbook.md` before code changes.
+- Append `docs/agent-log.md` after every meaningful file-changing task or important decision.
+- Start from current worktree state with `git status --short --branch`.
+- Keep changes small, scoped, and directly tied to the request.
+- Do not rewrite architecture, UI structure, render flow, or deploy model without explicit permission.
+- Do not change deploy/hosting config unless the task is deployment-related.
+- Preserve user-facing content, typography, spacing, Jazz-cup/broadcast styling, and app behavior unless explicitly changing them.
+- Do not invent product behavior. If repo evidence does not show a feature, write `Not present in repo`.
+- Prefer minimal verified changes over broad refactors.
+- Do not commit generated media, large local renders, or private/personal media.
+
+## 5. Safety Rules
+
+High-risk files/directories:
+
+- `renderer.py`: affects output timing, frame conversion, effects, audio planning, bypass logic, optimization path.
+- `ffmpeg_utils.py`: affects ffmpeg command construction, audio muxing/mixing, file size optimization, path safety.
+- `app.py`: affects desktop UI, project settings, source timeline handling, render settings, worker threads.
+- `build_app.sh`: affects packaged macOS app, asset generation, Qt pruning, signing, bundle version and bundle identifier.
+- `docs/index.html`, `docs/styles.css`, `docs/CNAME`: affect public site and custom-domain Pages behavior.
+- `docs/lite/app.js`: affects browser-only Lite rendering, file privacy, MediaRecorder behavior.
+- `assets/` and `docs/assets/`: public branding/demo assets and bundled app UI assets.
+- `requirements.txt`: affects every source run and PyInstaller bundle.
+
+Deployment/routing rules:
+
+- GitHub Pages is served from `docs/`; changing `docs/index.html`, `docs/lite/`, `docs/assets/`, `docs/styles.css`, or `docs/CNAME` changes the public site.
+- `docs/lite/index.html` routes via relative link `lite/` from the landing page.
+- No backend routes or server framework are present.
+
+Persistent data rules:
+
+- Desktop settings live outside the repo: macOS `~/Library/Application Support/WZRD.VID/settings.json`, Windows `%APPDATA%/WZRD.VID/settings.json`, Linux `$XDG_CONFIG_HOME/wzrdvid/settings.json` or `~/.config/wzrdvid/settings.json`.
+- Project presets are user-selected JSON files.
+- Lite uses in-memory browser state, object URLs, Canvas, Web Audio, and MediaRecorder. Do not add uploads or persistence without explicit permission.
+
+Asset/media rules:
+
+- General media files are ignored by `.gitignore`; only release-safe assets under `assets/demos/`, `assets/screenshots/`, `docs/assets/demos/`, and `docs/assets/screenshots/` are allowed by negation rules.
+- Do not add copyrighted sample media or personal footage.
+- Keep Pages asset paths relative.
+- If generated branding/UI assets are changed, update the generator script where practical and copy required public assets into `docs/assets/` intentionally.
+
+Secrets/API key rules:
+
+- Do not add secrets, tokens, private keys, API keys, personal paths, or private media.
+- This repo does not require API keys for normal app/site operation.
+
+## 6. Commands
+
+Install/source run:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```
+
+Convenience launchers:
+
+```bash
+./run.sh
+run_windows.bat
+```
+
+Static Pages preview:
+
+```bash
+python3 -m http.server 8770 --bind 127.0.0.1 --directory docs
+```
+
+macOS app build:
+
+```bash
+./build_app.sh
+```
+
+Release ZIP:
+
+```bash
+scripts/package_release.sh
+```
+
+Syntax/static checks:
+
+```bash
+python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
+node --check docs/lite/app.js
+git diff --check
+```
+
+Docs/link checks:
+
+```bash
+rg -n "REQUIRED TEXT OR SECTION" AGENTS.md docs/*.md README.md
+python3 -m http.server 8770 --bind 127.0.0.1 --directory docs
+curl -fsS http://127.0.0.1:8770/ >/dev/null
+curl -fsS http://127.0.0.1:8770/lite/ >/dev/null
+```
+
+Deploy/preview:
+
+- GitHub Pages deploys from pushed `main` branch `/docs` folder.
+- No local deploy command or GitHub Actions workflow is present in this checkout.
+
+## 7. Validation Matrix
+
+| Change type | Minimum checks |
+| --- | --- |
+| Docs-only | `git status --short --branch`, `git diff --check`, targeted `rg` for required sections/terms. |
+| UI/content-only desktop | Docs-only checks plus `python3 -m py_compile app.py theme.py`; offscreen screenshot if layout/wrapping may change. |
+| UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
+| Component logic desktop | `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke for changed flow where practical. |
+| Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. |
+| Routing/navigation | Local static server; `curl` changed pages; verify relative asset/link paths. |
+| Build/deploy config | `git diff --check`; inspect `build_app.sh` or Pages config diff; run `./build_app.sh` only when packaging behavior changed; verify `dist/WZRD.VID.app` if build runs. |
+| Dependency/package changes | Explain why existing deps are insufficient; `pip install -r requirements.txt`; relevant py_compile/build checks. |
+| Asset/media changes | Confirm file sizes and rights; verify `.gitignore` does not block intended release-safe assets; check consuming page/app path. |
+
+## 8. Required Task Ending Format
+
+Every future task must end with:
+
+1. Concise summary
+2. Files changed
+3. Behavior changed: yes/no
+4. Tests added
+5. Commands run
+6. Checks passed/failed
+7. Known gaps
+8. Agent log updated: yes/no
+9. Exact next recommended prompt
+
+If something is unclear, write `Unknown` and include the exact command or file inspection needed to verify it.
