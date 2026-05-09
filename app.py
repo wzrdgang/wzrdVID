@@ -71,7 +71,7 @@ from theme import MONO_FONT_STACK, PALETTE, app_stylesheet
 
 
 APP_NAME = "WZRD.VID"
-APP_SUBTITLE = "ANSI motion lab // lo-fi frames // cursed little files"
+APP_SUBTITLE = "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations"
 
 
 def _user_data_dir() -> Path:

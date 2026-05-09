@@ -42,7 +42,7 @@ python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run
 
 ```text
 //wzrdVID
-ANSI motion lab // lo-fi frames // cursed little files
+ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations
 
 Summarize the release highlights for the current version.
 ```
@@ -54,7 +54,7 @@ Summarize the release highlights for the current version.
 Suggested description:
 
 ```text
-//wzrdVID — ANSI motion lab for lo-fi frames and cursed little files.
+//wzrdVID — ANSI broadcast lab for lo-fi fragment synthesis and public-access hallucinations.
 ```
 
 Suggested topics:

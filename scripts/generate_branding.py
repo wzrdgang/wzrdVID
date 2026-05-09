@@ -337,7 +337,7 @@ def make_github_banner() -> None:
     rough_rect(draw, logo_panel, MINT, outline=BLACK, width=7, radius=24, wear=True)
     img.alpha_composite(logo, (100, 236))
 
-    draw.text((92, 442), "ANSI motion lab // lo-fi frames // cursed little files", font=font(38, condensed=True), fill=BLACK)
+    draw.text((92, 442), "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations", font=font(38, condensed=True), fill=BLACK)
     draw.rounded_rectangle((width - 438, 220, width - 72, 348), radius=18, fill=BLACK, outline=BLACK, width=5)
     draw.text((width - 402, 265), "worky.mode / wzrdgang", font=font(25, mono=True), fill=PAPER)
 

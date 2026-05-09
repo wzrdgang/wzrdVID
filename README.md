@@ -6,7 +6,7 @@
        width="900">
 </p>
 
-**ANSI motion lab // lo-fi frames // cursed little files**
+**ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations**
 
 //wzrdVID is a local desktop textmode/glitch/compression-art video engine. It turns videos and photos into strange compressed little objects: ANSI motion, chunky blocks, terminal drift, VHS damage, ugly cuts, audio-reactive hits, and phone-sendable MP4s.
 
