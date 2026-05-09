@@ -42,6 +42,14 @@ WZRD.VID-macOS.zip
 !assets/screenshots/*.jpg
 !assets/screenshots/*.jpeg
 !assets/screenshots/*.webp
+!docs/assets/demos/
+!docs/assets/demos/*.mp4
+!docs/assets/demos/*.gif
+!docs/assets/screenshots/
+!docs/assets/screenshots/*.png
+!docs/assets/screenshots/*.jpg
+!docs/assets/screenshots/*.jpeg
+!docs/assets/screenshots/*.webp
 
 # Temp folders
 tmp/
