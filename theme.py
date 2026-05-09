@@ -415,6 +415,12 @@ def app_stylesheet() -> str:
         border-color: {PALETTE["pink_hot"]};
     }}
 
+    QLineEdit#audioPath[dropActive="true"] {{
+        background-color: {PALETTE["mint"]};
+        background-image: url("{control_patina}");
+        border-color: {PALETTE["mint_deep"]};
+    }}
+
     QTextEdit {{
         font-family: {MONO_FONT_STACK};
         font-size: 12px;
@@ -436,6 +442,12 @@ def app_stylesheet() -> str:
         font-weight: 800;
         selection-background-color: {PALETTE["mint"]};
         selection-color: {PALETTE["black"]};
+    }}
+
+    QTableWidget#timelineTable[dropActive="true"] {{
+        background-color: {PALETTE["mint"]};
+        background-image: url("{table_static}");
+        border-color: {PALETTE["mint_deep"]};
     }}
 
     QTableWidget::item {{

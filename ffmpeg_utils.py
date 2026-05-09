@@ -428,15 +428,38 @@ def mux_audio(
     output_duration: float,
     audio_bitrate: str = "128k",
     fade_out_duration: float = 0.0,
+    audio_offset: float = 0.0,
+    audio_output_end: float | None = None,
     log: LogCallback = None,
 ) -> None:
     """Mux trimmed audio with an already encoded video.
 
     The output duration follows the rendered video duration. If the selected
     audio is longer, it is trimmed. If it is shorter, the video remains silent
-    after the audio stream ends. Optional fade-out is applied in output time.
+    after the audio stream ends. `audio_offset` delays external audio inside
+    the rendered timeline while preserving total output duration.
     """
     ffmpeg_path = require_binary("ffmpeg")
+    output_duration = max(0.001, float(output_duration))
+    audio_start = max(0.0, float(audio_start or 0.0))
+    offset = max(0.0, min(float(audio_offset or 0.0), output_duration))
+    output_end = output_duration if audio_output_end is None else min(output_duration, max(offset, float(audio_output_end)))
+    output_span = max(0.0, output_end - offset)
+    source_span = output_span if audio_end is None else min(output_span, max(0.0, float(audio_end) - audio_start))
+    source_span = max(0.001, source_span)
+
+    delay_ms = max(0, int(round(offset * 1000)))
+    duration_text = f"{output_duration:.6f}"
+    audio_chain = f"[1:a:0]atrim=0:{source_span:.6f},asetpts=PTS-STARTPTS"
+    if delay_ms:
+        audio_chain += f",adelay={delay_ms}:all=1"
+    audio_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS"
+    fade_out_duration = max(0.0, min(float(fade_out_duration or 0.0), output_duration))
+    if fade_out_duration > 0.05:
+        fade_start = max(0.0, output_duration - fade_out_duration)
+        audio_chain += f",afade=t=out:st={fade_start:.6f}:d={fade_out_duration:.6f}"
+    audio_chain += "[aud]"
+
     args = [
         ffmpeg_path,
         "-y",
@@ -447,40 +470,29 @@ def mux_audio(
         str(video_path),
         "-ss",
         f"{audio_start:.6f}",
+        "-t",
+        f"{source_span:.6f}",
+        "-i",
+        str(audio_path),
+        "-filter_complex",
+        audio_chain,
+        "-map",
+        "0:v:0",
+        "-map",
+        "[aud]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        audio_bitrate,
+        "-t",
+        duration_text,
+        "-movflags",
+        "+faststart",
+        str(output_path),
     ]
-    if audio_end is not None:
-        args.extend(["-to", f"{audio_end:.6f}"])
-    args.extend(
-        [
-            "-i",
-            str(audio_path),
-            "-map",
-            "0:v:0",
-            "-map",
-            "1:a:0",
-            "-c:v",
-            "copy",
-        ]
-    )
-    fade_out_duration = max(0.0, min(float(fade_out_duration or 0.0), max(0.0, output_duration)))
-    if fade_out_duration > 0.05:
-        fade_start = max(0.0, output_duration - fade_out_duration)
-        args.extend(["-af", f"afade=t=out:st={fade_start:.6f}:d={fade_out_duration:.6f}"])
-    args.extend(
-        [
-            "-c:a",
-            "aac",
-            "-b:a",
-            audio_bitrate,
-            "-t",
-            f"{output_duration:.6f}",
-            "-movflags",
-            "+faststart",
-            str(output_path),
-        ]
-    )
     run_command(args, log)
-
 
 def build_timeline_audio(
     segments: list[object],
@@ -570,23 +582,35 @@ def mix_external_and_source_audio(
     audio_bitrate: str = "128k",
     external_volume: float = 1.0,
     source_volume: float = 1.0,
+    external_offset: float = 0.0,
+    external_output_end: float | None = None,
     log: LogCallback = None,
 ) -> Path:
-    """Trim external audio, mix it with timeline source audio, and encode AAC."""
+    """Trim external audio, place it in output time, mix with source audio, and encode AAC."""
     if output_duration <= 0:
         raise ValueError("Output duration must be positive when mixing audio.")
     ffmpeg_path = require_binary("ffmpeg")
     output = Path(output_path)
     external_start = max(0.0, float(external_start or 0.0))
-    external_duration = float(output_duration)
+    output_duration = float(output_duration)
+    offset = max(0.0, min(float(external_offset or 0.0), output_duration))
+    output_end = output_duration if external_output_end is None else min(output_duration, max(offset, float(external_output_end)))
+    output_span = max(0.0, output_end - offset)
+    external_duration = output_span
     if external_end is not None:
-        external_duration = max(0.01, min(float(output_duration), float(external_end) - external_start))
+        external_duration = min(output_span, max(0.0, float(external_end) - external_start))
+    external_duration = max(0.001, external_duration)
 
     ext_vol = max(0.0, float(external_volume or 0.0))
     src_vol = max(0.0, float(source_volume or 0.0))
-    duration_text = f"{float(output_duration):.6f}"
+    delay_ms = max(0, int(round(offset * 1000)))
+    duration_text = f"{output_duration:.6f}"
+    external_chain = f"[0:a:0]volume={ext_vol:.4f},atrim=0:{external_duration:.6f},asetpts=PTS-STARTPTS"
+    if delay_ms:
+        external_chain += f",adelay={delay_ms}:all=1"
+    external_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS[a0]"
     filter_complex = (
-        f"[0:a:0]volume={ext_vol:.4f},atrim=0:{duration_text},asetpts=PTS-STARTPTS[a0];"
+        f"{external_chain};"
         f"[1:a:0]volume={src_vol:.4f},atrim=0:{duration_text},asetpts=PTS-STARTPTS[a1];"
         f"[a0][a1]amix=inputs=2:duration=longest:dropout_transition=0,"
         f"atrim=0:{duration_text},asetpts=PTS-STARTPTS[mix]"
@@ -619,7 +643,6 @@ def mix_external_and_source_audio(
     ]
     run_command(args, log)
     return output
-
 
 def _extract_audio_piece(
     source_path: Path,

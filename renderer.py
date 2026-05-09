@@ -13,7 +13,7 @@ from typing import Any, Callable, Iterable
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 import ffmpeg_utils
 from presets import get_preset
@@ -91,6 +91,8 @@ class RenderSettings:
     output_size: tuple[int, int] = OUTPUT_SIZE
     video_crf: int = 22
     audio_bitrate: str = "128k"
+    audio_timeline_start: float = 0.0
+    audio_timeline_end: float | None = None
     audio_mode: str = AUDIO_EXTERNAL
     match_timeline_to_audio: bool = False
     match_timeline_mode: str = MATCH_SPEED
@@ -217,6 +219,7 @@ def render_project(
     audio_start = settings.audio_start
     audio_end = settings.audio_end
     selected_audio_duration: float | None = None
+    selected_audio_clip_duration: float | None = None
     if external_audio:
         audio_duration = ffmpeg_utils.get_audio_duration(settings.audio_path)
         audio_start, audio_end = ffmpeg_utils.validate_time_range(
@@ -225,7 +228,12 @@ def render_project(
             audio_duration,
             "Audio",
         )
-        selected_audio_duration = audio_end - audio_start
+        selected_audio_clip_duration = audio_end - audio_start
+        selected_audio_duration = (
+            _external_audio_match_duration(settings, selected_audio_clip_duration)
+            if settings.match_timeline_to_audio
+            else selected_audio_clip_duration
+        )
 
     playback = _playback_plan(
         settings,
@@ -244,13 +252,17 @@ def render_project(
         _emit(log, "Source audio mixing is disabled when matching timeline length to music. Using external audio only.")
         source_audio = False
     if audio_mode == AUDIO_MIX and external_audio and source_audio:
-        _emit(log, f"Audio: mixing external track ({ffmpeg_utils.format_duration(selected_audio_duration)}) with selected source audio.")
+        _emit(log, f"Audio: mixing external track ({ffmpeg_utils.format_duration(selected_audio_clip_duration)}) with selected source audio.")
     elif external_audio:
-        _emit(log, f"Audio: external track, {ffmpeg_utils.format_duration(selected_audio_duration)} selected.")
+        _emit(log, f"Audio: external track, {ffmpeg_utils.format_duration(selected_audio_clip_duration)} selected.")
     elif source_audio:
         _emit(log, "Audio: keeping selected source timeline audio when available.")
     else:
         _emit(log, "Audio: silent output.")
+    if external_audio and settings.audio_timeline_start > 0:
+        _emit(log, f"External audio starts in video at {ffmpeg_utils.format_duration(settings.audio_timeline_start)}.")
+    if external_audio and settings.audio_timeline_end is not None:
+        _emit(log, f"External audio stops in video at {ffmpeg_utils.format_duration(settings.audio_timeline_end)}.")
     if settings.match_timeline_to_audio and external_audio:
         if playback.loop_timeline:
             _emit(log, f"Match to music: looping visual timeline to {ffmpeg_utils.format_duration(render_duration)}.")
@@ -370,6 +382,8 @@ def render_project(
                 audio_end,
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
+                external_offset=settings.audio_timeline_start,
+                external_output_end=settings.audio_timeline_end,
                 log=log,
             )
             ffmpeg_utils.mux_audio(
@@ -395,6 +409,8 @@ def render_project(
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
                 fade_out_duration=_audio_fade_duration(settings, render_duration),
+                audio_offset=settings.audio_timeline_start,
+                audio_output_end=settings.audio_timeline_end,
                 log=log,
             )
         elif source_audio_path is not None:
@@ -465,6 +481,10 @@ def _validate_settings(settings: RenderSettings) -> None:
             raise ValueError("Output path must be different from the selected audio file.")
     if settings.match_timeline_to_audio and not _uses_external_audio(settings):
         raise ValueError("Match video length to music requires External only or External + selected source audio mode with a selected audio track.")
+    if settings.audio_timeline_start < 0:
+        raise ValueError("Music start in video cannot be negative.")
+    if settings.audio_timeline_end is not None and settings.audio_timeline_end <= settings.audio_timeline_start:
+        raise ValueError("Music end in video must be after music start in video.")
     if settings.fps < 1 or settings.fps > 60:
         raise ValueError("FPS must be between 1 and 60.")
     if settings.width_chars < 24 or settings.width_chars > 260:
@@ -522,6 +542,21 @@ def _uses_external_audio(settings: RenderSettings) -> bool:
 
 def _uses_source_audio(settings: RenderSettings) -> bool:
     return _audio_mode(settings) in {AUDIO_SOURCE, AUDIO_MIX}
+
+
+def _external_audio_active_duration(settings: RenderSettings, selected_clip_duration: float) -> float:
+    start = max(0.0, float(settings.audio_timeline_start or 0.0))
+    if settings.audio_timeline_end is None:
+        return max(0.0, float(selected_clip_duration))
+    end = float(settings.audio_timeline_end)
+    if end <= start:
+        raise ValueError("Music end in video must be after music start in video.")
+    return max(0.0, min(float(selected_clip_duration), end - start))
+
+
+def _external_audio_match_duration(settings: RenderSettings, selected_clip_duration: float) -> float:
+    start = max(0.0, float(settings.audio_timeline_start or 0.0))
+    return start + _external_audio_active_duration(settings, selected_clip_duration)
 
 
 def _playback_plan(
@@ -641,7 +676,7 @@ def _build_timeline(settings: RenderSettings) -> tuple[list[TimelineSegment], fl
 def _check_photo_readable(path: str) -> None:
     try:
         with Image.open(path) as image:
-            image.verify()
+            ImageOps.exif_transpose(image).load()
     except Exception as exc:  # noqa: BLE001 - Pillow support varies by local install.
         if Path(path).suffix.lower() in {".heic", ".heif"}:
             raise RenderError("HEIC/HEIF image support is not available in this install. Convert the photo to PNG or JPEG and add it again.") from exc
@@ -703,7 +738,7 @@ class _TimelineFrameSource:
             return cached
         try:
             with Image.open(path) as image:
-                frame = np.asarray(image.convert("RGB"))
+                frame = np.asarray(ImageOps.exif_transpose(image).convert("RGB"))
         except Exception as exc:  # noqa: BLE001
             if Path(path).suffix.lower() in {".heic", ".heif"}:
                 raise RenderError("HEIC/HEIF image support is not available in this install. Convert the photo to PNG or JPEG and add it again.") from exc
@@ -969,7 +1004,14 @@ def _audio_hit_levels(settings: RenderSettings, render_duration: float, frame_co
     if not _effect_on(settings.effects, "audio_reactive") or not _uses_external_audio(settings):
         return levels
     try:
-        pcm = _decode_audio_pcm(settings.audio_path, settings.audio_start, settings.audio_end, render_duration)
+        pcm = _decode_audio_pcm(
+            settings.audio_path,
+            settings.audio_start,
+            settings.audio_end,
+            render_duration,
+            settings.audio_timeline_start,
+            settings.audio_timeline_end,
+        )
     except Exception as exc:  # noqa: BLE001 - audio reactive should fail soft.
         _emit(log, f"Audio Reactive Hits unavailable: {exc}")
         return levels
@@ -996,11 +1038,25 @@ def _audio_hit_levels(settings: RenderSettings, render_duration: float, frame_co
     return levels
 
 
-def _decode_audio_pcm(audio_path: str, audio_start: float, audio_end: float | None, render_duration: float) -> np.ndarray:
+def _decode_audio_pcm(
+    audio_path: str,
+    audio_start: float,
+    audio_end: float | None,
+    render_duration: float,
+    audio_offset: float = 0.0,
+    audio_output_end: float | None = None,
+) -> np.ndarray:
     ffmpeg_path = ffmpeg_utils.require_binary("ffmpeg")
-    duration = render_duration if audio_end is None else min(render_duration, max(0.0, audio_end - audio_start))
-    if duration <= 0:
+    sample_rate = 11025
+    output_samples = max(0, int(render_duration * sample_rate))
+    if output_samples <= 0:
         return np.array([], dtype=np.int16)
+    offset = max(0.0, min(float(audio_offset or 0.0), float(render_duration)))
+    output_end = float(render_duration) if audio_output_end is None else min(float(render_duration), max(offset, float(audio_output_end)))
+    output_span = max(0.0, output_end - offset)
+    source_span = output_span if audio_end is None else min(output_span, max(0.0, float(audio_end) - float(audio_start)))
+    if source_span <= 0:
+        return np.zeros(output_samples, dtype=np.int16)
     args = [
         ffmpeg_path,
         "-hide_banner",
@@ -1009,7 +1065,7 @@ def _decode_audio_pcm(audio_path: str, audio_start: float, audio_end: float | No
         "-ss",
         f"{audio_start:.6f}",
         "-t",
-        f"{duration:.6f}",
+        f"{source_span:.6f}",
         "-i",
         audio_path,
         "-map",
@@ -1017,7 +1073,7 @@ def _decode_audio_pcm(audio_path: str, audio_start: float, audio_end: float | No
         "-ac",
         "1",
         "-ar",
-        "11025",
+        str(sample_rate),
         "-f",
         "s16le",
         "pipe:1",
@@ -1025,7 +1081,13 @@ def _decode_audio_pcm(audio_path: str, audio_start: float, audio_end: float | No
     completed = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if completed.returncode != 0:
         raise ffmpeg_utils.FFmpegError((completed.stderr or b"audio decode failed").decode(errors="replace"))
-    return np.frombuffer(completed.stdout, dtype=np.int16)
+    decoded = np.frombuffer(completed.stdout, dtype=np.int16)
+    output = np.zeros(output_samples, dtype=np.int16)
+    start_sample = min(output_samples, int(offset * sample_rate))
+    end_sample = min(output_samples, start_sample + len(decoded))
+    if end_sample > start_sample:
+        output[start_sample:end_sample] = decoded[: end_sample - start_sample]
+    return output
 
 
 def _apply_global_artifact_effects(

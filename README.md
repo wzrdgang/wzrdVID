@@ -182,12 +182,12 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 
 ## Features
 
-- Multi-source timeline for videos and photos.
-- Photo holds with the same ANSI/chunky/effects pipeline as video.
-- Music/audio from audio files or video files with audio tracks.
+- Multi-source timeline for videos and photos, with drag-and-drop into the Sources / Timeline table.
+- Photo holds with the same ANSI/chunky/effects pipeline as video, including automatic EXIF orientation correction for phone photos.
+- Music/audio from audio files or video files with audio tracks, selectable by picker or drag-and-drop.
 - Per-source **Include Audio** controls for timeline video rows.
 - Audio modes: Silent, External only, Source audio only, External + selected source audio.
-- Trim controls for timeline and music/audio.
+- Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
 - Match visual timeline length to selected music by retiming, trimming, or looping.
 - ANSI/text-art rendering with color sampled from source frames.
 - Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, and mosaic collapse.
@@ -235,9 +235,9 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 
 1. Add videos and/or photos in **Sources / Timeline**.
 2. Set video trim points or photo hold durations.
-3. Select optional external music/audio. Video containers such as `.mp4` or `.mov` can be used as audio sources when they contain an audio track.
+3. Select or drag in optional external music/audio. Video containers such as `.mp4` or `.mov` can be used as audio sources when they contain an audio track.
 4. Choose Audio Mix mode and per-video **Include Audio** rows.
-5. Set timeline/music trim, match-to-music behavior, and Canvas / Framing.
+5. Set timeline/music trim, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
 7. Choose ANSI Coverage if you want some sections to stay normal video.
 8. Pick Output Size and optional Optimize Output target.
@@ -255,6 +255,8 @@ Audio Mix modes:
 - **External + selected source audio**: mixes external audio with checked source-video audio and muxes AAC into the final MP4.
 
 If no external music is selected and timeline source audio is available, WZRD.VID defaults to source audio. If external audio is selected, it defaults to external only.
+
+External audio can also be placed later in the rendered video with **Music Start In Video**. For example, `0:08` keeps the first eight seconds silent in External-only mode, or lets selected source audio play before the external track enters in mixed mode. **Music End In Video** can stop external audio at a specific output timestamp, or stay `auto`.
 
 When **Match video length to music** is enabled, external audio is the timing authority. Source audio mixing is disabled for retimed match-to-music renders in this build; the app logs a warning and uses external audio only.
 

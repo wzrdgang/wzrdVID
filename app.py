@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from PIL import Image
+from PIL import Image, ImageOps
 from PySide6.QtCore import QThread, QTimer, QUrl, Signal, Qt
 from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -89,7 +89,9 @@ def _default_app_font() -> QFont:
     for family in ("Avenir Next", "Helvetica Neue", "Segoe UI", "Arial"):
         if family in families:
             return QFont(family, 13)
-    return QFont("sans-serif", 13)
+    fallback = QFont()
+    fallback.setPointSize(13)
+    return fallback
 
 
 SETTINGS_PATH = _user_data_dir() / "settings.json"
@@ -225,7 +227,7 @@ ENDING_MODES = [
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".aiff", ".aif"}
 AUDIO_CONTAINER_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
-PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
 BATCH_VARIANTS = [
     "29 MB Text Limit",
@@ -272,6 +274,107 @@ def media_kind(path: str | Path) -> str | None:
 
 def has_audio_stream(path: str | Path) -> bool:
     return ffmpeg_utils.has_audio_stream(path)
+
+
+def _drop_file_paths(event) -> list[str]:  # noqa: ANN001 - Qt event type varies by handler.
+    mime = event.mimeData()
+    if not mime.hasUrls():
+        return []
+    paths: list[str] = []
+    for url in mime.urls():
+        if url.isLocalFile():
+            local_path = url.toLocalFile()
+            if local_path:
+                paths.append(local_path)
+    return paths
+
+
+def _refresh_drop_style(widget: QWidget, active: bool) -> None:
+    widget.setProperty("dropActive", active)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()
+
+
+class MediaDropTableWidget(QTableWidget):
+    files_dropped = Signal(list)
+
+    def __init__(self, rows: int, columns: int, accepted_kinds: set[str]) -> None:
+        super().__init__(rows, columns)
+        self.accepted_kinds = accepted_kinds
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(False)
+
+    def _accepts_paths(self, paths: list[str]) -> bool:
+        return any(media_kind(path) in self.accepted_kinds for path in paths)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        if self._accepts_paths(paths):
+            _refresh_drop_style(self, True)
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        if self._accepts_paths(paths):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        _refresh_drop_style(self, False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        _refresh_drop_style(self, False)
+        if self._accepts_paths(paths):
+            self.files_dropped.emit(paths)
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+
+class MediaDropLineEdit(QLineEdit):
+    files_dropped = Signal(list)
+
+    def __init__(self, accepted_kinds: set[str]) -> None:
+        super().__init__()
+        self.accepted_kinds = accepted_kinds
+        self.setAcceptDrops(True)
+
+    def _accepts_paths(self, paths: list[str]) -> bool:
+        return any(media_kind(path) in self.accepted_kinds for path in paths)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        if self._accepts_paths(paths):
+            _refresh_drop_style(self, True)
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        if self._accepts_paths(paths):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        _refresh_drop_style(self, False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        paths = _drop_file_paths(event)
+        _refresh_drop_style(self, False)
+        if self._accepts_paths(paths):
+            self.files_dropped.emit(paths)
+            event.acceptProposedAction()
+            return
+        event.ignore()
 
 
 class RenderThread(QThread):
@@ -396,7 +499,7 @@ class MainWindow(QMainWindow):
 
         self.video_path = QLineEdit()
         self.video_duration = QLabel("Timeline: no sources")
-        self.timeline_table = QTableWidget(0, 6)
+        self.timeline_table = MediaDropTableWidget(0, 6, {"video", "photo"})
         self.timeline_table.setHorizontalHeaderLabels(["File", "Type", "Duration", "Trim start", "End / Hold", "Include Audio"])
         self.timeline_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.timeline_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -433,8 +536,9 @@ class MainWindow(QMainWindow):
             (self.preview_source_button, 152),
         ):
             button.setMinimumWidth(minimum_width)
-        self.audio_path = QLineEdit()
-        self.audio_path.setToolTip("You can choose audio files or video files with audio tracks.")
+        self.audio_path = MediaDropLineEdit({"audio", "video"})
+        self.audio_path.setObjectName("audioPath")
+        self.audio_path.setToolTip("Drag audio here, or choose audio files/video files with audio tracks.")
         self.audio_duration = QLabel("Duration: -")
         self.audio_mode = QComboBox()
         self.audio_mode.addItems(AUDIO_MODES)
@@ -450,7 +554,11 @@ class MainWindow(QMainWindow):
         self.video_end = QLineEdit("auto")
         self.audio_start = QLineEdit("0:00")
         self.audio_end = QLineEdit("auto")
-        for field in (self.video_start, self.video_end, self.audio_start, self.audio_end):
+        self.audio_timeline_start = QLineEdit("0:00")
+        self.audio_timeline_end = QLineEdit("auto")
+        self.audio_timeline_start.setToolTip("When the selected external music/audio begins inside the rendered video timeline.")
+        self.audio_timeline_end.setToolTip("Optional point in the rendered video timeline where external music/audio stops.")
+        for field in (self.video_start, self.video_end, self.audio_start, self.audio_end, self.audio_timeline_start, self.audio_timeline_end):
             field.setPlaceholderText("0:00, 1:40, 100, 12.5, or auto")
 
         self.preset = QComboBox()
@@ -891,7 +999,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(source_row)
 
         timeline_note = QLabel(
-            "Timeline plays top-to-bottom. Video rows use trim start/end and Include Audio; photo rows use End / Hold as seconds on screen."
+            "Drag videos/photos here, or use the buttons. Timeline plays top-to-bottom. Video rows use trim start/end and Include Audio; photo rows use End / Hold as seconds on screen."
         )
         timeline_note.setObjectName("muted")
         timeline_note.setWordWrap(True)
@@ -901,7 +1009,7 @@ class MainWindow(QMainWindow):
         music_row = QGridLayout()
         music_button = QPushButton("SELECT MUSIC / AUDIO")
         music_button.setObjectName("secondaryButton")
-        music_button.setToolTip("You can choose audio files or video files with audio tracks.")
+        music_button.setToolTip("You can choose audio files or video files with audio tracks. You can also drag audio here.")
         clear_music_button = QPushButton("CLEAR")
         clear_music_button.setObjectName("dangerButton")
         music_button.clicked.connect(self.select_audio)
@@ -927,15 +1035,20 @@ class MainWindow(QMainWindow):
         grid.addWidget(QLabel("Timeline end"), 0, 2)
         grid.addWidget(self.video_end, 0, 3)
 
-        grid.addWidget(QLabel("Music start"), 1, 0)
+        grid.addWidget(QLabel("Music trim start"), 1, 0)
         grid.addWidget(self.audio_start, 1, 1)
-        grid.addWidget(QLabel("Music end"), 1, 2)
+        grid.addWidget(QLabel("Music trim end"), 1, 2)
         grid.addWidget(self.audio_end, 1, 3)
 
-        grid.addWidget(QLabel("Audio Mix"), 2, 0)
-        grid.addWidget(self.audio_mode, 2, 1)
-        grid.addWidget(self.match_timeline_to_audio, 2, 2)
-        grid.addWidget(self.match_timeline_mode, 2, 3)
+        grid.addWidget(QLabel("Music start in video"), 2, 0)
+        grid.addWidget(self.audio_timeline_start, 2, 1)
+        grid.addWidget(QLabel("Music end in video"), 2, 2)
+        grid.addWidget(self.audio_timeline_end, 2, 3)
+
+        grid.addWidget(QLabel("Audio Mix"), 3, 0)
+        grid.addWidget(self.audio_mode, 3, 1)
+        grid.addWidget(self.match_timeline_to_audio, 3, 2)
+        grid.addWidget(self.match_timeline_mode, 3, 3)
         return group
 
     def _build_style_group(self) -> QGroupBox:
@@ -1238,6 +1351,8 @@ class MainWindow(QMainWindow):
         self.preview_source_button.clicked.connect(self.preview_selected_source)
         self.timeline_table.itemChanged.connect(self._timeline_table_item_changed)
         self.timeline_table.itemSelectionChanged.connect(self.preview_selected_source)
+        self.timeline_table.files_dropped.connect(self.add_dropped_timeline_files)
+        self.audio_path.files_dropped.connect(self.set_dropped_audio_file)
         self.start_button.clicked.connect(self.start_render)
         self.preview_button.clicked.connect(self.start_preview_render)
         self.batch_button.clicked.connect(self.start_batch_render)
@@ -1301,8 +1416,14 @@ class MainWindow(QMainWindow):
         self.audio_path.textChanged.connect(self._update_output_size_estimate)
         self.audio_start.textChanged.connect(self._update_output_size_estimate)
         self.audio_end.textChanged.connect(self._update_output_size_estimate)
+        self.audio_timeline_start.textChanged.connect(self._update_output_size_estimate)
+        self.audio_timeline_end.textChanged.connect(self._update_output_size_estimate)
         self.audio_start.textChanged.connect(self._update_coverage_summary)
         self.audio_end.textChanged.connect(self._update_coverage_summary)
+        self.audio_timeline_start.textChanged.connect(self._update_coverage_summary)
+        self.audio_timeline_end.textChanged.connect(self._update_coverage_summary)
+        self.audio_timeline_start.textChanged.connect(lambda _text: self._save_settings())
+        self.audio_timeline_end.textChanged.connect(lambda _text: self._save_settings())
         self.video_start.textChanged.connect(self._update_optimize_estimate)
         self.video_end.textChanged.connect(self._update_optimize_estimate)
         self.audio_path.textChanged.connect(self._update_optimize_estimate)
@@ -1334,38 +1455,57 @@ class MainWindow(QMainWindow):
             str(Path.home()),
             "Video files (*.mp4 *.mov *.m4v *.avi *.mkv *.webm)",
         )
-        for path in paths:
-            self._append_timeline_item(path, "video")
-        if paths:
-            self._refresh_timeline_table()
-            self._after_timeline_changed()
+        self._add_timeline_paths(paths, forced_kind="video")
 
     def add_photos(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Add photo source(s)",
             str(Path.home()),
-            "Photo files (*.jpg *.jpeg *.png *.webp *.bmp *.tif *.tiff *.heic *.heif)",
+            "Photo files (*.jpg *.jpeg *.png *.webp *.gif *.bmp *.tif *.tiff *.heic *.heif)",
         )
-        for path in paths:
-            self._append_timeline_item(path, "photo")
-        if paths:
-            self._refresh_timeline_table()
-            self._after_timeline_changed()
+        self._add_timeline_paths(paths, forced_kind="photo")
 
-    def _append_timeline_item(self, path: str, kind: str) -> None:
+    def add_dropped_timeline_files(self, paths: list[str]) -> None:
+        self._add_timeline_paths(paths)
+
+    def _add_timeline_paths(self, paths: list[str], forced_kind: str | None = None) -> None:
+        if not paths:
+            return
+        start_index = len(self.timeline_items)
+        added = 0
+        skipped: list[str] = []
+        for path in paths:
+            kind = forced_kind or media_kind(path)
+            if kind not in {"video", "photo"}:
+                skipped.append(Path(path).name or path)
+                continue
+            if self._append_timeline_item(path, kind):
+                added += 1
+        if added:
+            self._refresh_timeline_table()
+            self.timeline_table.selectRow(start_index)
+            self._after_timeline_changed()
+        if skipped:
+            QMessageBox.warning(
+                self,
+                APP_NAME,
+                "Some dropped files are not supported timeline media:\n" + "\n".join(skipped[:8]),
+            )
+
+    def _append_timeline_item(self, path: str, kind: str) -> bool:
         source = Path(path)
         if not source.exists():
             QMessageBox.warning(self, APP_NAME, f"Source file does not exist:\n{path}")
-            return
+            return False
         requested_kind = kind if kind in {"video", "photo"} else self._guess_source_kind(path, kind)
         detected_kind = media_kind(path)
         if requested_kind == "video" and detected_kind != "video":
             QMessageBox.warning(self, APP_NAME, f"Add Video(s) only accepts video files:\n{path}")
-            return
+            return False
         if requested_kind == "photo" and detected_kind != "photo":
             QMessageBox.warning(self, APP_NAME, f"Add Photo(s) only accepts image files:\n{path}")
-            return
+            return False
         kind = requested_kind
         duration = 0.0
         has_audio = False
@@ -1373,7 +1513,7 @@ class MainWindow(QMainWindow):
         if kind == "video":
             if not is_video_file(path):
                 QMessageBox.warning(self, APP_NAME, f"Add Video(s) only accepts video files:\n{path}")
-                return
+                return False
             try:
                 duration = ffmpeg_utils.get_duration(path)
                 has_audio = has_audio_stream(path)
@@ -1385,17 +1525,17 @@ class MainWindow(QMainWindow):
             except Exception as exc:  # noqa: BLE001
                 self.append_log(f"Could not probe video source {source.name}: {exc}")
                 QMessageBox.warning(self, APP_NAME, f"Could not probe video duration:\n{exc}")
-                return
+                return False
         else:
             if not is_image_file(path):
                 QMessageBox.warning(self, APP_NAME, f"Add Photo(s) only accepts image files:\n{path}")
-                return
+                return False
             try:
                 self._validate_photo_source(path)
             except ValueError as exc:
                 self.append_log(f"Could not add photo {source.name}: {exc}")
                 QMessageBox.warning(self, APP_NAME, str(exc))
-                return
+                return False
             duration = 3.0
             self.append_log(f"Added photo: {source.name} (3.0s hold, silent)")
         self.timeline_items.append(
@@ -1412,6 +1552,7 @@ class MainWindow(QMainWindow):
         )
         if include_audio and not self.audio_path.text().strip() and self.audio_mode.currentText() == AUDIO_SILENT:
             self._set_combo_text(self.audio_mode, AUDIO_SOURCE)
+        return True
 
     def _guess_source_kind(self, path: str, fallback: str = "video") -> str:
         kind = media_kind(path)
@@ -1423,7 +1564,7 @@ class MainWindow(QMainWindow):
         suffix = Path(path).suffix.lower()
         try:
             with Image.open(path) as image:
-                image.verify()
+                ImageOps.exif_transpose(image).load()
         except Exception as exc:  # noqa: BLE001 - Pillow codec support varies locally.
             if suffix in HEIC_EXTENSIONS:
                 raise ValueError(
@@ -1657,7 +1798,7 @@ class MainWindow(QMainWindow):
     def _load_photo_preview(self, path: str) -> None:
         try:
             with Image.open(path) as source_image:
-                frame_rgb = source_image.convert("RGB")
+                frame_rgb = ImageOps.exif_transpose(source_image).convert("RGB")
                 framed = fit_frame_to_output(
                     frame_rgb,
                     (640, 360),
@@ -1813,29 +1954,42 @@ class MainWindow(QMainWindow):
             str(Path.home()),
             "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.aiff *.aif *.mp4 *.mov *.mkv *.webm)",
         )
-        if not path:
-            return
+        if path:
+            self._set_external_audio_path(path, from_drop=False)
+
+    def set_dropped_audio_file(self, paths: list[str]) -> None:
+        for path in paths:
+            if media_kind(path) in {"audio", "video"}:
+                self._set_external_audio_path(path, from_drop=True)
+                return
+        QMessageBox.warning(self, APP_NAME, "Drop an audio file, or a video file with an audio track, onto the audio field.")
+
+    def _set_external_audio_path(self, path: str, *, from_drop: bool) -> bool:
         if not is_audio_container_file(path):
             QMessageBox.warning(self, APP_NAME, f"Unsupported music/audio file type:\n{path}")
-            return
+            return False
         try:
             if not has_audio_stream(path):
                 raise ValueError("Selected music file has no audio track.")
         except ValueError as exc:
             QMessageBox.warning(self, APP_NAME, str(exc))
             self.append_log(str(exc))
-            return
+            return False
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, APP_NAME, f"Could not inspect selected music file:\n{exc}")
             self.append_log(f"Could not inspect selected music file: {exc}")
-            return
+            return False
         self.audio_path.setText(path)
         self._set_combo_text(self.audio_mode, AUDIO_EXTERNAL)
         self._probe_duration(path, self.audio_duration, "audio")
+        verb = "Dropped" if from_drop else "Selected"
         if is_video_file(path):
-            self.append_log("Selected video container as music source; using audio track only.")
+            self.append_log(f"{verb} video container as music source; using audio track only.")
+        else:
+            self.append_log(f"{verb} audio source: {Path(path).name}")
         self._update_audio_controls()
         self._save_settings()
+        return True
 
 
     def clear_audio(self) -> None:
@@ -1844,6 +1998,8 @@ class MainWindow(QMainWindow):
         self.audio_duration.setText("Duration: -")
         self.audio_start.setText("0:00")
         self.audio_end.setText("auto")
+        self.audio_timeline_start.setText("0:00")
+        self.audio_timeline_end.setText("auto")
         self._set_combo_text(self.audio_mode, AUDIO_SOURCE if self._source_has_audio() else AUDIO_SILENT)
         self._update_audio_controls()
         self._update_output_size_estimate()
@@ -2015,6 +2171,8 @@ class MainWindow(QMainWindow):
         self.match_timeline_mode.setEnabled(external_active and self.match_timeline_to_audio.isChecked())
         self.audio_start.setEnabled(external_active)
         self.audio_end.setEnabled(external_active)
+        self.audio_timeline_start.setEnabled(external_active)
+        self.audio_timeline_end.setEnabled(external_active)
         if not external_active and self.match_timeline_to_audio.isChecked():
             was_blocked = self.match_timeline_to_audio.blockSignals(True)
             self.match_timeline_to_audio.setChecked(False)
@@ -2043,7 +2201,15 @@ class MainWindow(QMainWindow):
             start = ffmpeg_utils.parse_timecode(self.audio_start.text()) or 0.0
             end = ffmpeg_utils.parse_timecode(self.audio_end.text())
             start, end = ffmpeg_utils.validate_time_range(start, end, duration, "Audio")
-            return end - start
+            clip_duration = end - start
+            offset = ffmpeg_utils.parse_timecode(self.audio_timeline_start.text()) or 0.0
+            output_end = ffmpeg_utils.parse_timecode(self.audio_timeline_end.text())
+            if offset < 0:
+                raise ValueError("Music start in video cannot be negative.")
+            if output_end is not None and output_end <= offset:
+                raise ValueError("Music end in video must be after music start in video.")
+            active_duration = clip_duration if output_end is None else min(clip_duration, output_end - offset)
+            return offset + max(0.0, active_duration)
         except Exception:
             if strict:
                 raise
@@ -2522,6 +2688,12 @@ class MainWindow(QMainWindow):
         video_end = ffmpeg_utils.parse_timecode(self.video_end.text())
         audio_start = ffmpeg_utils.parse_timecode(self.audio_start.text()) or 0.0
         audio_end = ffmpeg_utils.parse_timecode(self.audio_end.text())
+        audio_timeline_start = ffmpeg_utils.parse_timecode(self.audio_timeline_start.text()) or 0.0
+        audio_timeline_end = ffmpeg_utils.parse_timecode(self.audio_timeline_end.text())
+        if audio_timeline_start < 0:
+            raise ValueError("Music start in video cannot be negative.")
+        if audio_timeline_end is not None and audio_timeline_end <= audio_timeline_start:
+            raise ValueError("Music end in video must be after music start in video.")
         output_values = self._output_size_values()
         optimize_values = self._optimize_values()
         output_size = self._output_dimensions(int(output_values["max_width"]))
@@ -2540,6 +2712,8 @@ class MainWindow(QMainWindow):
             output_size=output_size,
             video_crf=int(output_values["crf"]),
             audio_bitrate=f"{int(output_values['audio_kbps'])}k",
+            audio_timeline_start=audio_timeline_start,
+            audio_timeline_end=audio_timeline_end,
             audio_mode=audio_mode,
             match_timeline_to_audio=self.match_timeline_to_audio.isChecked(),
             match_timeline_mode=self.match_timeline_mode.currentText(),
@@ -2598,6 +2772,8 @@ class MainWindow(QMainWindow):
         audio_path = settings.audio_path
         audio_start = settings.audio_start
         audio_end = settings.audio_end
+        audio_timeline_start = settings.audio_timeline_start
+        audio_timeline_end = settings.audio_timeline_end
         if settings.audio_mode in {AUDIO_EXTERNAL, AUDIO_MIX} and settings.audio_path:
             audio_duration = ffmpeg_utils.get_audio_duration(settings.audio_path)
             selected_audio_start, selected_audio_end = ffmpeg_utils.validate_time_range(
@@ -2606,13 +2782,27 @@ class MainWindow(QMainWindow):
                 audio_duration,
                 "Audio",
             )
-            audio_start = selected_audio_start + preview_offset
-            audio_end = min(selected_audio_end, audio_start + preview_length)
-            if audio_end <= audio_start:
+            selected_clip_duration = selected_audio_end - selected_audio_start
+            original_audio_start = max(0.0, float(settings.audio_timeline_start or 0.0))
+            original_audio_end = original_audio_start + selected_clip_duration
+            if settings.audio_timeline_end is not None:
+                original_audio_end = min(original_audio_end, float(settings.audio_timeline_end))
+            original_audio_end = min(render_duration, original_audio_end)
+            preview_end = preview_offset + preview_length
+            overlap_start = max(preview_offset, original_audio_start)
+            overlap_end = min(preview_end, original_audio_end)
+            if overlap_end <= overlap_start:
                 audio_path = None
                 audio_start = 0.0
                 audio_end = None
-                self.append_log("Preview segment is after the selected music range; rendering preview silent.")
+                audio_timeline_start = 0.0
+                audio_timeline_end = None
+                self.append_log("Preview segment is outside the selected music placement; rendering preview silent.")
+            else:
+                audio_start = selected_audio_start + max(0.0, overlap_start - original_audio_start)
+                audio_end = min(selected_audio_end, audio_start + (overlap_end - overlap_start))
+                audio_timeline_start = max(0.0, original_audio_start - preview_offset)
+                audio_timeline_end = audio_timeline_start + max(0.0, audio_end - audio_start)
 
         source_offset = preview_offset
         source_length = preview_length
@@ -2647,6 +2837,8 @@ class MainWindow(QMainWindow):
             video_end=preview_video_end,
             audio_start=audio_start,
             audio_end=audio_end,
+            audio_timeline_start=audio_timeline_start,
+            audio_timeline_end=audio_timeline_end,
             target_size_mb=None,
             optimize_enabled=False,
             bypass_mode=BYPASS_MANUAL if shifted_blocks else BYPASS_FULL_ANSI,
@@ -2830,6 +3022,8 @@ class MainWindow(QMainWindow):
         self.video_end.setText("auto")
         self.audio_start.setText("0:00")
         self.audio_end.setText("auto")
+        self.audio_timeline_start.setText("0:00")
+        self.audio_timeline_end.setText("auto")
         self._set_combo_text(self.audio_mode, AUDIO_SILENT)
         self.match_timeline_to_audio.setChecked(False)
         self._set_combo_text(self.match_timeline_mode, MATCH_SPEED)
@@ -2984,7 +3178,7 @@ class MainWindow(QMainWindow):
         output_values = self._output_size_values()
         return {
             "app": APP_NAME,
-            "schema_version": 2,
+            "schema_version": 3,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
             "audio_path": self.audio_path.text().strip(),
@@ -2993,6 +3187,8 @@ class MainWindow(QMainWindow):
             "video_end": self.video_end.text().strip(),
             "audio_start": self.audio_start.text().strip(),
             "audio_end": self.audio_end.text().strip(),
+            "audio_timeline_start": self.audio_timeline_start.text().strip(),
+            "audio_timeline_end": self.audio_timeline_end.text().strip(),
             "audio_mode": self.audio_mode.currentText(),
             "match_timeline_to_audio": self.match_timeline_to_audio.isChecked(),
             "match_timeline_mode": self.match_timeline_mode.currentText(),
@@ -3048,6 +3244,8 @@ class MainWindow(QMainWindow):
         self.video_end.setText(str(data.get("video_end", "auto")))
         self.audio_start.setText(str(data.get("audio_start", "0:00")))
         self.audio_end.setText(str(data.get("audio_end", "auto")))
+        self.audio_timeline_start.setText(str(data.get("audio_timeline_start", "0:00")))
+        self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
         loaded_audio_mode = self._canonical_audio_mode(
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
         )
