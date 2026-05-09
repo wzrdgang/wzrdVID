@@ -38,9 +38,9 @@ This map describes the current repository so future agents can edit with context
 
 ### macOS Build and Release Packaging
 
-- Owning files/directories: `build_app.sh`, `scripts/package_release.sh`, `scripts/generate_icon.py`, `scripts/generate_logo.py`, `scripts/generate_branding.py`, `scripts/generate_ui_textures.py`, `assets/wzrd_vid.*`, `WZRD.VID.spec` when generated locally.
+- Owning files/directories: `build_app.sh`, `scripts/package_release.sh`, `scripts/generate_icon.py`, `scripts/generate_logo.py`, `scripts/generate_branding.py`, `scripts/generate_ui_textures.py`, `assets/wzrd_vid.*`, `VERSION`, `WZRD.VID.spec` when generated locally.
 - Purpose: Build `dist/WZRD.VID.app`, prune PyInstaller/Qt payload, generate icons/branding/textures, ad-hoc sign the macOS app, and create `WZRD.VID-macOS.zip` for GitHub Releases.
-- Inbound dependencies: local macOS shell, Python virtualenv, requirements, source assets.
+- Inbound dependencies: local macOS shell, Python virtualenv, requirements, `VERSION`, source assets.
 - Outbound dependencies: `build/`, `dist/`, `.venv/`, `.pyinstaller-cache/`, generated icon/texture/branding files, release zip.
 - High-risk notes: macOS packaging is primary distribution. Do not change app name, icon paths, PyInstaller excludes, pruning rules, or bundle metadata casually.
 
@@ -162,13 +162,13 @@ This map describes the current repository so future agents can edit with context
 
 - Desktop source install: create a Python virtualenv, install `requirements.txt`, install ffmpeg/ffprobe separately.
 - Desktop source run: `python run.py`; macOS/Linux convenience script: `./run.sh`; Windows helper: `run_windows.bat`.
-- Desktop macOS app build: `./build_app.sh` creates `dist/WZRD.VID.app`, using PyInstaller and generated branding/icon/UI assets.
+- Desktop macOS app build: `./build_app.sh` creates `dist/WZRD.VID.app`, using `VERSION`, PyInstaller, and generated branding/icon/UI assets.
 - Desktop release zip: `scripts/package_release.sh` creates `WZRD.VID-macOS.zip` with `ditto`.
 - GitHub Pages local preview: serve `docs/` with a simple static server such as `python3 -m http.server` from the `docs` directory.
 - GitHub Pages deployment: GitHub repo settings should deploy branch `main`, folder `/docs`, custom domain `wzrdvid.com` via `docs/CNAME`.
 - GitHub Actions workflow: Not present in repo.
 - Output directories: `dist/`, `build/`, `.pyinstaller-cache/`, `.venv/`, caches, temp folders, and release zip are generated/local outputs unless explicitly being packaged outside source control.
-- Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
+- Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
 
 ## 4. High-Risk Files
 
@@ -182,6 +182,7 @@ This map describes the current repository so future agents can edit with context
 | `build_app.sh` | macOS packaging, PyInstaller excludes, pruning, signing | Release app bundle | Do not edit casually; preserve app name/icon/bundle path | `bash -n build_app.sh`; `./build_app.sh`; Finder launch if packaging changed |
 | `scripts/package_release.sh` | Release zip creation | GitHub Release asset | Preserve `ditto` app bundle packaging | `bash -n`; run script after app build if changed |
 | `requirements.txt` | Runtime/build dependency set | Source runs and PyInstaller app size/reliability | Add dependencies only with clear need | install/build checks; app smoke |
+| `VERSION` | Single app/release version source | Desktop app visible version and `build_app.sh` Info.plist metadata | Keep in sync with changelog/release tag | `py_compile`; `./build_app.sh`; Info.plist version check |
 | `docs/CNAME` | Custom domain binding | `wzrdvid.com` GitHub Pages | Do not change outside domain task | Pages preview/live check after push |
 | `docs/index.html` | Public landing/download page | Website, download guidance, Lite link | Preserve relative paths and brand/license copy | local static preview; link/path checks |
 | `docs/lite/app.js` | Browser-only Lite logic/privacy/timing | Lite render/download behavior | Keep no-upload rule; avoid network APIs | `node --check`; local browser smoke; grep network APIs |

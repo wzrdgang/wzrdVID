@@ -7,7 +7,7 @@ export PYINSTALLER_CONFIG_DIR="$PWD/.pyinstaller-cache"
 
 mkdir -p "$PIP_CACHE_DIR" "$PYINSTALLER_CONFIG_DIR"
 ICON_PATH="/private/tmp/wzrd_vid.icns"
-APP_VERSION="0.1.1"
+APP_VERSION="$(tr -d '[:space:]' < "$PWD/VERSION")"
 
 if [ ! -x ".venv/bin/python" ]; then
   python3 -m venv .venv
@@ -28,6 +28,7 @@ cp "$PWD/assets/wzrd_vid.icns" "$ICON_PATH"
   --name "WZRD.VID" \
   --icon "$ICON_PATH" \
   --osx-bundle-identifier "com.samhowell.wzrdvid" \
+  --add-data "$PWD/VERSION:." \
   --add-data "$PWD/assets/wzrd_vid_icon.png:assets" \
   --add-data "$PWD/assets/logo:assets/logo" \
   --add-data "$PWD/assets/branding:assets/branding" \

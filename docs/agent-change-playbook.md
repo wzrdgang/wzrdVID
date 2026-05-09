@@ -16,7 +16,7 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 ## 2. Copy/Text/Content
 
 - Inspect first: `README.md`, `docs/index.html`, `docs/lite/index.html`, `app.py`, `theme.py`, legal docs if rights copy is nearby.
-- Searches to run: exact old copy, brand strings, stale names, licensing terms, `sam.mode`/`worky.mode` style identity references when relevant.
+- Searches to run: exact old copy, brand strings, stale names, licensing terms, old identity/worky.mode style references when relevant.
 - Common mistakes to avoid: broad rewrites, accidental legal changes, changing layout to fit copy without instruction.
 - High-risk files: `README.md`, `docs/index.html`, `docs/lite/index.html`, `app.py` header/status copy.
 - Required checks: docs-only checks; local visual preview if text length/wrapping changed; `py_compile` if Python string changes are inside code.

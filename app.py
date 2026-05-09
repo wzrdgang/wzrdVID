@@ -8,6 +8,8 @@ import os
 import random
 import sys
 import traceback
+import urllib.error
+import urllib.request
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -72,6 +74,43 @@ from theme import MONO_FONT_STACK, PALETTE, app_stylesheet
 
 APP_NAME = "WZRD.VID"
 APP_SUBTITLE = "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations"
+RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
+LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
+APP_VERSION_FALLBACK = "0.1.2"
+
+
+def _resource_path(name: str) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / name
+
+
+def _load_app_version() -> str:
+    for candidate in (_resource_path("VERSION"), Path(__file__).resolve().parent / "VERSION"):
+        try:
+            value = candidate.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if value:
+            return value.lstrip("v")
+    return APP_VERSION_FALLBACK
+
+
+def _version_tuple(value: str) -> tuple[int, int, int]:
+    clean = value.strip().lstrip("vV").split("-", 1)[0]
+    parts: list[int] = []
+    for piece in clean.split("."):
+        digits = "".join(char for char in piece if char.isdigit())
+        parts.append(int(digits or 0))
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def _is_newer_version(latest: str, current: str) -> bool:
+    return _version_tuple(latest) > _version_tuple(current)
+
+
+APP_VERSION = _load_app_version()
 
 
 def _user_data_dir() -> Path:
@@ -439,6 +478,38 @@ class BatchRenderThread(QThread):
             self.render_failed.emit(str(exc))
 
 
+class UpdateCheckThread(QThread):
+    update_checked = Signal(str, bool, str)
+    update_failed = Signal(str)
+
+    def __init__(self, current_version: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.current_version = current_version
+
+    def run(self) -> None:
+        try:
+            request = urllib.request.Request(
+                LATEST_RELEASE_API_URL,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": f"WZRD.VID/{self.current_version}",
+                },
+            )
+            with urllib.request.urlopen(request, timeout=8) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            latest_tag = str(payload.get("tag_name") or "").strip()
+            if not latest_tag:
+                raise ValueError("latest release response missing tag_name")
+            release_url = str(payload.get("html_url") or RELEASES_LATEST_URL)
+            self.update_checked.emit(
+                latest_tag,
+                _is_newer_version(latest_tag, self.current_version),
+                release_url,
+            )
+        except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError, OSError) as exc:
+            self.update_failed.emit(str(exc))
+
+
 class ManualBlockRow(QWidget):
     remove_requested = Signal(object)
     changed = Signal()
@@ -472,6 +543,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.worker: RenderThread | BatchRenderThread | None = None
+        self.update_worker: UpdateCheckThread | None = None
         self.timeline_items: list[dict[str, object]] = []
         self._timeline_table_updating = False
         self.video_duration_seconds: float | None = None
@@ -491,8 +563,9 @@ class MainWindow(QMainWindow):
             ">> source bus quiet // mp4 lane ready _",
         ]
         self._signal_index = 0
+        self.latest_release_url = RELEASES_LATEST_URL
 
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
         if APP_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.resize(1080, 700)
@@ -676,6 +749,16 @@ class MainWindow(QMainWindow):
         self.optimize_estimate_label.setObjectName("estimate")
         self.final_size_label = QLabel("Final output size: -")
         self.final_size_label.setObjectName("estimate")
+        self.update_status_label = QLabel(f"Current: v{APP_VERSION} | Latest: checking...")
+        self.update_status_label.setObjectName("estimate")
+        self.check_update_button = QPushButton("CHECK UPDATE")
+        self.check_update_button.setObjectName("secondaryButton")
+        self.check_update_button.setToolTip("Check GitHub Releases for a newer WZRD.VID download.")
+        self.download_update_button = QPushButton("DOWNLOAD UPDATE")
+        self.download_update_button.setObjectName("secondaryButton")
+        self.download_update_button.setToolTip("Open the latest WZRD.VID GitHub Release in your browser.")
+        self.download_update_button.setEnabled(False)
+        self.download_update_button.hide()
         self.max_width_spin.setToolTip("Final MP4 width limit. ANSI character width controls art detail separately.")
         self.output_fps_spin.setToolTip("Final MP4 frame rate. Lower values compress much smaller.")
         self.crf_spin.setToolTip("H.264 quality scale. Higher CRF means smaller files and more compression.")
@@ -775,6 +858,7 @@ class MainWindow(QMainWindow):
         self._update_coverage_summary()
         self._start_signal_timer()
         QTimer.singleShot(250, self.check_media_tools)
+        QTimer.singleShot(1400, lambda: self.check_for_updates(manual=False))
 
     def _start_signal_timer(self) -> None:
         self._rotate_signal_status()
@@ -1328,6 +1412,11 @@ class MainWindow(QMainWindow):
         project_row.addStretch(1)
         project_row.addWidget(self.open_output_button)
 
+        update_row = QHBoxLayout()
+        update_row.addWidget(self.update_status_label, stretch=1)
+        update_row.addWidget(self.check_update_button)
+        update_row.addWidget(self.download_update_button)
+
         action_row = QHBoxLayout()
         self.start_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         action_row.addWidget(self.start_button)
@@ -1336,6 +1425,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(output_row)
         layout.addLayout(preview_row)
         layout.addLayout(project_row)
+        layout.addLayout(update_row)
         layout.addLayout(action_row)
         layout.addWidget(self._surface_wear_row("EXPORT HARDWARE // deck ready // write gate armed", right_cluster=True))
         return group
@@ -1364,6 +1454,8 @@ class MainWindow(QMainWindow):
         self.load_project_button.clicked.connect(self.load_project_preset)
         self.reset_project_button.clicked.connect(self.reset_project)
         self.open_output_button.clicked.connect(self.open_output_folder)
+        self.check_update_button.clicked.connect(lambda: self.check_for_updates(manual=True))
+        self.download_update_button.clicked.connect(self.open_update_download)
         self.preset.currentTextChanged.connect(self._update_preset_description)
         self.chunky_blocks.toggled.connect(self._save_settings)
         self.output_size_preset.currentTextChanged.connect(self._apply_output_size_preset)
@@ -2984,6 +3076,49 @@ class MainWindow(QMainWindow):
         self.log_output.append(f"[{timestamp}] {message}")
         self.log_output.verticalScrollBar().setValue(self.log_output.verticalScrollBar().maximum())
 
+    def check_for_updates(self, manual: bool = False) -> None:
+        if self.update_worker and self.update_worker.isRunning():
+            if manual:
+                self.append_log("Update check already running.")
+            return
+        self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: checking...")
+        self.check_update_button.setEnabled(False)
+        self.download_update_button.setEnabled(False)
+        self.download_update_button.hide()
+        self.update_worker = UpdateCheckThread(APP_VERSION, self)
+        self.update_worker.update_checked.connect(self.update_check_finished)
+        self.update_worker.update_failed.connect(self.update_check_failed)
+        self.update_worker.finished.connect(self.update_check_thread_finished)
+        self.update_worker.start()
+
+    def update_check_finished(self, latest_tag: str, is_newer: bool, release_url: str) -> None:
+        latest_display = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
+        self.latest_release_url = release_url or RELEASES_LATEST_URL
+        if is_newer:
+            self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: {latest_display} available")
+            self.download_update_button.setEnabled(True)
+            self.download_update_button.show()
+            self.append_log(f"Update available: {latest_display}")
+        else:
+            self.update_status_label.setText(f"Current: v{APP_VERSION} | WZRD.VID is current")
+            self.download_update_button.setEnabled(False)
+            self.download_update_button.hide()
+            self.append_log(f"Update check complete: current release is {latest_display}.")
+        self.check_update_button.setEnabled(True)
+
+    def update_check_failed(self, message: str) -> None:
+        self.update_status_label.setText(f"Current: v{APP_VERSION} | Update check unavailable")
+        self.download_update_button.setEnabled(False)
+        self.download_update_button.hide()
+        self.check_update_button.setEnabled(True)
+        self.append_log(f"Update check unavailable: {message}")
+
+    def update_check_thread_finished(self) -> None:
+        self.update_worker = None
+
+    def open_update_download(self) -> None:
+        QDesktopServices.openUrl(QUrl(self.latest_release_url or RELEASES_LATEST_URL))
+
     def _file_size_text(self, path: str) -> str:
         try:
             size_mb = Path(path).expanduser().stat().st_size / (1024 * 1024)
@@ -3432,6 +3567,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar, False)
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
     app.setFont(_default_app_font())
     if APP_ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(APP_ICON_PATH)))

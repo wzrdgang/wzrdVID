@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.2 stabilization prep
+
+- Agent/task: Codex / Phase 1 v0.1.2 stabilization implementation.
+- Intent: Verify Lite duration/ANSI behavior, add desktop GitHub Releases update checker, bump version metadata, package release ZIP, and prepare but not publish v0.1.2.
+- Files changed: `VERSION`, `app.py`, `build_app.sh`, `CHANGELOG.md`, `docs/index.html`, `docs/agent-change-playbook.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Desktop app now checks GitHub Releases for updates without blocking or auto-downloading.
+- Commands run: `rg` stale-copy/no-upload checks; `node --check`; `python3 -m py_compile`; local Pages `curl` checks; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; Info.plist/version/size/checksum checks.
+- Checks passed: v0.1.2 verification/package checks passed during implementation.
+- Checks failed: None.
+- Decisions made: Lite implementation was already correct and left unchanged; release ZIP was created locally but not committed; GitHub release publication was intentionally deferred.
+- Known gaps: No Sparkle, signing, notarization, or Apple pipeline work was included in this phase.
+- Next recommended prompt: Publish the prepared v0.1.2 GitHub Release with the generated ZIP and SHA256.
+
 ## 2026-05-09 - Change playbook created
 
 - Agent/task: Codex / Prompt 5 in the agent documentation system plan.

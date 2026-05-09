@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.2 — 2026-05-09
+
+- Verified Lite duration caps and ANSI Coverage behavior for 15/30/60-second browser clips.
+- Verified public copy cleanup to worky/fragment-synthesis language.
+- Added a simple non-blocking GitHub Releases update checker to the desktop app.
+- Bumped release packaging and app metadata to v0.1.2.
+
 ## v0.1.1 — 2026-05-08
 
 - Added drag-and-drop media support for timeline videos/photos.
