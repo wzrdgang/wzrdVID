@@ -81,6 +81,20 @@ brew install ffmpeg
 open "dist/WZRD.VID.app"
 ```
 
+## Updating WZRD.VID
+
+macOS app users:
+
+1. Download the latest `WZRD.VID-macOS.zip` from GitHub Releases.
+2. Unzip it.
+3. Replace your old `WZRD.VID.app` with the new one.
+
+Source users:
+
+1. Pull the latest changes or redownload the source ZIP.
+2. Reactivate your virtual environment.
+3. Run `pip install -r requirements.txt`.
+
 ## Platform Support
 
 WZRD.VID is currently tested primarily on macOS.

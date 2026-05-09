@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.1 — 2026-05-08
+
+- Added drag-and-drop media support for timeline videos/photos.
+- Added drag-and-drop music/audio support, including video files with audio tracks.
+- Fixed rotated phone-photo imports by respecting EXIF orientation.
+- Added delayed external music/audio placement inside the rendered video timeline.
+- Improved external + selected source audio mixing with delayed audio entry.
+
 ## v0.1.0 — Initial Public Release
 
 - Initial ANSI/text-art video rendering pipeline.
