@@ -199,7 +199,7 @@ def primary_mark(width: int, height: int, path: Path, *, dark: bool = False, mon
     draw_wordmark_text(draw, "wzrdVID", (slash_end + int(18 * scale), int(74 * scale)), int(166 * scale), fill=text_fill)
 
     small = font(int(27 * scale), condensed=True, mono=True)
-    draw.text((slash_end + int(25 * scale), int(260 * scale)), "sam.mode / wzrdgang", font=small, fill=text_fill)
+    draw.text((slash_end + int(25 * scale), int(260 * scale)), "worky.mode / wzrdgang", font=small, fill=text_fill)
     draw.text((int(930 * scale), int(72 * scale)), "VTR-B // TXT FEED // SYNC 29.97", font=font(int(24 * scale), mono=True), fill=text_fill)
     draw_alignment_bits(draw, outer, scale)
     draw.rectangle((width - int(170 * scale), height - int(84 * scale), width - int(88 * scale), height - int(68 * scale)), fill=text_fill)
@@ -269,7 +269,7 @@ def write_svg(path: Path, *, variant: str) -> None:
   <text x=\"214\" y=\"210\" font-family=\"Arial Black, Arial, sans-serif\" font-size=\"132\" font-weight=\"900\" fill=\"#75d992\" opacity=\"0.45\">wzrdVID</text>
   <text x=\"220\" y=\"216\" font-family=\"Arial Black, Arial, sans-serif\" font-size=\"132\" font-weight=\"900\" fill=\"#ff7fb9\" opacity=\"0.62\">wzrdVID</text>
   <text x=\"210\" y=\"205\" font-family=\"Arial Black, Arial, sans-serif\" font-size=\"132\" font-weight=\"900\" fill=\"#090807\">wzrdVID</text>
-  <text x=\"238\" y=\"270\" font-family=\"Menlo, monospace\" font-size=\"25\" font-weight=\"900\" fill=\"#090807\">sam.mode / wzrdgang</text>
+  <text x=\"238\" y=\"270\" font-family=\"Menlo, monospace\" font-size=\"25\" font-weight=\"900\" fill=\"#090807\">worky.mode / wzrdgang</text>
   <text x=\"870\" y=\"84\" font-family=\"Menlo, monospace\" font-size=\"23\" font-weight=\"900\" fill=\"#090807\">VTR-B // TXT FEED // SYNC 29.97</text>
   <rect x=\"1265\" y=\"254\" width=\"82\" height=\"16\" fill=\"#090807\"/>
   <rect x=\"1132\" y=\"70\" width=\"18\" height=\"13\" fill=\"#090807\"/>
@@ -316,6 +316,47 @@ def make_preview_sheet() -> None:
     sheet.save(BRAND_DIR / "wzrdvid_brand_preview_sheet.png")
 
 
+def make_github_banner() -> None:
+    """Generate the public GitHub/social banner with current identity copy."""
+    width, height = 1774, 887
+    img = Image.new("RGBA", (width, height), PINK)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, width, height), fill=PINK)
+    draw_drybrush(draw, (-80, 40, width + 60, height - 40), MINT, 52, diagonal=True)
+    draw_drybrush(draw, (-60, 220, width + 80, height), PAPER, 34, diagonal=True)
+    draw_noise_blocks(draw, (0, 0, width, height), 1.0, 260)
+    draw_speckles(draw, (0, 0, width, height), 3600, [with_alpha(BLACK, 22), with_alpha(HOT_PINK, 48), with_alpha(MINT_DEEP, 44), with_alpha(OFF_WHITE, 62)])
+
+    draw.rounded_rectangle((24, 26, width - 26, height - 26), radius=28, outline=BLACK, width=8)
+    draw.rounded_rectangle((44, 64, width - 54, 170), radius=18, fill=with_alpha(PAPER, 170), outline=BLACK, width=5)
+    draw.text((74, 96), "FRAME 00:00:00:00 //// CH-03 //// WZRD.VID CONTROL FEED //// NO DROPOUT", font=font(24, mono=True), fill=BLACK)
+
+    logo = Image.open(BRAND_DIR / "wzrdvid_primary.png").convert("RGBA")
+    logo.thumbnail((660, 170), Image.Resampling.LANCZOS)
+    logo_panel = (70, 215, 790, 420)
+    rough_rect(draw, logo_panel, MINT, outline=BLACK, width=7, radius=24, wear=True)
+    img.alpha_composite(logo, (100, 236))
+
+    draw.text((92, 442), "ANSI motion lab // lo-fi frames // cursed little files", font=font(38, condensed=True), fill=BLACK)
+    draw.rounded_rectangle((width - 438, 220, width - 72, 348), radius=18, fill=BLACK, outline=BLACK, width=5)
+    draw.text((width - 402, 265), "worky.mode / wzrdgang", font=font(25, mono=True), fill=PAPER)
+
+    draw.rounded_rectangle((64, 505, width - 80, 570), radius=14, fill=BLACK, outline=BLACK, width=5)
+    draw.text((92, 525), ">> source bus quiet // mp4 lane ready _  ░▒▓", font=font(28, mono=True), fill=MINT)
+    draw.rounded_rectangle((64, 600, width - 80, 670), radius=16, fill=MINT, outline=BLACK, width=6)
+    draw.text((92, 623), "░░ // worky.mode / wzrdgang ░░ copy-of-copy deck ░░ lo-fi mp4 bus >> █░█░▒▓", font=font(27, mono=True), fill=BLACK)
+
+    draw.text((1040, 255), "//// VTR-B  TXT FEED //// SYNC 29.97 ////\n░░  ▒▒▓  ░  ▄▀  ░░   █░   EDGE BLEED", font=font(26, mono=True), fill=with_alpha(BLACK, 180))
+    draw.rectangle((70, 735, width - 78, 790), fill=BLACK)
+    draw.text((100, 752), "//// WZRD.VID //// TXT MODE PIPELINE | ANSI CONVERTER | LO-FI ENGINE", font=font(25, mono=True), fill=MINT)
+    draw.text((width - 405, 752), "// 2026 WZRDGANG //", font=font(25, mono=True), fill=PAPER)
+
+    png = LOGO_DIR / "wzrdvid-github-banner.png"
+    medium = LOGO_DIR / "wzrdvid-github-banner-medium.jpeg"
+    img.convert("RGB").save(png, optimize=True)
+    img.convert("RGB").resize((640, 320), Image.Resampling.LANCZOS).save(medium, quality=88, optimize=True)
+
+
 def main() -> None:
     BRAND_DIR.mkdir(parents=True, exist_ok=True)
     LOGO_DIR.mkdir(parents=True, exist_ok=True)
@@ -345,6 +386,7 @@ def main() -> None:
     shutil.copyfile(BRAND_DIR / "wzrdvid_primary.svg", LOGO_DIR / "wzrdvid_wordmark.svg")
 
     make_preview_sheet()
+    make_github_banner()
     print(f"Wrote branding assets to {BRAND_DIR}")
     print(f"Wrote compatibility logo exports to {LOGO_DIR}")
 

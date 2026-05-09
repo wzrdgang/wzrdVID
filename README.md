@@ -10,7 +10,7 @@
 
 //wzrdVID is a local desktop textmode/glitch/compression-art video engine. It turns videos and photos into strange compressed little objects: ANSI motion, chunky blocks, terminal drift, VHS damage, ugly cuts, audio-reactive hits, and phone-sendable MP4s.
 
-It is inspired by ANSI graphics, late-night cable TV, old internet media tools, lo-fi broadcast artifacts, public-access video, tape labels, and underground mixtape utility software. The point is simple: give your clips the Sam treatment, remix the pipeline, and ship weird little files.
+It is inspired by ANSI graphics, late-night cable TV, old internet media tools, lo-fi broadcast artifacts, public-access video, tape labels, and underground mixtape utility software. The point is simple: give your clips the worky treatment, remix the pipeline, and ship weird little files.
 
 The output is a normal `.mp4`. It visually looks like terminal/video-art output, but it is not a terminal playback file.
 

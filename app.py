@@ -932,9 +932,9 @@ class MainWindow(QMainWindow):
         if LOGO_HEADER_PATH.exists():
             pixmap = QPixmap(str(LOGO_HEADER_PATH)).scaledToHeight(70, Qt.TransformationMode.SmoothTransformation)
             logo.setPixmap(pixmap)
-        badge = QLabel("sam.mode / wzrdgang")
+        badge = QLabel("worky.mode / wzrdgang")
         badge.setObjectName("headerBadge")
-        badge.setFixedSize(164, 68)
+        badge.setFixedSize(220, 68)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         static_field = QLabel("//// VTR-B  TXT FEED  ////  SYNC 29.97  ////\n░░   ▒▒▓   ░  ▄▀  ░░    █░   EDGE BLEED")
         static_field.setObjectName("staticField")
@@ -966,7 +966,7 @@ class MainWindow(QMainWindow):
         self.signal_status_label = lab_line
         layout.addWidget(lab_line)
 
-        brand_blocks = QLabel("▓▓ // sam.mode / wzrdgang ▒▒ copy-of-copy deck ░░ lo-fi mp4 bus >> █░█░▒▓")
+        brand_blocks = QLabel("▓▓ // worky.mode / wzrdgang ▒▒ copy-of-copy deck ░░ lo-fi mp4 bus >> █░█░▒▓")
         brand_blocks.setObjectName("brandBlocks")
         layout.addWidget(brand_blocks)
         return header

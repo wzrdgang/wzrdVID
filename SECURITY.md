@@ -4,7 +4,7 @@
 
 Please do not publicly disclose exploitable security issues before giving the maintainer a chance to review and respond.
 
-Report security issues by opening a private GitHub security advisory for the repository, or by contacting Sam Howell through the repository owner profile if advisories are unavailable. Include:
+Report security issues by opening a private GitHub security advisory for the repository, or by using the official WZRD.VID project channels if advisories are unavailable. Include:
 
 - affected version or commit
 - operating system

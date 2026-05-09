@@ -44,4 +44,4 @@ Only to refer to the official project in a truthful and non-misleading way. You 
 
 ## Who do I contact for commercial licensing or permission?
 
-Contact Sam Howell through the official WZRD.VID project channels. Commercial licensing, branded redistribution, custom builds, integrations, and support are available by arrangement.
+Contact through the official WZRD.VID project channels. Commercial licensing, branded redistribution, custom builds, integrations, and support are available by arrangement.
