@@ -36,15 +36,15 @@ python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run
 - [ ] Run `scripts/package_release.sh`.
 - [ ] Confirm `WZRD.VID-macOS.zip` exists.
 - [ ] Upload `WZRD.VID-macOS.zip` to GitHub Releases.
-- [ ] Tag release `v0.1.0`.
-- [ ] Release title: `WZRD.VID v0.1.0`.
+- [ ] Tag release with the current version, for example `v0.1.1`.
+- [ ] Release title matches the tag, for example `WZRD.VID v0.1.1`.
 - [ ] Release notes include:
 
 ```text
 //wzrdVID
 ANSI motion lab // lo-fi frames // cursed little files
 
-Initial public release.
+Summarize the release highlights for the current version.
 ```
 
 - [ ] Confirm download instructions point normal users to Releases, not the Code ZIP.

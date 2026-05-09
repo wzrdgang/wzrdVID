@@ -7,7 +7,7 @@ export PYINSTALLER_CONFIG_DIR="$PWD/.pyinstaller-cache"
 
 mkdir -p "$PIP_CACHE_DIR" "$PYINSTALLER_CONFIG_DIR"
 ICON_PATH="/private/tmp/wzrd_vid.icns"
-APP_VERSION="0.1.0"
+APP_VERSION="0.1.1"
 
 if [ ! -x ".venv/bin/python" ]; then
   python3 -m venv .venv
