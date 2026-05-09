@@ -7,6 +7,8 @@ import json
 import os
 import platform
 import random
+import re
+import ssl
 import sys
 import traceback
 import urllib.error
@@ -77,7 +79,9 @@ APP_NAME = "WZRD.VID"
 APP_SUBTITLE = "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations"
 RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
-APP_VERSION_FALLBACK = "0.1.4"
+UPDATE_CHECK_TIMEOUT_SECONDS = 6
+RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
+APP_VERSION_FALLBACK = "0.1.5"
 
 
 def _resource_path(name: str) -> Path:
@@ -109,6 +113,145 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
 
 def _is_newer_version(latest: str, current: str) -> bool:
     return _version_tuple(latest) > _version_tuple(current)
+
+
+class UpdateCheckError(RuntimeError):
+    """Raised when the latest release cannot be resolved."""
+
+
+def _sanitize_update_error(message: object, max_length: int = 260) -> str:
+    text = str(message).replace("\n", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    for value in (str(Path.home()), os.environ.get("USER"), os.environ.get("USERNAME")):
+        if value:
+            text = text.replace(value, "~")
+    if len(text) > max_length:
+        return f"{text[: max_length - 1]}..."
+    return text or "unknown update-check error"
+
+
+def _is_ssl_verify_error(exc: BaseException) -> bool:
+    current: BaseException | object | None = exc
+    while current is not None:
+        if isinstance(current, ssl.SSLCertVerificationError):
+            return True
+        reason = getattr(current, "reason", None)
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            return True
+        text = str(current)
+        if "CERTIFICATE_VERIFY_FAILED" in text or "certificate verify failed" in text.lower():
+            return True
+        current = getattr(current, "__cause__", None)
+    return False
+
+
+def _update_headers(current_version: str, *, json_api: bool) -> dict[str, str]:
+    headers = {
+        "User-Agent": f"WZRD.VID/{current_version} (+https://github.com/wzrdgang/wzrdVID)",
+        "Accept": "application/vnd.github+json" if json_api else "text/html,application/xhtml+xml",
+    }
+    if json_api:
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+    return headers
+
+
+def _read_update_url(
+    url: str,
+    headers: dict[str, str],
+    *,
+    timeout: int = UPDATE_CHECK_TIMEOUT_SECONDS,
+    context: ssl.SSLContext | None = None,
+) -> tuple[str, str]:
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read(512_000).decode(charset, errors="replace")
+            return body, response.geturl()
+    except urllib.error.HTTPError as exc:
+        body = exc.read(4096).decode("utf-8", errors="replace")
+        detail = _sanitize_update_error(body)
+        rate_detail = ""
+        if exc.code in {403, 429}:
+            remaining = exc.headers.get("X-RateLimit-Remaining")
+            reset = exc.headers.get("X-RateLimit-Reset")
+            rate_detail = f" rate-limit remaining={remaining or '?'} reset={reset or '?'};"
+        raise UpdateCheckError(f"HTTP {exc.code};{rate_detail} {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise UpdateCheckError(_sanitize_update_error(exc.reason or exc)) from exc
+    except TimeoutError as exc:
+        raise UpdateCheckError("timed out") from exc
+    except OSError as exc:
+        raise UpdateCheckError(_sanitize_update_error(exc)) from exc
+
+
+def _read_update_url_with_ssl_fallback(
+    url: str,
+    headers: dict[str, str],
+    *,
+    timeout: int = UPDATE_CHECK_TIMEOUT_SECONDS,
+) -> tuple[str, str, str]:
+    try:
+        body, final_url = _read_update_url(url, headers, timeout=timeout)
+        return body, final_url, ""
+    except UpdateCheckError as exc:
+        if not _is_ssl_verify_error(exc):
+            raise
+        try:
+            insecure_context = ssl._create_unverified_context()  # noqa: SLF001 - public release metadata fallback only.
+            body, final_url = _read_update_url(url, headers, timeout=timeout, context=insecure_context)
+            return body, final_url, "certificate verification failed; retried release metadata check without local CA validation"
+        except UpdateCheckError as fallback_exc:
+            raise UpdateCheckError(
+                f"certificate verification failed; fallback also failed: {_sanitize_update_error(fallback_exc)}"
+            ) from fallback_exc
+
+
+def _parse_latest_release_api(body: str) -> tuple[str, str]:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise UpdateCheckError(f"invalid JSON response: {_sanitize_update_error(exc)}") from exc
+    latest_tag = str(payload.get("tag_name") or "").strip()
+    if not latest_tag:
+        raise UpdateCheckError("latest release response missing tag_name")
+    release_url = str(payload.get("html_url") or RELEASES_LATEST_URL).strip() or RELEASES_LATEST_URL
+    return latest_tag, release_url
+
+
+def _extract_release_tag_from_url(value: str) -> str:
+    match = RELEASE_TAG_RE.search(value)
+    return match.group(1).strip() if match else ""
+
+
+def fetch_latest_release_info(current_version: str) -> tuple[str, bool, str, str]:
+    errors: list[str] = []
+    api_headers = _update_headers(current_version, json_api=True)
+    try:
+        body, _final_url, warning = _read_update_url_with_ssl_fallback(LATEST_RELEASE_API_URL, api_headers)
+        latest_tag, release_url = _parse_latest_release_api(body)
+        detail = "GitHub API"
+        if warning:
+            detail = f"{detail}; {warning}"
+        return latest_tag, _is_newer_version(latest_tag, current_version), release_url, detail
+    except UpdateCheckError as exc:
+        errors.append(f"API: {_sanitize_update_error(exc)}")
+
+    page_headers = _update_headers(current_version, json_api=False)
+    try:
+        body, final_url, warning = _read_update_url_with_ssl_fallback(RELEASES_LATEST_URL, page_headers)
+        latest_tag = _extract_release_tag_from_url(final_url) or _extract_release_tag_from_url(body)
+        if not latest_tag:
+            raise UpdateCheckError("latest release page did not expose a release tag")
+        release_url = f"https://github.com/wzrdgang/wzrdVID/releases/tag/{latest_tag}"
+        detail = "GitHub release-page fallback"
+        if warning:
+            detail = f"{detail}; {warning}"
+        return latest_tag, _is_newer_version(latest_tag, current_version), release_url, detail
+    except UpdateCheckError as exc:
+        errors.append(f"release page: {_sanitize_update_error(exc)}")
+
+    raise UpdateCheckError("; ".join(errors))
 
 
 APP_VERSION = _load_app_version()
@@ -491,7 +634,7 @@ class BatchRenderThread(QThread):
 
 
 class UpdateCheckThread(QThread):
-    update_checked = Signal(str, bool, str)
+    update_checked = Signal(str, bool, str, str)
     update_failed = Signal(str)
 
     def __init__(self, current_version: str, parent: QWidget | None = None) -> None:
@@ -500,26 +643,10 @@ class UpdateCheckThread(QThread):
 
     def run(self) -> None:
         try:
-            request = urllib.request.Request(
-                LATEST_RELEASE_API_URL,
-                headers={
-                    "Accept": "application/vnd.github+json",
-                    "User-Agent": f"WZRD.VID/{self.current_version}",
-                },
-            )
-            with urllib.request.urlopen(request, timeout=8) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            latest_tag = str(payload.get("tag_name") or "").strip()
-            if not latest_tag:
-                raise ValueError("latest release response missing tag_name")
-            release_url = str(payload.get("html_url") or RELEASES_LATEST_URL)
-            self.update_checked.emit(
-                latest_tag,
-                _is_newer_version(latest_tag, self.current_version),
-                release_url,
-            )
-        except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError, OSError) as exc:
-            self.update_failed.emit(str(exc))
+            latest_tag, is_newer, release_url, detail = fetch_latest_release_info(self.current_version)
+            self.update_checked.emit(latest_tag, is_newer, release_url, detail)
+        except UpdateCheckError as exc:
+            self.update_failed.emit(_sanitize_update_error(exc))
 
 
 class ManualBlockRow(QWidget):
@@ -3204,19 +3331,22 @@ class MainWindow(QMainWindow):
             return
         self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: checking...")
         self.check_update_button.setEnabled(False)
+        self.download_update_button.setText("DOWNLOAD UPDATE")
         self.download_update_button.setEnabled(False)
         self.download_update_button.hide()
+        self.latest_release_url = RELEASES_LATEST_URL
         self.update_worker = UpdateCheckThread(APP_VERSION, self)
         self.update_worker.update_checked.connect(self.update_check_finished)
         self.update_worker.update_failed.connect(self.update_check_failed)
         self.update_worker.finished.connect(self.update_check_thread_finished)
         self.update_worker.start()
 
-    def update_check_finished(self, latest_tag: str, is_newer: bool, release_url: str) -> None:
+    def update_check_finished(self, latest_tag: str, is_newer: bool, release_url: str, detail: str = "") -> None:
         latest_display = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
         self.latest_release_url = release_url or RELEASES_LATEST_URL
         if is_newer:
             self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: {latest_display} available")
+            self.download_update_button.setText("DOWNLOAD UPDATE")
             self.download_update_button.setEnabled(True)
             self.download_update_button.show()
             self.append_log(f"Update available: {latest_display}")
@@ -3225,14 +3355,18 @@ class MainWindow(QMainWindow):
             self.download_update_button.setEnabled(False)
             self.download_update_button.hide()
             self.append_log(f"Update check complete: current release is {latest_display}.")
+        if detail and "fallback" in detail.lower():
+            self.append_log(f"Update check used fallback: {detail}")
         self.check_update_button.setEnabled(True)
 
     def update_check_failed(self, message: str) -> None:
-        self.update_status_label.setText(f"Current: v{APP_VERSION} | Update check unavailable")
-        self.download_update_button.setEnabled(False)
-        self.download_update_button.hide()
+        self.update_status_label.setText(f"Current: v{APP_VERSION} | Update check unavailable - check manually")
+        self.latest_release_url = RELEASES_LATEST_URL
+        self.download_update_button.setText("CHECK MANUALLY")
+        self.download_update_button.setEnabled(True)
+        self.download_update_button.show()
         self.check_update_button.setEnabled(True)
-        self.append_log(f"Update check unavailable: {message}")
+        self.append_log(f"Update check unavailable - network/API error: {message}")
 
     def update_check_thread_finished(self) -> None:
         self.update_worker = None

@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.5 packaged update checker fix
+
+- Agent/task: Codex / release-critical desktop update checker hardening before v0.1.5.
+- Intent: Fix packaged-app update-check dead ends, add GitHub release-page fallback/manual check behavior, bump/package v0.1.5, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Update checks now use explicit GitHub headers, short timeouts, API plus release-page fallback, clearer diagnostics, and a manual release-page button when automatic checking fails.
+- Commands run: `git status --short --branch`; targeted `sed`/`rg`; direct source update fetch test; helper semver/latest-release assertions; `python3 -m py_compile`; packaged app launch/smoke checks; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; bundle version/size/checksum checks.
+- Checks passed: Source latest-release fetch, semver helper checks, Python/Lite syntax checks, packaged v0.1.5 update-check smoke, packaged v0.1.2 release-app update check showing v0.1.4 available, diff check, macOS app build, release ZIP package, plist version 0.1.5, and checksum checks passed.
+- Checks failed: Exact old packaged exception was not captured because the v0.1.2 package did not reproduce the unavailable state during final smoke.
+- Decisions made: No Sparkle, auto-download, dependencies, UI redesign, or release publication were added; failures now leave users with a manual GitHub Releases path.
+- Known gaps: v0.1.5 GitHub Release publication remains intentionally deferred.
+- Next recommended prompt: Publish v0.1.5 with the generated `WZRD.VID-macOS.zip` after reviewing the final checksum.
+
 ## 2026-05-09 - v0.1.4 workflow polish prep
 
 - Agent/task: Codex / Phase 3B Desktop Workflow Tightening - Endings, Transitions, Drag/Drop Reliability.

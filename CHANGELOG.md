@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.5 — 2026-05-09
+
+- Fixed the packaged desktop update checker so GitHub release lookups use a stronger request path, explicit headers, short timeouts, and release-page fallback.
+- Improved update-check failure handling with clearer diagnostics and a manual release-page button instead of a dead-end unavailable state.
+- Verified semver comparison for older app versions against the current latest release.
+- Bumped app/release metadata to v0.1.5.
+
 ## v0.1.4 — 2026-05-09
 
 - Renamed project preset controls to recipe import/export while keeping legacy JSON compatibility.
