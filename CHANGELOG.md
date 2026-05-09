@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.3 — 2026-05-09
+
+- Added a sanitized COPY REPORT helper for support/debug info without exposing full home-directory media paths.
+- Bumped app/release metadata to v0.1.3 for the bugfix-only polish release.
+- Ran clean-install validation against the published v0.1.2 ZIP and recorded first-run friction for follow-up.
+
 ## v0.1.2 — 2026-05-09
 
 - Verified Lite duration caps and ANSI Coverage behavior for 15/30/60-second browser clips.

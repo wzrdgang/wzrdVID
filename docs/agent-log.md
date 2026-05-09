@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.3 bugfix prep
+
+- Agent/task: Codex / Phase 2 v0.1.3 bugfix-only polish implementation.
+- Intent: Validate the published v0.1.2 ZIP, add a sanitized copy-report helper, bump version metadata, rebuild/package v0.1.3, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. The desktop app can copy a sanitized support report from the Output log area.
+- Commands run: v0.1.2 release download/unzip checks; bundle metadata checks; ffmpeg/ffprobe checks; copy-report offscreen smoke; tiny render smoke; update checker worker smoke; `python3 -m py_compile`; `node --check`; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; checksum/version/size checks.
+- Checks passed: v0.1.3 compile/static checks, copy-report sanitization smoke, tiny H.264/yuv420p + AAC render smoke, update checker worker smoke, build, package, plist version, and checksum checks passed.
+- Checks failed: Direct isolated-HOME launch of the v0.1.2 bundle exited with macOS pasteboard service errors; normal GUI inspection raised an existing running WZRD.VID session instead of a clean first-run instance.
+- Decisions made: No creative features, UI redesign, Sparkle, signing, or notarization work was included.
+- Known gaps: Clean install GUI smoke is partially constrained by an existing active WZRD.VID render/session on the machine; the v0.1.2 release ZIP downloaded/unzipped and bundle metadata verified, but add-media/preview/render was covered through source-level smoke instead of the downloaded GUI.
+- Next recommended prompt: Publish the prepared v0.1.3 GitHub Release with the generated ZIP and SHA256.
+
 ## 2026-05-09 - v0.1.2 stabilization prep
 
 - Agent/task: Codex / Phase 1 v0.1.2 stabilization implementation.

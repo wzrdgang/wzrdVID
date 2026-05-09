@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import platform
 import random
 import sys
 import traceback
@@ -76,7 +77,7 @@ APP_NAME = "WZRD.VID"
 APP_SUBTITLE = "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations"
 RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
-APP_VERSION_FALLBACK = "0.1.2"
+APP_VERSION_FALLBACK = "0.1.3"
 
 
 def _resource_path(name: str) -> Path:
@@ -553,6 +554,7 @@ class MainWindow(QMainWindow):
         self.block_rows: list[ManualBlockRow] = []
         self.last_output_path: str | None = None
         self.last_preview_path: str | None = None
+        self.last_render_error = ""
         self.active_task = "render"
         self._chunky_auto = False
         self.signal_status_label: QLabel | None = None
@@ -824,6 +826,9 @@ class MainWindow(QMainWindow):
         self.open_output_button.setObjectName("secondaryButton")
         self.open_output_button.setEnabled(False)
         self.open_output_button.hide()
+        self.copy_report_button = QPushButton("COPY REPORT")
+        self.copy_report_button.setObjectName("secondaryButton")
+        self.copy_report_button.setToolTip("Copy a sanitized support report with app, media, output, and log details.")
         self.batch_enabled = QCheckBox("Enable batch render")
         self.batch_checks: dict[str, QCheckBox] = {}
         for variant in BATCH_VARIANTS:
@@ -925,9 +930,13 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(self._build_optimize_group())
         output_layout.addWidget(self._build_batch_group())
         output_layout.addWidget(self._build_output_group())
+        log_row = QHBoxLayout()
         log_label = QLabel("SESSION LOG")
         log_label.setObjectName("subtitle")
-        output_layout.addWidget(log_label)
+        log_row.addWidget(log_label)
+        log_row.addStretch(1)
+        log_row.addWidget(self.copy_report_button)
+        output_layout.addLayout(log_row)
         output_layout.addWidget(self.log_output, stretch=1)
         output_layout.addStretch(1)
         tabs.addTab(self._scroll_widget(output_tab), "OUTPUT")
@@ -1454,6 +1463,7 @@ class MainWindow(QMainWindow):
         self.load_project_button.clicked.connect(self.load_project_preset)
         self.reset_project_button.clicked.connect(self.reset_project)
         self.open_output_button.clicked.connect(self.open_output_folder)
+        self.copy_report_button.clicked.connect(self.copy_report)
         self.check_update_button.clicked.connect(lambda: self.check_for_updates(manual=True))
         self.download_update_button.clicked.connect(self.open_update_download)
         self.preset.currentTextChanged.connect(self._update_preset_description)
@@ -2582,6 +2592,7 @@ class MainWindow(QMainWindow):
         self._set_render_controls_enabled(False)
         self.cancel_batch_button.setEnabled(True)
         self.active_task = "batch"
+        self.last_render_error = ""
         self.append_log(f"Batch render started with {len(variants)} variant(s).")
 
         worker = BatchRenderThread(variants)
@@ -2685,6 +2696,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self._set_render_controls_enabled(False)
         self.active_task = "render"
+        self.last_render_error = ""
         self.append_log("Render queue started.")
 
         worker = RenderThread(settings)
@@ -2711,6 +2723,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self._set_render_controls_enabled(False)
         self.active_task = "preview"
+        self.last_render_error = ""
         self.open_preview_button.hide()
         self.open_preview_button.setEnabled(False)
         self.append_log("Preview render started.")
@@ -3066,6 +3079,7 @@ class MainWindow(QMainWindow):
         self._set_render_controls_enabled(True)
         label = "Preview" if self.active_task == "preview" else ("Batch" if self.active_task == "batch" else "Render")
         self.append_log(f"{label} failed: {message}")
+        self.last_render_error = message
         QMessageBox.critical(self, APP_NAME, f"{label} failed:\n{message}")
 
     def thread_finished(self) -> None:
@@ -3075,6 +3089,71 @@ class MainWindow(QMainWindow):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
         self.log_output.verticalScrollBar().setValue(self.log_output.verticalScrollBar().maximum())
+
+    def copy_report(self) -> None:
+        QApplication.clipboard().setText(self._support_report_text())
+        self.append_log("Report copied to clipboard.")
+
+    def _support_report_text(self) -> str:
+        output_values = self._output_size_values()
+        optimize_values = self._optimize_values()
+        timeline_names = [
+            Path(str(item.get("path", ""))).name or "(unnamed)"
+            for item in self.timeline_items[:12]
+        ]
+        if len(self.timeline_items) > len(timeline_names):
+            timeline_names.append(f"... {len(self.timeline_items) - len(timeline_names)} more")
+        lines = [
+            f"{APP_NAME} support report",
+            f"Version: v{APP_VERSION}",
+            f"Platform: {platform.platform()}",
+            f"Python: {platform.python_version()}",
+            f"ffmpeg: {self._binary_status('ffmpeg')}",
+            f"ffprobe: {self._binary_status('ffprobe')}",
+            f"Timeline items: {len(self.timeline_items)}",
+            f"Timeline filenames: {', '.join(timeline_names) if timeline_names else '(none)'}",
+            f"Audio mode: {self.audio_mode.currentText()}",
+            f"External audio: {self._display_path(self.audio_path.text().strip()) if self.audio_path.text().strip() else '(none)'}",
+            f"Style preset: {self.preset.currentText()}",
+            f"Chunky blocks: {'on' if self.chunky_blocks.isChecked() else 'off'}",
+            (
+                "Output settings: "
+                f"{output_values['preset']}, max {output_values['max_width']} px, "
+                f"{output_values['fps']} fps, CRF {output_values['crf']}, "
+                f"audio {output_values['audio_kbps']} kbps"
+            ),
+            (
+                "Optimize: "
+                f"{'on' if optimize_values['enabled'] else 'off'}, "
+                f"{optimize_values['preset']}, target {optimize_values['target_mb']} MB"
+            ),
+            f"Last output: {self._display_path(self.last_output_path or self.output_path.text().strip())}",
+            f"Last render error: {self._sanitize_text(self.last_render_error) if self.last_render_error else '(none)'}",
+            "",
+            "Log:",
+            self._sanitize_text(self.log_output.toPlainText().strip() or "(empty)"),
+        ]
+        return "\n".join(lines).strip() + "\n"
+
+    def _binary_status(self, name: str) -> str:
+        try:
+            return self._display_path(ffmpeg_utils.require_binary(name))
+        except ffmpeg_utils.FFmpegError:
+            return "missing"
+
+    def _display_path(self, raw_path: str | None) -> str:
+        if not raw_path:
+            return "(none)"
+        return self._sanitize_text(str(raw_path))
+
+    def _sanitize_text(self, value: str) -> str:
+        home_candidates = {str(Path.home())}
+        username = os.environ.get("USER") or os.environ.get("USERNAME")
+        if username:
+            home_candidates.add(str(Path("/Users") / username))
+        for home in sorted((path for path in home_candidates if path), key=len, reverse=True):
+            value = value.replace(home, "~")
+        return value
 
     def check_for_updates(self, manual: bool = False) -> None:
         if self.update_worker and self.update_worker.isRunning():
