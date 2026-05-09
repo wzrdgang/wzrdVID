@@ -15,85 +15,38 @@ It is inspired by ANSI graphics, late-night cable TV, old internet media tools, 
 The output is a normal `.mp4`. It visually looks like terminal/video-art output, but it is not a terminal playback file.
 
 
-## Download Options
+## Download the Mac App
 
-If you just want to use the app on macOS, do **not** use GitHub's green **Code -> Download ZIP** button. That ZIP is only the source code.
+For most people on macOS, this is the normal install path:
 
-Use the packaged app download instead:
-
-[Download WZRD.VID from GitHub Releases](https://github.com/wzrdgang/wzrdVID/releases)
-
-### Option A - Download the Mac app
-
-For most macOS users:
-
-1. Go to **Releases** on GitHub.
-2. Download `WZRD.VID-macOS.zip`.
+1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
+2. Download the release asset named `WZRD.VID-macOS.zip`.
 3. Unzip it.
 4. Open `WZRD.VID.app`.
-
-Notes:
-
-- The GitHub **Code -> Download ZIP** button is source code only. It does not include the packaged `WZRD.VID.app` because build output is intentionally ignored.
-- If macOS blocks the app because it is unsigned or unnotarized, right-click `WZRD.VID.app` and choose **Open**.
-- `ffmpeg` and `ffprobe` are still required unless/until they are bundled. Install them with `brew install ffmpeg`.
-
-### Option B - Run from source ZIP
-
-The GitHub source ZIP is only about a few MB because it excludes build output. Windows and Linux users should use this path for now. Install ffmpeg first using the platform notes below.
-
-macOS/Linux:
+5. If you want, move `WZRD.VID.app` to your `Applications` folder.
+6. If macOS blocks it because it is unsigned/unnotarized, right-click `WZRD.VID.app` and choose **Open**.
+7. If WZRD.VID says `ffmpeg` or `ffprobe` is missing, install ffmpeg:
 
 ```bash
-cd ~/Downloads/wzrdVID-main
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python run.py
-```
-
-Windows PowerShell:
-
-```powershell
-cd $env:USERPROFILE\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python run.py
-```
-
-Windows Command Prompt:
-
-```bat
-cd %USERPROFILE%\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\activate.bat
-pip install -r requirements.txt
-python run.py
-```
-
-### Option C - Build the Mac app locally
-
-```bash
-cd ~/Downloads/wzrdVID-main
 brew install ffmpeg
-./build_app.sh
-open "dist/WZRD.VID.app"
 ```
 
-## Updating WZRD.VID
+Important: do **not** download GitHub's **Source code (zip)** or use the green **Code -> Download ZIP** button unless you want to run/build from source. Those ZIPs do not include the packaged Mac app.
 
-macOS app users:
+Short install guide: see [`docs/INSTALL_MAC.md`](docs/INSTALL_MAC.md).
 
-1. Download the latest `WZRD.VID-macOS.zip` from GitHub Releases.
-2. Unzip it.
-3. Replace your old `WZRD.VID.app` with the new one.
+## Update WZRD.VID
 
-Source users:
+There is no automatic updater yet. Signed/notarized builds and real auto-update support are planned after Apple Developer approval.
 
-1. Pull the latest changes or redownload the source ZIP.
-2. Reactivate your virtual environment.
-3. Run `pip install -r requirements.txt`.
+For now:
+
+1. Open WZRD.VID.
+2. Check the update status in the **Output** tab.
+3. If a newer version is available, click **Download Update**.
+4. Download the latest `WZRD.VID-macOS.zip` release asset.
+5. Unzip it.
+6. Replace your old `WZRD.VID.app` with the new one.
 
 ## Platform Support
 
@@ -138,17 +91,22 @@ Or download from <https://ffmpeg.org/download.html>. Make sure `ffmpeg.exe` and 
 
 See `docs/CROSS_PLATFORM.md` for more source-run details and known caveats.
 
-## Requirements
+## Run From Source — Developers / Tinkerers
+
+This is **not** the normal Mac install path. Use this section if you downloaded the GitHub source ZIP, cloned the repo, want to inspect or modify the code, or are running on Windows/Linux.
+
+The GitHub **Source code (zip)** and **Code -> Download ZIP** downloads are source only. They do not contain `WZRD.VID.app`.
+
+Requirements:
 
 - Python 3.10 or newer
 - ffmpeg and ffprobe
 - Python dependencies from `requirements.txt`
 
-## Install And Run
-
 macOS/Linux:
 
 ```bash
+cd ~/Downloads/wzrdVID-main
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -158,6 +116,7 @@ python run.py
 Windows PowerShell:
 
 ```powershell
+cd $env:USERPROFILE\Downloads\wzrdVID-main
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -167,6 +126,7 @@ python run.py
 Windows Command Prompt:
 
 ```bat
+cd %USERPROFILE%\Downloads\wzrdVID-main
 py -m venv .venv
 .venv\Scripts\activate.bat
 pip install -r requirements.txt

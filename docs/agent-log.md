@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - Download/install docs polish
+
+- Agent/task: Codex / focused Download / Install / Update flow polish after v0.1.3.
+- Intent: Make the packaged Mac app release asset path obvious, move source-run instructions secondary, add a short Mac install guide, and smoke-test the published v0.1.3 ZIP from GitHub.
+- Files changed: `README.md`, `docs/index.html`, `docs/styles.css`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/INSTALL_MAC.md`, `docs/agent-log.md`.
+- Behavior changed: No app behavior changed. Public docs/site copy changed.
+- Commands run: v0.1.3 release download/unzip/version checks; latest-release update-check smoke; `git diff --check`; targeted `rg`; local static server with `curl` checks for `/`, `/lite/`, `/INSTALL_MAC.md`, and `/RELEASE_DOWNLOAD_HELP.md`.
+- Checks passed: Release ZIP exists and unzips from GitHub; bundled app version is 0.1.3; docs/site static checks passed.
+- Checks failed: None.
+- Decisions made: No desktop feature work, licensing changes, UI redesign, or release publication was included.
+- Known gaps: Normal GUI launch from the downloaded app was not run because this pass focused on docs and prior clean-install GUI testing was constrained by an active local WZRD.VID session.
+- Next recommended prompt: Let one normal Mac user follow the updated download/install instructions from wzrdvid.com and report any remaining friction.
+
 ## 2026-05-09 - v0.1.3 bugfix prep
 
 - Agent/task: Codex / Phase 2 v0.1.3 bugfix-only polish implementation.

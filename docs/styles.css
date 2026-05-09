@@ -209,6 +209,19 @@ body::after {
   margin-top: 18px;
 }
 
+.button-help {
+  display: inline-flex;
+  align-items: center;
+  max-width: 360px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 241, 218, 0.78);
+  font: 900 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -391,6 +404,29 @@ p {
 
 .terminal-list li + li {
   margin-top: 8px;
+}
+
+.install-steps {
+  margin: 14px 0;
+  padding: 12px 12px 12px 34px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 241, 218, 0.7);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.install-steps li + li {
+  margin-top: 7px;
+}
+
+.install-steps code {
+  padding: 1px 5px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--mint);
+  font: inherit;
 }
 
 .small-note {
