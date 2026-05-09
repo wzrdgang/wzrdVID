@@ -95,6 +95,20 @@ PRESETS: dict[str, dict[str, Any]] = {
         "rgb_split": 0,
         "hue_speed": 0.0,
     },
+    "PUBLIC ACCESS": {
+        "charset": BUMP_TAPE_RAMP,
+        "profile": "public_access_v1",
+        "background": (9, 8, 6),
+        "contrast": 1.52,
+        "saturation": 0.55,
+        "tint": (224, 218, 190),
+        "tint_mix": 0.42,
+        "base_noise": 0.012,
+        "scanline_strength": 0.22,
+        "glitch_strength": 0.48,
+        "rgb_split": 1,
+        "hue_speed": 0.006,
+    },
     "Monochrome Brutalist": {
         "charset": MONO_RAMP,
         "background": (245, 245, 238),
@@ -174,6 +188,7 @@ PRESET_DESCRIPTIONS = {
     "Dial-Up Neon": "Cyan-magenta early-web color drift with RGB offsets and hard contrast.",
     "Glitch Hell": "Maximal noisy character swaps, split channels, slices, and hard contrast.",
     "Midnight Bump Tape": "Stark black-and-white interstitial texture with blocky late-night tape grit.",
+    "PUBLIC ACCESS": "Camcorder-dub cable texture with ANSI coverage still fully adjustable.",
     "Monochrome Brutalist": "High-contrast architectural black-on-light text blocks.",
     "Chunkcore": "Big pastel block glyphs with source color, blunt contrast, and cleaner compression.",
     "Soft CRT Blocks": "Large mint phosphor cells for a bold terminal look that stays readable small.",
@@ -193,6 +208,7 @@ ALIASES = {
     "Chunky Green Blocks": "Soft CRT Blocks",
     "Chunky Cyber Blocks": "WZRD Blocks",
     "Chunky Mono Blocks": "Brutal Blocks",
+    "Public Access": "PUBLIC ACCESS",
 }
 
 

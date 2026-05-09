@@ -157,13 +157,17 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 ## Features
 
 - Multi-source timeline for videos and photos, with drag-and-drop into the Sources / Timeline table.
+- Expanded import support for common video, audio, and image formats, including `.mts`, `.m2ts`, `.opus`, `.avif`, `.heic`, and `.heif` where local codecs allow.
 - Photo holds with the same ANSI/chunky/effects pipeline as video, including automatic EXIF orientation correction for phone photos.
+- HEIC/HEIF stills become subtle 3-second motion loops when they can be decoded locally.
 - Music/audio from audio files or video files with audio tracks, selectable by picker or drag-and-drop.
+- **worky’s music mode** for tiny mono broadcast audio texture on external music/audio.
 - Per-source **Include Audio** controls for timeline video rows.
 - Audio modes: Silent, External only, Source audio only, External + selected source audio.
 - Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
 - Match visual timeline length to selected music by retiming, trimming, or looping.
 - ANSI/text-art rendering with color sampled from source frames.
+- **PUBLIC ACCESS** profile groundwork for public-access/camcorder-dub broadcast texture while keeping ANSI Coverage fully adjustable.
 - Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, and mosaic collapse.
 - Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
 - Bypass-normal sections so chosen parts remain regular video instead of ANSI.
@@ -171,6 +175,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Batch variants for multiple outputs from one timeline.
 - Output-size presets, including 29 MB Text Limit and 32 MB Sweet Spot workflows.
 - Auto-optimize final video size with H.264 `yuv420p`, AAC, and `+faststart`.
+- 5-second and 10-second preview renders before committing to a full export.
 - PyInstaller macOS app build support.
 
 ## Screenshots / Demos
@@ -215,12 +220,20 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
 7. Choose ANSI Coverage if you want some sections to stay normal video.
 8. Pick Output Size and optional Optimize Output target.
-9. Use **Preview 5 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
+9. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
 10. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
 
 Recipes save timeline items, media paths, trims, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
 
 New projects default to **CRT Flash** transitions and **Fade Out** endings so exports feel less abrupt. Recipes preserve their saved transition and ending choices.
+
+## Supported Media
+
+- Video timeline sources: `.mp4`, `.mov`, `.m4v`, `.mts`, `.m2ts`, `.avi`, `.mkv`, `.webm`.
+- Photo timeline sources: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.gif`, `.bmp`, `.tif`, `.tiff`, `.heic`, `.heif`.
+- External audio/music: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.opus`, `.aiff`, `.aif`, plus video containers with audio tracks.
+
+Actual decode support still depends on the local Python/Pillow/OpenCV/ffmpeg install. If a file cannot be decoded, WZRD.VID rejects it with a log message instead of silently failing.
 
 ## Audio
 
@@ -234,6 +247,8 @@ Audio Mix modes:
 If no external music is selected and timeline source audio is available, WZRD.VID defaults to source audio. If external audio is selected, it defaults to external only.
 
 External audio can also be placed later in the rendered video with **Music Start In Video**. For example, `0:08` keeps the first eight seconds silent in External-only mode, or lets selected source audio play before the external track enters in mixed mode. **Music End In Video** can stop external audio at a specific output timestamp, or stay `auto`.
+
+**worky’s music mode** processes external music/audio only into a tiny mono broadcast profile: highpassed, lowpassed, lightly compressed, and intentionally small/public-access feeling. Source-video audio stays on the normal path unless it is mixed with that processed external track.
 
 When **Match video length to music** is enabled, external audio is the timing authority. Source audio mixing is disabled for retimed match-to-music renders in this build; the app logs a warning and uses external audio only.
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.6 — 2026-05-09
+
+- Added selectable 5-second and 10-second preview renders.
+- Expanded accepted media extensions for video, audio, and photo import.
+- Added HEIC/HEIF still-image decode fallback and subtle automatic 3-second motion-loop behavior when supported locally.
+- Added worky’s music mode for tiny mono broadcast-style external audio processing.
+- Added PUBLIC ACCESS style/profile groundwork while preserving ANSI Coverage controls.
+- Bumped app/release metadata to v0.1.6.
+
 ## v0.1.5 — 2026-05-09
 
 - Fixed the packaged desktop update checker so GitHub release lookups use a stronger request path, explicit headers, short timeouts, and release-page fallback.

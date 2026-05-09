@@ -10,6 +10,7 @@ import random
 import re
 import ssl
 import sys
+import tempfile
 import traceback
 import urllib.error
 import urllib.request
@@ -81,7 +82,7 @@ RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
 UPDATE_CHECK_TIMEOUT_SECONDS = 6
 RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
-APP_VERSION_FALLBACK = "0.1.5"
+APP_VERSION_FALLBACK = "0.1.6"
 
 
 def _resource_path(name: str) -> Path:
@@ -283,6 +284,10 @@ ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 APP_ICON_PATH = ASSETS_DIR / "wzrd_vid_icon.png"
 LOGO_HEADER_PATH = ASSETS_DIR / "branding" / "wzrdvid_primary.png"
 PREVIEW_SECONDS = 5.0
+PREVIEW_DURATION_OPTIONS = {
+    "5s": 5.0,
+    "10s": 10.0,
+}
 AUDIO_MODES = [AUDIO_SILENT, AUDIO_EXTERNAL, AUDIO_SOURCE, AUDIO_MIX]
 MATCH_TIMELINE_MODES = [MATCH_SPEED, MATCH_TRIM, MATCH_LOOP]
 
@@ -418,10 +423,10 @@ ENDING_MODES = [
     "CRT Shutdown",
     "Buffer Exhausted",
 ]
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".aiff", ".aif"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mts", ".m2ts", ".avi", ".mkv", ".webm"}
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".aiff", ".aif"}
 AUDIO_CONTAINER_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
-PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
 BATCH_VARIANTS = [
     "29 MB Text Limit",
@@ -753,6 +758,8 @@ class MainWindow(QMainWindow):
         self.audio_path.setObjectName("audioPath")
         self.audio_path.setToolTip("Drag audio here, or choose audio files/video files with audio tracks.")
         self.audio_duration = QLabel("Duration: -")
+        self.worky_music_mode = QCheckBox("worky’s music mode")
+        self.worky_music_mode.setToolTip("tiny mono broadcast audio // crushed public-access transmission")
         self.audio_mode = QComboBox()
         self.audio_mode.addItems(AUDIO_MODES)
         self.audio_mode.setToolTip("Silent removes audio. External only uses selected music/audio. Source audio only uses checked timeline rows. Mix combines both.")
@@ -944,6 +951,9 @@ class MainWindow(QMainWindow):
         self.start_button.setObjectName("makeButton")
         self.preview_button = QPushButton("PREVIEW 5 SEC")
         self.preview_button.setObjectName("secondaryButton")
+        self.preview_duration = QComboBox()
+        self.preview_duration.addItems(PREVIEW_DURATION_OPTIONS.keys())
+        self.preview_duration.setToolTip("Preview render length. Keep it tight: 5s or 10s.")
         self.preview_from = QComboBox()
         self.preview_from.addItems(["Start", "Middle", "Custom timestamp"])
         self.preview_custom = QLineEdit("0:00")
@@ -1251,6 +1261,7 @@ class MainWindow(QMainWindow):
         music_row.addWidget(self.audio_path, 0, 1)
         music_row.addWidget(clear_music_button, 0, 2)
         music_row.addWidget(self.audio_duration, 1, 1, 1, 2)
+        music_row.addWidget(self.worky_music_mode, 2, 1, 1, 2)
         music_row.setColumnStretch(1, 1)
         layout.addLayout(music_row)
         layout.addWidget(self._surface_wear_row("SOURCE BUS // VTR-A // tracking dust / audio pins / edge bleed", right_cluster=False))
@@ -1548,6 +1559,8 @@ class MainWindow(QMainWindow):
 
         preview_row = QHBoxLayout()
         preview_row.addWidget(self.preview_button)
+        preview_row.addWidget(QLabel("Length"))
+        preview_row.addWidget(self.preview_duration)
         preview_row.addWidget(QLabel("Preview from"))
         preview_row.addWidget(self.preview_from)
         preview_row.addWidget(self.preview_custom)
@@ -1597,6 +1610,8 @@ class MainWindow(QMainWindow):
         self.batch_button.clicked.connect(self.start_batch_render)
         self.cancel_batch_button.clicked.connect(self.cancel_batch_render)
         self.batch_enabled.toggled.connect(self._save_settings)
+        self.preview_duration.currentTextChanged.connect(self._update_preview_controls)
+        self.preview_duration.currentTextChanged.connect(lambda _text: self._save_settings())
         self.preview_from.currentTextChanged.connect(self._update_preview_controls)
         self.open_preview_button.clicked.connect(self.open_preview)
         self.save_project_button.clicked.connect(self.save_project_preset)
@@ -1656,6 +1671,10 @@ class MainWindow(QMainWindow):
         self.video_end.textChanged.connect(self._update_output_size_estimate)
         self.audio_path.textChanged.connect(lambda _text: self._update_audio_controls())
         self.audio_path.textChanged.connect(self._update_output_size_estimate)
+        self.worky_music_mode.toggled.connect(lambda _checked: self._update_audio_controls())
+        self.worky_music_mode.toggled.connect(lambda _checked: self._update_output_size_estimate())
+        self.worky_music_mode.toggled.connect(lambda _checked: self._update_optimize_estimate())
+        self.worky_music_mode.toggled.connect(lambda _checked: self._save_settings())
         self.audio_start.textChanged.connect(self._update_output_size_estimate)
         self.audio_end.textChanged.connect(self._update_output_size_estimate)
         self.audio_timeline_start.textChanged.connect(self._update_output_size_estimate)
@@ -1695,7 +1714,7 @@ class MainWindow(QMainWindow):
             self,
             "Add video source(s)",
             str(Path.home()),
-            "Video files (*.mp4 *.mov *.m4v *.avi *.mkv *.webm)",
+            "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
         )
         self._add_timeline_paths(paths, forced_kind="video")
 
@@ -1704,7 +1723,7 @@ class MainWindow(QMainWindow):
             self,
             "Add photo source(s)",
             str(Path.home()),
-            "Photo files (*.jpg *.jpeg *.png *.webp *.gif *.bmp *.tif *.tiff *.heic *.heif)",
+            "Photo files (*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif)",
         )
         self._add_timeline_paths(paths, forced_kind="photo")
 
@@ -1787,7 +1806,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, APP_NAME, str(exc))
                 return False
             duration = 3.0
-            self.append_log(f"Added photo: {source.name} (3.0s hold, silent)")
+            if source.suffix.lower() in HEIC_EXTENSIONS:
+                self.append_log(f"Added HEIC/HEIF photo: {source.name} (3.0s subtle motion loop, silent)")
+            else:
+                self.append_log(f"Added photo: {source.name} (3.0s hold, silent)")
         self.timeline_items.append(
             {
                 "path": str(source),
@@ -1813,15 +1835,27 @@ class MainWindow(QMainWindow):
     def _validate_photo_source(self, path: str) -> None:
         suffix = Path(path).suffix.lower()
         try:
-            with Image.open(path) as image:
-                ImageOps.exif_transpose(image).load()
+            self._load_photo_image(path).load()
         except Exception as exc:  # noqa: BLE001 - Pillow codec support varies locally.
             if suffix in HEIC_EXTENSIONS:
                 raise ValueError(
                     "HEIC/HEIF image support is not available in this install. "
-                    "Convert the photo to PNG or JPEG and add it again."
+                    "Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again."
                 ) from exc
             raise ValueError(f"Could not read photo file:\n{path}\n\n{exc}") from exc
+
+    def _load_photo_image(self, path: str) -> Image.Image:
+        try:
+            with Image.open(path) as image:
+                return ImageOps.exif_transpose(image).convert("RGB")
+        except Exception:
+            if Path(path).suffix.lower() not in HEIC_EXTENSIONS:
+                raise
+        with tempfile.TemporaryDirectory(prefix="wzrd_heic_preview_") as temp_dir:
+            decoded = Path(temp_dir) / "decoded.png"
+            ffmpeg_utils.extract_still_frame(path, decoded)
+            with Image.open(decoded) as image:
+                return ImageOps.exif_transpose(image).convert("RGB")
 
     def _refresh_timeline_table(self) -> None:
         self._timeline_table_updating = True
@@ -2047,14 +2081,13 @@ class MainWindow(QMainWindow):
 
     def _load_photo_preview(self, path: str) -> None:
         try:
-            with Image.open(path) as source_image:
-                frame_rgb = ImageOps.exif_transpose(source_image).convert("RGB")
-                framed = fit_frame_to_output(
-                    frame_rgb,
-                    (640, 360),
-                    **self._framing_kwargs(),
-                )
-                pixmap = self._image_to_preview_pixmap(framed)
+            frame_rgb = self._load_photo_image(path)
+            framed = fit_frame_to_output(
+                frame_rgb,
+                (640, 360),
+                **self._framing_kwargs(),
+            )
+            pixmap = self._image_to_preview_pixmap(framed)
         except Exception:  # noqa: BLE001 - preview should fail softly.
             self.preview_label.setPixmap(QPixmap())
             self.preview_label.setText("PHOTO\nPREVIEW UNAVAILABLE")
@@ -2180,7 +2213,7 @@ class MainWindow(QMainWindow):
             self,
             "Select video file",
             str(Path.home()),
-            "Video files (*.mp4 *.mov *.m4v *.avi *.mkv *.webm)",
+            "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
         )
         if not path:
             return
@@ -2195,14 +2228,19 @@ class MainWindow(QMainWindow):
 
 
     def _update_preview_controls(self) -> None:
+        seconds = int(self._selected_preview_seconds())
+        self.preview_button.setText(f"PREVIEW {seconds} SEC")
         self.preview_custom.setEnabled(self.preview_from.currentText() == "Custom timestamp")
+
+    def _selected_preview_seconds(self) -> float:
+        return PREVIEW_DURATION_OPTIONS.get(self.preview_duration.currentText(), PREVIEW_SECONDS)
 
     def select_audio(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select music / audio file",
             str(Path.home()),
-            "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.aiff *.aif *.mp4 *.mov *.mkv *.webm)",
+            "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus *.aiff *.aif *.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
         )
         if path:
             self._set_external_audio_path(path, from_drop=False)
@@ -2444,6 +2482,7 @@ class MainWindow(QMainWindow):
         self.audio_end.setEnabled(external_active)
         self.audio_timeline_start.setEnabled(external_active)
         self.audio_timeline_end.setEnabled(external_active)
+        self.worky_music_mode.setEnabled(external_active)
         if not external_active and self.match_timeline_to_audio.isChecked():
             was_blocked = self.match_timeline_to_audio.blockSignals(True)
             self.match_timeline_to_audio.setChecked(False)
@@ -2453,9 +2492,15 @@ class MainWindow(QMainWindow):
                 "Match-to-music uses the external track only; selected source audio is disabled for that render."
             )
         elif mode == AUDIO_MIX:
-            self.audio_duration.setToolTip("Final MP4 mixes selected external audio with checked timeline video audio.")
+            if self.worky_music_mode.isChecked():
+                self.audio_duration.setToolTip("Final MP4 mixes worky-processed external audio with checked timeline video audio.")
+            else:
+                self.audio_duration.setToolTip("Final MP4 mixes selected external audio with checked timeline video audio.")
         elif external_active:
-            self.audio_duration.setToolTip("Selected external music/audio will be muxed into the final MP4.")
+            if self.worky_music_mode.isChecked():
+                self.audio_duration.setToolTip("Selected external music/audio will be crushed into tiny mono broadcast texture before muxing.")
+            else:
+                self.audio_duration.setToolTip("Selected external music/audio will be muxed into the final MP4.")
         elif mode == AUDIO_SOURCE:
             self.audio_duration.setToolTip(
                 "Final MP4 uses checked video timeline audio; photo gaps and unchecked rows are silent."
@@ -2989,6 +3034,7 @@ class MainWindow(QMainWindow):
             audio_timeline_start=audio_timeline_start,
             audio_timeline_end=audio_timeline_end,
             audio_mode=audio_mode,
+            worky_music_mode=self.worky_music_mode.isChecked(),
             match_timeline_to_audio=self.match_timeline_to_audio.isChecked(),
             match_timeline_mode=self.match_timeline_mode.currentText(),
             target_size_mb=None,
@@ -3036,8 +3082,9 @@ class MainWindow(QMainWindow):
         if render_duration is None or render_duration <= 0:
             raise ValueError("Timeline trim range is empty.")
 
-        preview_offset = self._preview_offset(render_duration)
-        preview_length = min(PREVIEW_SECONDS, render_duration - preview_offset)
+        preview_seconds = self._selected_preview_seconds()
+        preview_offset = self._preview_offset(render_duration, preview_seconds)
+        preview_length = min(preview_seconds, render_duration - preview_offset)
         if preview_length <= 0.05:
             raise ValueError("Preview start is outside the selected timeline trim range.")
 
@@ -3121,12 +3168,13 @@ class MainWindow(QMainWindow):
         )
 
 
-    def _preview_offset(self, render_duration: float) -> float:
+    def _preview_offset(self, render_duration: float, preview_seconds: float | None = None) -> float:
+        preview_seconds = PREVIEW_SECONDS if preview_seconds is None else preview_seconds
         mode = self.preview_from.currentText()
         if mode == "Start":
             return 0.0
         if mode == "Middle":
-            return max(0.0, (render_duration - min(PREVIEW_SECONDS, render_duration)) / 2.0)
+            return max(0.0, (render_duration - min(preview_seconds, render_duration)) / 2.0)
         custom = ffmpeg_utils.parse_timecode(self.preview_custom.text())
         return 0.0 if custom is None else max(0.0, custom)
 
@@ -3282,6 +3330,7 @@ class MainWindow(QMainWindow):
             f"Timeline items: {len(self.timeline_items)}",
             f"Timeline filenames: {', '.join(timeline_names) if timeline_names else '(none)'}",
             f"Audio mode: {self.audio_mode.currentText()}",
+            f"worky music mode: {'on' if self.worky_music_mode.isChecked() else 'off'}",
             f"External audio: {self._display_path(self.audio_path.text().strip()) if self.audio_path.text().strip() else '(none)'}",
             f"Style preset: {self.preset.currentText()}",
             f"Chunky blocks: {'on' if self.chunky_blocks.isChecked() else 'off'}",
@@ -3398,9 +3447,11 @@ class MainWindow(QMainWindow):
             return True
         if self.last_output_path or self.last_preview_path or self.last_render_error:
             return True
-        if self.audio_mode.currentText() != AUDIO_SILENT or self.match_timeline_to_audio.isChecked():
+        if self.audio_mode.currentText() != AUDIO_SILENT or self.match_timeline_to_audio.isChecked() or self.worky_music_mode.isChecked():
             return True
         if self.match_timeline_mode.currentText() != MATCH_SPEED:
+            return True
+        if self.preview_duration.currentText() != "5s":
             return True
         if self.preset.currentText() != "Classic ANSI" or self.chunky_blocks.isChecked():
             return True
@@ -3469,6 +3520,7 @@ class MainWindow(QMainWindow):
         self.audio_timeline_start.setText("0:00")
         self.audio_timeline_end.setText("auto")
         self._set_combo_text(self.audio_mode, AUDIO_SILENT)
+        self.worky_music_mode.setChecked(False)
         self.match_timeline_to_audio.setChecked(False)
         self._set_combo_text(self.match_timeline_mode, MATCH_SPEED)
 
@@ -3521,6 +3573,7 @@ class MainWindow(QMainWindow):
         self.open_preview_button.hide()
         self.open_preview_button.setEnabled(False)
         self.final_size_label.setText("Final output size: -")
+        self._set_combo_text(self.preview_duration, "5s")
         self.log_output.clear()
         self.append_log("Project reset.")
         self._refresh_slider_labels()
@@ -3634,6 +3687,7 @@ class MainWindow(QMainWindow):
             "audio_timeline_start": self.audio_timeline_start.text().strip(),
             "audio_timeline_end": self.audio_timeline_end.text().strip(),
             "audio_mode": self.audio_mode.currentText(),
+            "worky_music_mode": self.worky_music_mode.isChecked(),
             "match_timeline_to_audio": self.match_timeline_to_audio.isChecked(),
             "match_timeline_mode": self.match_timeline_mode.currentText(),
             "preset": self.preset.currentText(),
@@ -3668,6 +3722,7 @@ class MainWindow(QMainWindow):
             "ending_mode": self.ending_mode.currentText(),
             "loop_friendly": self.loop_friendly.isChecked(),
             "preview_from": self.preview_from.currentText(),
+            "preview_duration": self.preview_duration.currentText(),
             "preview_custom": self.preview_custom.text().strip(),
             "manual_blocks": [
                 {"start": start, "end": end} for start, end in (row.values() for row in self.block_rows)
@@ -3694,6 +3749,7 @@ class MainWindow(QMainWindow):
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
         )
         self._set_combo_text(self.audio_mode, loaded_audio_mode)
+        self.worky_music_mode.setChecked(bool(data.get("worky_music_mode", False)))
         self.match_timeline_to_audio.setChecked(bool(data.get("match_timeline_to_audio", False)))
         self._set_combo_text(self.match_timeline_mode, str(data.get("match_timeline_mode", MATCH_SPEED)))
         self._set_combo_text(self.preset, str(data.get("preset", "Classic ANSI")))
@@ -3740,6 +3796,7 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.ending_mode, str(data.get("ending_mode", DEFAULT_ENDING_MODE)))
         self.loop_friendly.setChecked(bool(data.get("loop_friendly", False)))
         self._set_combo_text(self.preview_from, str(data.get("preview_from", "Start")))
+        self._set_combo_text(self.preview_duration, str(data.get("preview_duration", "5s")))
         self.preview_custom.setText(str(data.get("preview_custom", "0:00")))
         self.batch_enabled.setChecked(bool(data.get("batch_enabled", False)))
         selected_variants = data.get("batch_variants", ["29 MB Text Limit", "Chunkcore"])

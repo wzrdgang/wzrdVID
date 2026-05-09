@@ -38,6 +38,8 @@ AUDIO_MIX = "External + selected source audio"
 MATCH_SPEED = "Speed up/down timeline"
 MATCH_TRIM = "Trim timeline to music"
 MATCH_LOOP = "Loop timeline to music"
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
+HEIC_EXTENSIONS = {".heic", ".heif"}
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Menlo.ttc",
@@ -94,6 +96,7 @@ class RenderSettings:
     audio_timeline_start: float = 0.0
     audio_timeline_end: float | None = None
     audio_mode: str = AUDIO_EXTERNAL
+    worky_music_mode: bool = False
     match_timeline_to_audio: bool = False
     match_timeline_mode: str = MATCH_SPEED
     target_size_mb: float | None = None
@@ -263,6 +266,8 @@ def render_project(
         _emit(log, f"External audio starts in video at {ffmpeg_utils.format_duration(settings.audio_timeline_start)}.")
     if external_audio and settings.audio_timeline_end is not None:
         _emit(log, f"External audio stops in video at {ffmpeg_utils.format_duration(settings.audio_timeline_end)}.")
+    if external_audio and settings.worky_music_mode:
+        _emit(log, "worky_music_profile_v1: external audio becomes tiny mono broadcast texture.")
     if settings.match_timeline_to_audio and external_audio:
         if playback.loop_timeline:
             _emit(log, f"Match to music: looping visual timeline to {ffmpeg_utils.format_duration(render_duration)}.")
@@ -307,6 +312,8 @@ def render_project(
         _emit(log, "Bypass ANSI: full ANSI render.")
 
     preset = get_preset(settings.preset_name)
+    if preset.get("profile") == "public_access_v1":
+        _emit(log, "PUBLIC ACCESS profile: analog broadcast groundwork active; ANSI coverage controls still apply.")
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
     layout = make_text_layout(settings.width_chars, settings.output_size, chunky_blocks=chunky_blocks)
     frame_count = max(1, math.ceil(render_duration * settings.fps))
@@ -325,6 +332,8 @@ def render_project(
         _emit(log, f"Transitions: {settings.transition_mode}.")
     if settings.ending_mode != "Hard Cut" or settings.loop_friendly:
         _emit(log, f"Ending: {settings.ending_mode}{' + loop-friendly' if settings.loop_friendly else ''}.")
+    if any(Path(segment.path).suffix.lower() in HEIC_EXTENSIONS for segment in timeline_segments if segment.kind == "photo"):
+        _emit(log, "HEIC/HEIF stills: applying subtle 3-second automatic motion loop.")
     _emit_progress(progress, 5)
 
     with tempfile.TemporaryDirectory(prefix="wzrd_vid_render_") as temp_root:
@@ -382,6 +391,7 @@ def render_project(
                 audio_end,
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
+                worky_music_mode=settings.worky_music_mode,
                 external_offset=settings.audio_timeline_start,
                 external_output_end=settings.audio_timeline_end,
                 log=log,
@@ -411,6 +421,7 @@ def render_project(
                 fade_out_duration=_audio_fade_duration(settings, render_duration),
                 audio_offset=settings.audio_timeline_start,
                 audio_output_end=settings.audio_timeline_end,
+                worky_music_mode=settings.worky_music_mode,
                 log=log,
             )
         elif source_audio_path is not None:
@@ -625,7 +636,7 @@ def _build_timeline(settings: RenderSettings) -> tuple[list[TimelineSegment], fl
         kind = (item.kind or "video").strip().lower()
         if kind not in {"video", "photo"}:
             suffix = Path(path).suffix.lower()
-            kind = "photo" if suffix in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"} else "video"
+            kind = "photo" if suffix in PHOTO_EXTENSIONS else "video"
 
         if kind == "photo":
             hold = float(item.photo_hold_duration or item.duration or 3.0)
@@ -675,12 +686,25 @@ def _build_timeline(settings: RenderSettings) -> tuple[list[TimelineSegment], fl
 
 def _check_photo_readable(path: str) -> None:
     try:
-        with Image.open(path) as image:
-            ImageOps.exif_transpose(image).load()
+        _load_photo_image(path).load()
     except Exception as exc:  # noqa: BLE001 - Pillow support varies by local install.
-        if Path(path).suffix.lower() in {".heic", ".heif"}:
-            raise RenderError("HEIC/HEIF image support is not available in this install. Convert the photo to PNG or JPEG and add it again.") from exc
+        if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+            raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
         raise RenderError(f"Could not read photo source {path}: {exc}") from exc
+
+
+def _load_photo_image(path: str) -> Image.Image:
+    try:
+        with Image.open(path) as image:
+            return ImageOps.exif_transpose(image).convert("RGB")
+    except Exception:
+        if Path(path).suffix.lower() not in HEIC_EXTENSIONS:
+            raise
+    with tempfile.TemporaryDirectory(prefix="wzrd_heic_decode_") as temp_dir:
+        decoded = Path(temp_dir) / "decoded.png"
+        ffmpeg_utils.extract_still_frame(path, decoded)
+        with Image.open(decoded) as image:
+            return ImageOps.exif_transpose(image).convert("RGB")
 
 
 class _TimelineFrameSource:
@@ -694,7 +718,7 @@ class _TimelineFrameSource:
         segment = self._segment_at(timeline_t)
         local_t = max(0.0, min(segment.duration, timeline_t - segment.timeline_start))
         if segment.kind == "photo":
-            return self._photo_frame(segment.path)
+            return self._photo_frame(segment.path, local_t, segment.duration)
         return self._video_frame(segment, local_t)
 
     def close(self) -> None:
@@ -732,19 +756,34 @@ class _TimelineFrameSource:
             self.last_frames[segment.path] = frame_bgr
         return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-    def _photo_frame(self, path: str) -> np.ndarray:
+    def _photo_frame(self, path: str, local_t: float = 0.0, duration: float = 3.0) -> np.ndarray:
         cached = self.photo_cache.get(path)
-        if cached is not None:
-            return cached
-        try:
-            with Image.open(path) as image:
-                frame = np.asarray(ImageOps.exif_transpose(image).convert("RGB"))
-        except Exception as exc:  # noqa: BLE001
-            if Path(path).suffix.lower() in {".heic", ".heif"}:
-                raise RenderError("HEIC/HEIF image support is not available in this install. Convert the photo to PNG or JPEG and add it again.") from exc
-            raise RenderError(f"Could not load photo source {path}: {exc}") from exc
-        self.photo_cache[path] = frame
-        return frame
+        if cached is None:
+            try:
+                cached = np.asarray(_load_photo_image(path))
+            except Exception as exc:  # noqa: BLE001
+                if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+                    raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
+                raise RenderError(f"Could not load photo source {path}: {exc}") from exc
+            self.photo_cache[path] = cached
+        if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+            return _heic_motion_loop_frame(cached, local_t, duration)
+        return cached
+
+
+def _heic_motion_loop_frame(frame_rgb: np.ndarray, local_t: float, duration: float) -> np.ndarray:
+    """Apply restrained automatic motion to HEIC/HEIF stills."""
+    image = Image.fromarray(frame_rgb).convert("RGB")
+    loop_duration = max(0.75, min(3.0, float(duration or 3.0)))
+    phase = (float(local_t or 0.0) % loop_duration) / loop_duration
+    wave = math.sin(phase * math.tau)
+    zoom = 1.018 + 0.016 * (0.5 + 0.5 * math.sin(phase * math.tau - math.pi / 2.0))
+    center_x = 0.5 + 0.018 * wave
+    center_y = 0.5 + 0.012 * math.cos(phase * math.tau)
+    moved = _zoom_crop(image, zoom=zoom, center_x=center_x, center_y=center_y)
+    shimmer = 1.0 + 0.018 * math.sin(phase * math.tau * 2.0)
+    moved = ImageEnhance.Contrast(moved).enhance(shimmer)
+    return np.asarray(moved)
 
 
 def _render_frames(

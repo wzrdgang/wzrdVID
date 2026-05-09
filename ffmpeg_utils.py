@@ -237,6 +237,27 @@ def get_duration(path: str | Path) -> float:
     return max(candidates)
 
 
+def extract_still_frame(source_path: str | Path, output_path: str | Path, log: LogCallback = None) -> Path:
+    """Use ffmpeg to decode a still/image source to a single image file."""
+    ffmpeg_path = require_binary("ffmpeg")
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    args = [
+        ffmpeg_path,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(source_path),
+        "-frames:v",
+        "1",
+        str(output),
+    ]
+    run_command(args, log)
+    return output
+
+
 def _parse_frame_rate(raw: str) -> float:
     if "/" in raw:
         numerator, denominator = raw.split("/", 1)
@@ -430,6 +451,7 @@ def mux_audio(
     fade_out_duration: float = 0.0,
     audio_offset: float = 0.0,
     audio_output_end: float | None = None,
+    worky_music_mode: bool = False,
     log: LogCallback = None,
 ) -> None:
     """Mux trimmed audio with an already encoded video.
@@ -451,6 +473,8 @@ def mux_audio(
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
     audio_chain = f"[1:a:0]atrim=0:{source_span:.6f},asetpts=PTS-STARTPTS"
+    if worky_music_mode:
+        audio_chain += _worky_music_filter_suffix()
     if delay_ms:
         audio_chain += f",adelay={delay_ms}:all=1"
     audio_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS"
@@ -485,7 +509,7 @@ def mux_audio(
         "-c:a",
         "aac",
         "-b:a",
-        audio_bitrate,
+        _worky_music_bitrate(audio_bitrate, worky_music_mode),
         "-t",
         duration_text,
         "-movflags",
@@ -584,6 +608,7 @@ def mix_external_and_source_audio(
     source_volume: float = 1.0,
     external_offset: float = 0.0,
     external_output_end: float | None = None,
+    worky_music_mode: bool = False,
     log: LogCallback = None,
 ) -> Path:
     """Trim external audio, place it in output time, mix with source audio, and encode AAC."""
@@ -606,6 +631,8 @@ def mix_external_and_source_audio(
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
     external_chain = f"[0:a:0]volume={ext_vol:.4f},atrim=0:{external_duration:.6f},asetpts=PTS-STARTPTS"
+    if worky_music_mode:
+        external_chain += _worky_music_filter_suffix()
     if delay_ms:
         external_chain += f",adelay={delay_ms}:all=1"
     external_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS[a0]"
@@ -643,6 +670,19 @@ def mix_external_and_source_audio(
     ]
     run_command(args, log)
     return output
+
+
+def _worky_music_filter_suffix() -> str:
+    return (
+        ",highpass=f=90"
+        ",lowpass=f=4800"
+        ",acompressor=threshold=-18dB:ratio=2.5:attack=20:release=120"
+        ",aformat=sample_rates=24000:channel_layouts=mono"
+    )
+
+
+def _worky_music_bitrate(audio_bitrate: str, enabled: bool) -> str:
+    return "32k" if enabled else audio_bitrate
 
 def _extract_audio_piece(
     source_path: Path,

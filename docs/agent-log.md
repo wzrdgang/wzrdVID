@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.6 media expansion prep
+
+- Agent/task: Codex / focused v0.1.6 media expansion and broadcast artifact release prep.
+- Intent: Add 10-second preview support, expand accepted media formats, add HEIC/HEIF motion-loop handling, add worky's music mode, add PUBLIC ACCESS preset groundwork, bump/package v0.1.6, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `README.md`, `docs/index.html`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Desktop preview duration can be 5s or 10s, more media extensions are accepted, HEIC/HEIF stills can decode through ffmpeg fallback with restrained automatic motion, external audio can use the worky music profile, and PUBLIC ACCESS appears as a style preset while preserving ANSI coverage controls.
+- Commands run: `git status --short --branch`; targeted `sed`/`rg`; `python3 -m py_compile`; `node --check docs/lite/app.js`; local Pages `curl` checks; offscreen Qt helper smoke for preview options/extensions/recipe defaults; tiny render smokes for 5s/10s preview settings, HEIC motion, and worky music mode; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; plist/version/size/checksum checks; packaged app launch smoke.
+- Checks passed: Python and Lite syntax checks, static Pages checks, recipe compatibility smoke, HEIC render smoke, direct ffprobe worky music mode output check, macOS app build, release ZIP package, plist version 0.1.6, and packaged app launch smoke passed.
+- Checks failed: None.
+- Decisions made: PUBLIC ACCESS was added as stable preset groundwork, not a separate renderer rewrite. Worky's music mode processes external audio only and leaves source-video audio routing intact.
+- Known gaps: GitHub release publication remains intentionally deferred. HEIC support depends on available ffmpeg decoding on the user's machine.
+- Next recommended prompt: Publish v0.1.6 with the generated `WZRD.VID-macOS.zip` and SHA256 after reviewing the final release command.
+
 ## 2026-05-09 - v0.1.5 packaged update checker fix
 
 - Agent/task: Codex / release-critical desktop update checker hardening before v0.1.5.
