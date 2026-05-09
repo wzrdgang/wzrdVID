@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>//wzrdVID Lite — 30-second browser chaos cut</title>
-  <meta name="description" content="WZRD.VID Lite is a browser-only 30-second chaos-cut prototype. Local files, no upload.">
+  <title>//wzrdVID Lite — 60-second browser chaos cut</title>
+  <meta name="description" content="WZRD.VID Lite is a browser-only 15/30/60-second chaos-cut prototype. Local files, no upload.">
   <link rel="icon" type="image/png" sizes="32x32" href="../assets/branding/wzrdvid_favicon_32.png">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,11 +12,11 @@
   <div class="page-shell">
     <header class="lite-header panel-frame">
       <a class="back-link" href="../">&lt;&lt; full deck</a>
-      <div class="ticker-line">LITE FEED //// LOCAL BROWSER RENDER //// NO UPLOAD //// MAX 30 SEC</div>
+      <div class="ticker-line">LITE FEED //// LOCAL BROWSER RENDER //// NO UPLOAD //// MAX 60 SEC</div>
       <div class="hero-grid">
         <div>
           <p class="kicker">//wzrdVID Lite</p>
-          <h1>30-second browser chaos cut</h1>
+          <h1>60-second browser chaos cut</h1>
           <p class="subtitle">local files // no upload // cursed little clips</p>
         </div>
         <div class="signal-bug">BROWSER ONLY<br>TXT FEED</div>
@@ -63,9 +63,18 @@
         </label>
 
         <label>
-          <span>ANSI Amount <output id="ansiValue">70%</output></span>
+          <span>ANSI Coverage <output id="ansiValue">70%</output></span>
           <input id="ansiAmount" type="range" min="0" max="100" value="70">
-          <small>0% normal video // 100% full ANSI // between = random textmode sections</small>
+          <small>Random portions of the final clip become ANSI/text-art. 0% = normal, 100% = full ANSI.</small>
+        </label>
+
+        <label>
+          <span>Clip Length</span>
+          <select id="durationSelect">
+            <option value="15">15 sec</option>
+            <option value="30" selected>30 sec</option>
+            <option value="60">60 sec</option>
+          </select>
         </label>
 
         <label>
@@ -99,7 +108,7 @@ waiting for files _</pre>
 
     <footer class="site-footer panel-frame">
       <span>//// WZRD.VID LITE ////</span>
-      <span>LOCAL FILES | NO UPLOAD | 30 SEC MAX</span>
+      <span>LOCAL FILES | NO UPLOAD | 60 SEC MAX</span>
       <span>worky.mode / wzrdgang</span>
     </footer>
   </div>

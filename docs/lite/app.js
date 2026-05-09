@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const MAX_DURATION = 30;
+  const DEFAULT_DURATION = 30;
+  const MIN_ANSI_CHUNK = 0.5;
+  const MAX_ANSI_CHUNK = 3.0;
   const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi']);
   const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
   const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'aif', 'aiff']);
@@ -33,6 +35,7 @@
     preset: document.getElementById('presetSelect'),
     ansi: document.getElementById('ansiAmount'),
     ansiValue: document.getElementById('ansiValue'),
+    duration: document.getElementById('durationSelect'),
     quality: document.getElementById('qualitySelect'),
     renderButton: document.getElementById('renderButton'),
     downloadButton: document.getElementById('downloadButton'),
@@ -186,17 +189,26 @@
     return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   }
 
-  function makeTimeline() {
+  function selectedDuration() {
+    const value = Number(elements.duration?.value || DEFAULT_DURATION);
+    return [15, 30, 60].includes(value) ? value : DEFAULT_DURATION;
+  }
+
+  function updateRenderButtonCopy() {
+    elements.renderButton.textContent = `MAKE ${selectedDuration()} SEC CLIP`;
+  }
+
+  function makeTimeline(duration) {
     const timeline = [];
     let t = 0;
     let guard = 0;
-    const ansiAmount = Number(elements.ansi.value);
-    while (t < MAX_DURATION && guard < 120) {
+    while (t < duration - 0.001 && guard < 240) {
       guard += 1;
       const source = state.media[Math.floor(Math.random() * state.media.length)];
       const isVideo = source.kind === 'video';
       const segmentDuration = isVideo ? randomBetween(1.2, 4.2) : randomBetween(1, 3);
-      const safeDuration = Math.min(segmentDuration, MAX_DURATION - t);
+      const safeDuration = Math.min(segmentDuration, duration - t);
+      if (safeDuration <= 0.001) break;
       const sourceMax = Math.max(0, (source.duration || safeDuration) - safeDuration);
       const sourceStart = isVideo ? Math.random() * sourceMax : 0;
       timeline.push({
@@ -204,16 +216,92 @@
         start: t,
         duration: safeDuration,
         sourceStart,
-        ansi: ansiAmount >= 100 || (ansiAmount > 0 && Math.random() * 100 < ansiAmount),
         seed: Math.random()
       });
       t += safeDuration;
     }
+    if (timeline.length) {
+      const last = timeline[timeline.length - 1];
+      last.duration = Math.max(0, duration - last.start);
+    }
     return timeline;
   }
 
-  function randomBetween(min, max) {
-    return min + Math.random() * (max - min);
+  function buildAnsiIntervals(duration, percent, minLen = MIN_ANSI_CHUNK, maxLen = MAX_ANSI_CHUNK, seed = Date.now()) {
+    const clampedPercent = Math.max(0, Math.min(100, Number(percent) || 0));
+    if (duration <= 0 || clampedPercent <= 0) return [];
+    if (clampedPercent >= 100) return [[0, duration]];
+
+    const rng = seededRandom(seed);
+    const chunks = [];
+    let t = 0;
+    while (t < duration - 0.001) {
+      const remaining = duration - t;
+      const len = Math.min(remaining, randomBetween(minLen, maxLen, rng));
+      chunks.push([t, t + len]);
+      t += len;
+    }
+
+    shuffle(chunks, rng);
+    const target = duration * clampedPercent / 100;
+    const selected = [];
+    let selectedTotal = 0;
+    for (const [start, end] of chunks) {
+      if (selectedTotal >= target - 0.05) break;
+      const available = end - start;
+      const remaining = target - selectedTotal;
+      if (available > remaining && remaining >= minLen) {
+        selected.push([start, Math.min(end, start + remaining)]);
+        selectedTotal += remaining;
+      } else if (available <= remaining || remaining > available * 0.5) {
+        selected.push([start, end]);
+        selectedTotal += available;
+      }
+    }
+    return mergeIntervals(selected, duration);
+  }
+
+  function isAnsiTime(time, intervals) {
+    return intervals.some(([start, end]) => time >= start && time < end);
+  }
+
+  function mergeIntervals(intervals, duration) {
+    const sorted = intervals
+      .map(([start, end]) => [Math.max(0, start), Math.min(duration, end)])
+      .filter(([start, end]) => end - start > 0.01)
+      .sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const interval of sorted) {
+      const last = merged[merged.length - 1];
+      if (last && interval[0] <= last[1] + 0.001) {
+        last[1] = Math.max(last[1], interval[1]);
+      } else {
+        merged.push(interval);
+      }
+    }
+    return merged;
+  }
+
+  function seededRandom(seed) {
+    let value = seed >>> 0;
+    return () => {
+      value += 0x6D2B79F5;
+      let next = value;
+      next = Math.imul(next ^ (next >>> 15), next | 1);
+      next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+      return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(items, rng) {
+    for (let i = items.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rng() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+  }
+
+  function randomBetween(min, max, rng = Math.random) {
+    return min + rng() * (max - min);
   }
 
   function qualitySettings() {
@@ -261,13 +349,16 @@
     elements.downloadButton.removeAttribute('href');
     elements.downloadButton.setAttribute('aria-disabled', 'true');
 
+    const duration = selectedDuration();
     const quality = qualitySettings();
     const preset = presets[elements.preset.value];
     const fps = Math.min(quality.fps, preset.fps);
+    const ansiPercent = Number(elements.ansi.value);
+    const ansiSeed = window.crypto?.getRandomValues ? window.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
     resizeCanvas(quality.width, quality.height);
-    const timeline = makeTimeline();
-    const duration = Math.min(MAX_DURATION, timeline.reduce((max, seg) => Math.max(max, seg.start + seg.duration), 0));
-    const totalFrames = Math.max(1, Math.ceil(duration * fps));
+    const timeline = makeTimeline(duration);
+    const ansiIntervals = buildAnsiIntervals(duration, ansiPercent, MIN_ANSI_CHUNK, MAX_ANSI_CHUNK, ansiSeed);
+    const expectedFrames = Math.max(1, Math.ceil(duration * fps));
     const mimeType = pickRecorderMimeType();
     const chunks = [];
     const canvasStream = elements.canvas.captureStream(fps);
@@ -276,29 +367,49 @@
     if (audioController?.track) mixedStream.addTrack(audioController.track);
 
     const recorder = new MediaRecorder(mixedStream, mimeType ? { mimeType } : undefined);
+    let recorderStopped = false;
     recorder.ondataavailable = (event) => {
       if (event.data && event.data.size) chunks.push(event.data);
     };
     const stopped = new Promise((resolve) => {
-      recorder.onstop = resolve;
+      recorder.onstop = () => {
+        recorderStopped = true;
+        resolve();
+      };
     });
+    const stopRecorder = () => {
+      if (recorder.state !== 'inactive') {
+        try { recorder.stop(); } catch { /* recorder already stopped */ }
+      }
+    };
 
-    log(`render armed: ${duration.toFixed(1)} sec // ${quality.width}x${quality.height} // ${fps} fps`);
+    log(`render armed: ${duration.toFixed(0)} sec // ANSI coverage ${ansiPercent}% // ${quality.width}x${quality.height} // ${fps} fps`);
+    log(`timeline segments: ${timeline.length} // ANSI intervals: ${ansiIntervals.length} // seed ${ansiSeed}`);
     log(mimeType.includes('mp4') ? 'browser MP4 recorder available' : 'browser MP4 recorder unavailable; using WebM prototype fallback');
-    setStatus('rendering local clip // no upload');
+    setStatus(`rendering ${duration} sec local clip // no upload`);
     setProgress(0);
-    recorder.start(1000);
-    audioController?.start();
+    const startedAt = performance.now();
+    const deadline = startedAt + duration * 1000;
+    const hardStop = window.setTimeout(stopRecorder, duration * 1000);
+    let frameCount = 0;
+    recorder.start(250);
+    await audioController?.start();
 
-    for (let frame = 0; frame < totalFrames; frame += 1) {
-      const time = frame / fps;
-      await drawFrame(timeline, time, duration, preset);
-      setProgress((frame / totalFrames) * 100);
-      await sleep(1000 / fps);
+    while (!state.renderAbort && !recorderStopped) {
+      const now = performance.now();
+      if (now >= deadline) break;
+      const elapsed = Math.max(0, Math.min(duration, (now - startedAt) / 1000));
+      await drawFrame(timeline, elapsed, duration, preset, ansiIntervals);
+      frameCount += 1;
+      setProgress((elapsed / duration) * 100);
+      const nextFrameAt = startedAt + frameCount * (1000 / fps);
+      const wait = Math.min(1000 / fps, Math.max(0, nextFrameAt - performance.now()));
+      if (wait > 1) await sleep(wait);
     }
 
+    window.clearTimeout(hardStop);
     audioController?.stop();
-    recorder.stop();
+    stopRecorder();
     await stopped;
     setProgress(100);
     elements.renderButton.disabled = false;
@@ -309,12 +420,12 @@
     state.renderedUrl = URL.createObjectURL(blob);
     const extension = type.includes('mp4') ? 'mp4' : 'webm';
     elements.downloadButton.href = state.renderedUrl;
-    elements.downloadButton.download = `wzrdvid-lite-${Date.now()}.${extension}`;
+    elements.downloadButton.download = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
     elements.downloadButton.textContent = `DOWNLOAD ${extension.toUpperCase()}`;
     elements.downloadButton.className = 'btn btn-primary';
     elements.downloadButton.removeAttribute('aria-disabled');
-    setStatus(`render complete // ${extension.toUpperCase()} ready`);
-    log(`render complete: ${(blob.size / 1024 / 1024).toFixed(2)} MB // ${extension}`);
+    setStatus(`render complete // ${duration} sec target // ${extension.toUpperCase()} ready`);
+    log(`render complete: target ${duration}s // frames ${frameCount}/${expectedFrames} // ${(blob.size / 1024 / 1024).toFixed(2)} MB // ${extension}`);
   }
 
   async function prepareAudioStream(duration) {
@@ -359,14 +470,14 @@
     };
   }
 
-  async function drawFrame(timeline, time, duration, preset) {
+  async function drawFrame(timeline, time, duration, preset, ansiIntervals) {
     const segment = timeline.find((item) => time >= item.start && time < item.start + item.duration) || timeline[timeline.length - 1];
     const localTime = Math.max(0, time - segment.start);
     if (segment.source.kind === 'video') {
       await seekVideo(segment.source.element, segment.sourceStart + localTime);
     }
     drawSource(segment, localTime, time, duration, preset);
-    if (segment.ansi) drawAnsi(preset, time);
+    if (isAnsiTime(time, ansiIntervals)) drawAnsi(preset, time);
     applyPresetEffects(preset, time, duration);
   }
 
@@ -534,6 +645,7 @@
   elements.ansi.addEventListener('input', () => {
     elements.ansiValue.textContent = `${elements.ansi.value}%`;
   });
+  elements.duration.addEventListener('change', updateRenderButtonCopy);
   elements.quality.addEventListener('change', drawIdleFrame);
   elements.renderButton.addEventListener('click', renderClip);
 
@@ -543,6 +655,7 @@
     if (state.audio?.url) URL.revokeObjectURL(state.audio.url);
   });
 
+  updateRenderButtonCopy();
   drawIdleFrame();
   log('Lite is armed. Files stay local in this browser.');
 })();
