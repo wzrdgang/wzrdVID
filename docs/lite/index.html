@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>//wzrdVID Lite — 30-second browser chaos cut</title>
+  <meta name="description" content="WZRD.VID Lite is a browser-only 30-second chaos-cut prototype. Local files, no upload.">
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/branding/wzrdvid_favicon_32.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="lite-header panel-frame">
+      <a class="back-link" href="../">&lt;&lt; full deck</a>
+      <div class="ticker-line">LITE FEED //// LOCAL BROWSER RENDER //// NO UPLOAD //// MAX 30 SEC</div>
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">//wzrdVID Lite</p>
+          <h1>30-second browser chaos cut</h1>
+          <p class="subtitle">local files // no upload // cursed little clips</p>
+        </div>
+        <div class="signal-bug">BROWSER ONLY<br>TXT FEED</div>
+      </div>
+      <div class="black-strip">&gt;&gt; local browser render // no upload // media never leaves this page _ <span>░▒▓</span></div>
+    </header>
+
+    <main class="lite-grid">
+      <section class="control-deck panel-frame">
+        <div class="deck-label">//// INPUT BUS</div>
+        <div id="mediaDrop" class="drop-zone" tabindex="0">
+          <strong>Add Media</strong>
+          <span>drag videos/photos here</span>
+          <small>mp4 mov webm png jpg jpeg webp gif</small>
+          <input id="mediaInput" type="file" multiple accept="video/*,image/*,.mp4,.mov,.mkv,.avi,.webm,.png,.jpg,.jpeg,.webp,.gif">
+        </div>
+        <button id="mediaButton" class="btn btn-secondary" type="button">ADD MEDIA</button>
+
+        <div id="audioDrop" class="drop-zone audio-zone" tabindex="0">
+          <strong>Add Audio</strong>
+          <span>drag audio here</span>
+          <small>mp3 wav m4a flac ogg or video with audio</small>
+          <input id="audioInput" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.mp4,.mov,.mkv,.webm">
+        </div>
+        <button id="audioButton" class="btn btn-secondary" type="button">ADD AUDIO</button>
+
+        <div class="file-list-wrap">
+          <h2>Loaded Files</h2>
+          <ul id="fileList" class="file-list"><li>No media loaded yet.</li></ul>
+        </div>
+      </section>
+
+      <section class="control-deck panel-frame settings-deck">
+        <div class="deck-label">//// CHAOS SETTINGS</div>
+        <label>
+          <span>Preset</span>
+          <select id="presetSelect">
+            <option>Chunkcore Chaos</option>
+            <option>Classic ANSI Lite</option>
+            <option>VHS Damage Lite</option>
+            <option>Dial-Up Glitch</option>
+            <option>Public Access</option>
+          </select>
+        </label>
+
+        <label>
+          <span>ANSI Amount <output id="ansiValue">70%</output></span>
+          <input id="ansiAmount" type="range" min="0" max="100" value="70">
+          <small>0% normal video // 100% full ANSI // between = random textmode sections</small>
+        </label>
+
+        <label>
+          <span>Quality</span>
+          <select id="qualitySelect">
+            <option value="fast">Fast 480p</option>
+            <option value="better">Better 720p</option>
+          </select>
+        </label>
+
+        <button id="renderButton" class="btn btn-primary" type="button">MAKE 30 SEC CLIP</button>
+        <a id="downloadButton" class="btn btn-disabled" aria-disabled="true">DOWNLOAD CLIP</a>
+        <p class="small-note">Prototype note: Lite records with the browser's built-in MediaRecorder. It saves MP4 when the browser supports MP4 recording, otherwise it falls back to WebM. The desktop app is still the full MP4 engine.</p>
+      </section>
+
+      <section class="preview-deck panel-frame">
+        <div class="deck-label">//// PREVIEW OUTPUT</div>
+        <canvas id="previewCanvas" width="854" height="480"></canvas>
+        <div class="progress-wrap">
+          <div id="progressBar" class="progress-bar"><span></span></div>
+          <p id="statusLine">Drop local media to arm the deck.</p>
+        </div>
+      </section>
+
+      <section class="log-deck panel-frame">
+        <div class="deck-label">//// LOG</div>
+        <pre id="logOutput">local browser render // no upload
+waiting for files _</pre>
+      </section>
+    </main>
+
+    <footer class="site-footer panel-frame">
+      <span>//// WZRD.VID LITE ////</span>
+      <span>LOCAL FILES | NO UPLOAD | 30 SEC MAX</span>
+      <span>sam.mode / wzrdgang</span>
+    </footer>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>
