@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.4 workflow polish prep
+
+- Agent/task: Codex / Phase 3B Desktop Workflow Tightening - Endings, Transitions, Drag/Drop Reliability.
+- Intent: Keep Fade Out as the ending default, set a less abrupt default transition, improve drag/drop rejection logging, bump/package v0.1.4, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `renderer.py`, `README.md`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. New projects/default reset now use CRT Flash transitions with Fade Out endings, invalid local drops are accepted into handlers so they can be logged/warned, and v0.1.4 metadata is packaged.
+- Commands run: `git status --short --branch`; targeted `rg`; `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; helper smoke with media paths containing spaces/apostrophes; tiny render smoke; source GUI launch/Output tab inspection; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; bundle version/size/checksum checks.
+- Checks passed: Py compile, diff check, helper drag/drop/audio/recipe/reset/COPY REPORT smoke, tiny H.264/yuv420p render with CRT Flash/Fade Out logs, source GUI launch, macOS app build, release ZIP package, and plist version 0.1.4 passed.
+- Checks failed: None.
+- Decisions made: VHS Collapse was not made default; Fade Out was already stable and kept. Existing saved recipes keep their saved transition/ending values.
+- Known gaps: GitHub release publication was intentionally deferred.
+- Next recommended prompt: Publish v0.1.4 using the generated `WZRD.VID-macOS.zip` and SHA256, then have a normal user smoke-test the packaged app.
+
 ## 2026-05-09 - Recipe workflow and reset polish
 
 - Agent/task: Codex / Phase 3A Desktop Workflow Tightening - Recipes + Reset Polish.

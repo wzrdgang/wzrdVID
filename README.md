@@ -220,6 +220,8 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 
 Recipes save timeline items, media paths, trims, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
 
+New projects default to **CRT Flash** transitions and **Fade Out** endings so exports feel less abrupt. Recipes preserve their saved transition and ending choices.
+
 ## Audio
 
 Audio Mix modes:

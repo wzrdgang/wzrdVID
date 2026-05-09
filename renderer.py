@@ -117,7 +117,7 @@ class RenderSettings:
     letterbox_background: str = "Black"
     preserve_upper_bias: bool = True
     dither_mode: str = "None"
-    transition_mode: str = "Hard Cut"
+    transition_mode: str = "CRT Flash"
     transition_intensity: float = 1.0
     ending_mode: str = "Fade Out"
     loop_friendly: bool = False

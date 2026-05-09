@@ -77,7 +77,7 @@ APP_NAME = "WZRD.VID"
 APP_SUBTITLE = "ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations"
 RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
-APP_VERSION_FALLBACK = "0.1.3"
+APP_VERSION_FALLBACK = "0.1.4"
 
 
 def _resource_path(name: str) -> Path:
@@ -248,6 +248,8 @@ DEFAULT_OFF_EFFECTS = {
     "mosaic_collapse",
     "audio_reactive",
 }
+DEFAULT_TRANSITION_MODE = "CRT Flash"
+DEFAULT_ENDING_MODE = "Fade Out"
 FIT_MODES = ["Fill/Crop", "Fit/Letterbox", "Smart Portrait", "Stretch"]
 ANCHORS = ["Center", "Top", "Bottom", "Left", "Right"]
 LETTERBOX_BACKGROUNDS = ["Black", "Pastel Pink", "Blurred Source"]
@@ -359,15 +361,15 @@ class MediaDropTableWidget(QTableWidget):
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
-        if self._accepts_paths(paths):
-            _refresh_drop_style(self, True)
+        if paths:
+            _refresh_drop_style(self, self._accepts_paths(paths))
             event.acceptProposedAction()
             return
         event.ignore()
 
     def dragMoveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
-        if self._accepts_paths(paths):
+        if paths:
             event.acceptProposedAction()
             return
         event.ignore()
@@ -379,7 +381,7 @@ class MediaDropTableWidget(QTableWidget):
     def dropEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
         _refresh_drop_style(self, False)
-        if self._accepts_paths(paths):
+        if paths:
             self.files_dropped.emit(paths)
             event.acceptProposedAction()
             return
@@ -399,15 +401,15 @@ class MediaDropLineEdit(QLineEdit):
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
-        if self._accepts_paths(paths):
-            _refresh_drop_style(self, True)
+        if paths:
+            _refresh_drop_style(self, self._accepts_paths(paths))
             event.acceptProposedAction()
             return
         event.ignore()
 
     def dragMoveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
-        if self._accepts_paths(paths):
+        if paths:
             event.acceptProposedAction()
             return
         event.ignore()
@@ -419,7 +421,7 @@ class MediaDropLineEdit(QLineEdit):
     def dropEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
         paths = _drop_file_paths(event)
         _refresh_drop_style(self, False)
-        if self._accepts_paths(paths):
+        if paths:
             self.files_dropped.emit(paths)
             event.acceptProposedAction()
             return
@@ -695,10 +697,11 @@ class MainWindow(QMainWindow):
         self.dither_mode.setToolTip("Adds texture before ANSI character selection: ordered dots, halftone, or low-bit camera looks.")
         self.transition_mode = QComboBox()
         self.transition_mode.addItems(TRANSITION_MODES)
+        self._set_combo_text(self.transition_mode, DEFAULT_TRANSITION_MODE)
         self.transition_mode.setToolTip("Bootleg transition style between timeline items.")
         self.ending_mode = QComboBox()
         self.ending_mode.addItems(ENDING_MODES)
-        self._set_combo_text(self.ending_mode, "Fade Out")
+        self._set_combo_text(self.ending_mode, DEFAULT_ENDING_MODE)
         self.ending_mode.setToolTip("Adds a clean ending treatment instead of a raw hard cut.")
         self.loop_friendly = QCheckBox("Make loop-friendly")
         self.loop_friendly.setToolTip("Crossfades the final moments toward the first frame for better looping exports.")
@@ -1599,6 +1602,11 @@ class MainWindow(QMainWindow):
             self.timeline_table.selectRow(start_index)
             self._after_timeline_changed()
         if skipped:
+            self.append_log(
+                "Rejected unsupported timeline file(s): "
+                + ", ".join(skipped[:8])
+                + (" ..." if len(skipped) > 8 else "")
+            )
             QMessageBox.warning(
                 self,
                 APP_NAME,
@@ -1608,14 +1616,17 @@ class MainWindow(QMainWindow):
     def _append_timeline_item(self, path: str, kind: str) -> bool:
         source = Path(path)
         if not source.exists():
+            self.append_log(f"Rejected missing source file: {path}")
             QMessageBox.warning(self, APP_NAME, f"Source file does not exist:\n{path}")
             return False
         requested_kind = kind if kind in {"video", "photo"} else self._guess_source_kind(path, kind)
         detected_kind = media_kind(path)
         if requested_kind == "video" and detected_kind != "video":
+            self.append_log(f"Rejected non-video source: {source.name}")
             QMessageBox.warning(self, APP_NAME, f"Add Video(s) only accepts video files:\n{path}")
             return False
         if requested_kind == "photo" and detected_kind != "photo":
+            self.append_log(f"Rejected non-photo source: {source.name}")
             QMessageBox.warning(self, APP_NAME, f"Add Photo(s) only accepts image files:\n{path}")
             return False
         kind = requested_kind
@@ -2070,14 +2081,35 @@ class MainWindow(QMainWindow):
             self._set_external_audio_path(path, from_drop=False)
 
     def set_dropped_audio_file(self, paths: list[str]) -> None:
+        skipped: list[str] = []
+        attempted = 0
         for path in paths:
             if media_kind(path) in {"audio", "video"}:
-                self._set_external_audio_path(path, from_drop=True)
-                return
-        QMessageBox.warning(self, APP_NAME, "Drop an audio file, or a video file with an audio track, onto the audio field.")
+                attempted += 1
+                if self._set_external_audio_path(path, from_drop=True):
+                    if skipped:
+                        self.append_log(
+                            "Ignored unsupported dropped audio file(s): "
+                            + ", ".join(skipped[:8])
+                            + (" ..." if len(skipped) > 8 else "")
+                        )
+                    return
+            else:
+                skipped.append(Path(path).name or path)
+        if skipped:
+            self.append_log(
+                "Rejected unsupported audio drop file(s): "
+                + ", ".join(skipped[:8])
+                + (" ..." if len(skipped) > 8 else "")
+            )
+        if attempted:
+            QMessageBox.warning(self, APP_NAME, "No dropped audio file could be used. Choose an audio file, or a video file with an audio track.")
+        else:
+            QMessageBox.warning(self, APP_NAME, "Drop an audio file, or a video file with an audio track, onto the audio field.")
 
     def _set_external_audio_path(self, path: str, *, from_drop: bool) -> bool:
         if not is_audio_container_file(path):
+            self.append_log(f"Rejected unsupported music/audio file type: {Path(path).name or path}")
             QMessageBox.warning(self, APP_NAME, f"Unsupported music/audio file type:\n{path}")
             return False
         try:
@@ -3252,9 +3284,9 @@ class MainWindow(QMainWindow):
             return True
         if (
             self.dither_mode.currentText() != "None"
-            or self.transition_mode.currentText() != "Hard Cut"
+            or self.transition_mode.currentText() != DEFAULT_TRANSITION_MODE
             or self.transition_intensity_slider.value() != 55
-            or self.ending_mode.currentText() != "Fade Out"
+            or self.ending_mode.currentText() != DEFAULT_ENDING_MODE
             or self.loop_friendly.isChecked()
         ):
             return True
@@ -3322,9 +3354,9 @@ class MainWindow(QMainWindow):
         self.framing_zoom_slider.setValue(0)
 
         self._set_combo_text(self.dither_mode, "None")
-        self._set_combo_text(self.transition_mode, "Hard Cut")
+        self._set_combo_text(self.transition_mode, DEFAULT_TRANSITION_MODE)
         self.transition_intensity_slider.setValue(55)
-        self._set_combo_text(self.ending_mode, "Fade Out")
+        self._set_combo_text(self.ending_mode, DEFAULT_ENDING_MODE)
         self.loop_friendly.setChecked(False)
 
         self._set_combo_text(self.bypass_mode, BYPASS_FULL_ANSI)
@@ -3569,9 +3601,9 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.letterbox_background, str(data.get("letterbox_background", "Black")))
         self.upper_bias.setChecked(bool(data.get("preserve_upper_bias", True)))
         self._set_combo_text(self.dither_mode, str(data.get("dither_mode", "None")))
-        self._set_combo_text(self.transition_mode, str(data.get("transition_mode", "Hard Cut")))
+        self._set_combo_text(self.transition_mode, str(data.get("transition_mode", DEFAULT_TRANSITION_MODE)))
         self.transition_intensity_slider.setValue(int(data.get("transition_intensity", 55)))
-        self._set_combo_text(self.ending_mode, str(data.get("ending_mode", "Fade Out")))
+        self._set_combo_text(self.ending_mode, str(data.get("ending_mode", DEFAULT_ENDING_MODE)))
         self.loop_friendly.setChecked(bool(data.get("loop_friendly", False)))
         self._set_combo_text(self.preview_from, str(data.get("preview_from", "Start")))
         self.preview_custom.setText(str(data.get("preview_custom", "0:00")))

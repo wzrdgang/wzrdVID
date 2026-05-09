@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.4 — 2026-05-09
+
+- Renamed project preset controls to recipe import/export while keeping legacy JSON compatibility.
+- Polished Reset Project behavior so it clears state without deleting media or output files.
+- Changed the default transition from Hard Cut to CRT Flash while preserving saved recipe transition choices.
+- Verified Fade Out remains the default ending.
+- Improved drag/drop rejection logging for unsupported timeline and audio drops.
+- Bumped app/release metadata to v0.1.4.
+
 ## v0.1.3 — 2026-05-09
 
 - Added a sanitized COPY REPORT helper for support/debug info without exposing full home-directory media paths.
