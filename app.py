@@ -239,6 +239,15 @@ EFFECTS = [
     ("mosaic_collapse", "Mosaic Collapse", "Impact moments collapse into chunky compression blocks."),
     ("audio_reactive", "Audio Reactive Hits", "Lets the audio trigger punch zooms, RGB splits, and glitch bursts."),
 ]
+DEFAULT_OFF_EFFECTS = {
+    "tunnel_zoom",
+    "stutter_hold",
+    "motion_melt",
+    "terminal_scroll",
+    "tape_damage",
+    "mosaic_collapse",
+    "audio_reactive",
+}
 FIT_MODES = ["Fill/Crop", "Fit/Letterbox", "Smart Portrait", "Stretch"]
 ANCHORS = ["Center", "Top", "Bottom", "Left", "Right"]
 LETTERBOX_BACKGROUNDS = ["Black", "Pastel Pink", "Blurred Source"]
@@ -654,11 +663,10 @@ class MainWindow(QMainWindow):
             "It is bolder, more readable, and usually compresses better."
         )
         self.effect_checks: dict[str, QCheckBox] = {}
-        default_off_effects = {"tunnel_zoom", "stutter_hold", "motion_melt", "terminal_scroll", "tape_damage", "mosaic_collapse", "audio_reactive"}
         for key, label, tooltip in EFFECTS:
             checkbox = QCheckBox(label)
             checkbox.setToolTip(tooltip)
-            checkbox.setChecked(key not in default_off_effects)
+            checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
             self.effect_checks[key] = checkbox
 
         self.width_slider, self.width_value = self._make_slider(24, 260, 120)
@@ -815,13 +823,15 @@ class MainWindow(QMainWindow):
         self.open_preview_button.setObjectName("secondaryButton")
         self.open_preview_button.setEnabled(False)
         self.open_preview_button.hide()
-        self.save_project_button = QPushButton("SAVE PROJECT")
+        self.save_project_button = QPushButton("EXPORT RECIPE")
         self.save_project_button.setObjectName("secondaryButton")
-        self.load_project_button = QPushButton("LOAD PROJECT")
+        self.save_project_button.setToolTip("Export a recipe JSON that references your media paths without copying media files.")
+        self.load_project_button = QPushButton("IMPORT RECIPE")
         self.load_project_button.setObjectName("secondaryButton")
-        self.reset_project_button = QPushButton("RESET")
+        self.load_project_button.setToolTip("Import a WZRD.VID recipe or older project preset JSON.")
+        self.reset_project_button = QPushButton("RESET PROJECT")
         self.reset_project_button.setObjectName("dangerButton")
-        self.reset_project_button.setToolTip("Reset controls and clear selected sources. This never deletes media files.")
+        self.reset_project_button.setToolTip("Reset controls and clear selected sources. This never deletes media or output files.")
         self.open_output_button = QPushButton("OPEN OUTPUT FOLDER")
         self.open_output_button.setObjectName("secondaryButton")
         self.open_output_button.setEnabled(False)
@@ -3205,18 +3215,72 @@ class MainWindow(QMainWindow):
             return "unknown"
         return f"{size_mb:.2f} MB"
 
-    def reset_project(self) -> None:
-        has_state = bool(
-            self.timeline_items
-            or self.audio_path.text().strip()
-            or self.output_path.text().strip()
-            or self.log_output.toPlainText().strip()
+    def _has_resettable_project_state(self) -> bool:
+        if self.timeline_items or self.block_rows:
+            return True
+        text_defaults = (
+            (self.audio_path.text(), ""),
+            (self.output_path.text(), ""),
+            (self.video_start.text(), "0:00"),
+            (self.video_end.text(), "auto"),
+            (self.audio_start.text(), "0:00"),
+            (self.audio_end.text(), "auto"),
+            (self.audio_timeline_start.text(), "0:00"),
+            (self.audio_timeline_end.text(), "auto"),
         )
-        if has_state:
+        if any(value.strip() != default for value, default in text_defaults):
+            return True
+        if self.last_output_path or self.last_preview_path or self.last_render_error:
+            return True
+        if self.audio_mode.currentText() != AUDIO_SILENT or self.match_timeline_to_audio.isChecked():
+            return True
+        if self.match_timeline_mode.currentText() != MATCH_SPEED:
+            return True
+        if self.preset.currentText() != "Classic ANSI" or self.chunky_blocks.isChecked():
+            return True
+        if self.width_slider.value() != 120 or self.intensity_slider.value() != 65:
+            return True
+        if (
+            self.fit_mode.currentText() != "Fill/Crop"
+            or self.anchor_mode.currentText() != "Center"
+            or self.letterbox_background.currentText() != "Black"
+            or not self.upper_bias.isChecked()
+            or self.framing_x_slider.value() != 0
+            or self.framing_y_slider.value() != 0
+            or self.framing_zoom_slider.value() != 0
+        ):
+            return True
+        if (
+            self.dither_mode.currentText() != "None"
+            or self.transition_mode.currentText() != "Hard Cut"
+            or self.transition_intensity_slider.value() != 55
+            or self.ending_mode.currentText() != "Fade Out"
+            or self.loop_friendly.isChecked()
+        ):
+            return True
+        for key, checkbox in self.effect_checks.items():
+            if checkbox.isChecked() != (key not in DEFAULT_OFF_EFFECTS):
+                return True
+        if self.bypass_mode.currentText() != BYPASS_FULL_ANSI or self.random_percent.value() != 10:
+            return True
+        if (
+            self.output_size_preset.currentText() != "Full Quality"
+            or self.target_size_enabled.isChecked()
+            or self.optimize_preset.currentText() != "29 MB Text Limit"
+            or abs(self.target_size_mb.value() - 29.0) > 0.01
+        ):
+            return True
+        default_batch = {"29 MB Text Limit", "Chunkcore"}
+        if self.batch_enabled.isChecked():
+            return True
+        return any(checkbox.isChecked() != (name in default_batch) for name, checkbox in self.batch_checks.items())
+
+    def reset_project(self) -> None:
+        if self._has_resettable_project_state():
             response = QMessageBox.question(
                 self,
                 APP_NAME,
-                "Reset current project? This clears the app settings but does not delete files.",
+                "Reset current project? This clears the app settings but does not delete media or output files.",
                 QMessageBox.StandardButton.Reset | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Cancel,
             )
@@ -3244,9 +3308,8 @@ class MainWindow(QMainWindow):
 
         self._set_combo_text(self.preset, "Classic ANSI")
         self.chunky_blocks.setChecked(False)
-        default_off_effects = {"tunnel_zoom", "stutter_hold", "motion_melt", "terminal_scroll", "tape_damage", "mosaic_collapse", "audio_reactive"}
         for key, checkbox in self.effect_checks.items():
-            checkbox.setChecked(key not in default_off_effects)
+            checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
         self.width_slider.setValue(120)
         self.intensity_slider.setValue(65)
 
@@ -3286,6 +3349,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.last_output_path = None
         self.last_preview_path = None
+        self.last_render_error = ""
         self.open_output_button.hide()
         self.open_output_button.setEnabled(False)
         self.open_preview_button.hide()
@@ -3305,9 +3369,9 @@ class MainWindow(QMainWindow):
     def save_project_preset(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save project preset",
-            str(Path.home() / "wzrd-vid-project.json"),
-            "JSON project preset (*.json)",
+            "Export WZRD.VID recipe",
+            str(Path.home() / "wzrdvid-recipe.json"),
+            "WZRD.VID recipe (*.json)",
         )
         if not path:
             return
@@ -3316,33 +3380,33 @@ class MainWindow(QMainWindow):
         try:
             Path(path).write_text(json.dumps(self._project_state(), indent=2))
         except OSError as exc:
-            QMessageBox.warning(self, APP_NAME, f"Could not save project preset:\n{exc}")
+            QMessageBox.warning(self, APP_NAME, f"Could not export recipe:\n{exc}")
             return
-        self.append_log(f"Saved project preset: {path}")
+        self.append_log(f"Exported recipe: {path}")
 
     def load_project_preset(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Load project preset",
+            "Import WZRD.VID recipe",
             str(Path.home()),
-            "JSON project preset (*.json);;All files (*)",
+            "WZRD.VID recipe or legacy project preset (*.json);;All files (*)",
         )
         if not path:
             return
         try:
             data = json.loads(Path(path).read_text())
         except (OSError, json.JSONDecodeError) as exc:
-            QMessageBox.warning(self, APP_NAME, f"Could not load project preset:\n{exc}")
+            QMessageBox.warning(self, APP_NAME, f"Could not import recipe:\n{exc}")
             return
         if not isinstance(data, dict):
-            QMessageBox.warning(self, APP_NAME, "Project preset JSON must contain an object.")
+            QMessageBox.warning(self, APP_NAME, "Recipe JSON must contain an object.")
             return
         self._apply_project_state(data)
         if self.audio_path.text().strip() and Path(self.audio_path.text().strip()).exists():
             self._probe_duration(self.audio_path.text().strip(), self.audio_duration, "audio")
         self._after_timeline_changed(save=False)
         self._save_settings()
-        self.append_log(f"Loaded project preset: {path}")
+        self.append_log(f"Imported recipe: {path}")
 
     def open_output_folder(self) -> None:
         raw_path = self.last_output_path or self.output_path.text().strip()

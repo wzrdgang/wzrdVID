@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - Recipe workflow and reset polish
+
+- Agent/task: Codex / Phase 3A Desktop Workflow Tightening - Recipes + Reset Polish.
+- Intent: Rename visible project preset controls to recipe import/export, preserve JSON compatibility, and make reset confirmation/state cleanup clearer.
+- Files changed: `app.py`, `README.md`, `docs/agent-impact-map.md`, `docs/agent-change-playbook.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Desktop copy now uses recipe language, reset no longer treats log text alone as resettable project state, reset clears the last render error, and recipe import/export keeps legacy project preset JSON compatibility.
+- Commands run: `git status --short --branch`; targeted `rg`; programmatic Qt offscreen recipe/import/reset/COPY REPORT smoke; `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `git diff --check`.
+- Checks passed: Py compile, diff whitespace check, recipe JSON round-trip, old `video_path`-only project JSON import, reset non-deletion check, and COPY REPORT after reset passed.
+- Checks failed: None.
+- Decisions made: Internal function names and JSON shape were left intact to reduce compatibility risk.
+- Known gaps: No full render smoke was run because the changed path is recipe/reset UI state, not rendering.
+- Next recommended prompt: Run a short manual GUI pass: export a real recipe, import it, reset project, then decide whether to package a v0.1.4 maintenance release.
+
 ## 2026-05-09 - Download/install docs polish
 
 - Agent/task: Codex / focused Download / Install / Update flow polish after v0.1.3.

@@ -7,8 +7,8 @@ This map describes the current repository so future agents can edit with context
 ### Desktop GUI Shell
 
 - Owning files/directories: `app.py`, `theme.py`, `assets/ui/`, `assets/branding/`, `assets/logo/`.
-- Purpose: PySide6 desktop interface for timeline sources, audio controls, style/effects settings, output controls, preview rendering, project presets, batch render, and logs.
-- Inbound dependencies: `run.py`, `run.sh`, `run_windows.bat`, user file selections, drag/drop events, saved settings JSON, project preset JSON.
+- Purpose: PySide6 desktop interface for timeline sources, audio controls, style/effects settings, output controls, preview rendering, recipe import/export, batch render, and logs.
+- Inbound dependencies: `run.py`, `run.sh`, `run_windows.bat`, user file selections, drag/drop events, saved settings JSON, recipe/project preset JSON.
 - Outbound dependencies: `renderer.py`, `ffmpeg_utils.py`, `presets.py`, Qt widgets/styles/assets, local filesystem, temp preview/output folders.
 - High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, thread behavior, and table columns can break render, save/load, or audio mix flows.
 
@@ -90,7 +90,7 @@ This map describes the current repository so future agents can edit with context
 
 ### Desktop Source Import and Timeline
 
-- Entry point: Add Video(s), Add Photo(s), drag/drop onto timeline, project preset load.
+- Entry point: Add Video(s), Add Photo(s), drag/drop onto timeline, recipe import or legacy project preset load.
 - UI/component path: `app.py` timeline widgets, `MediaDropTableWidget`, timeline item table columns, preview controls.
 - Data/state path: `TimelineItem` records path, kind, duration, trim, photo hold, `has_audio`, and `include_audio`; project JSON preserves timeline order and item settings.
 - Asset/media path: user selected videos/photos; photos are corrected for EXIF orientation through Pillow handling in the render/preview path.
@@ -118,14 +118,14 @@ This map describes the current repository so future agents can edit with context
 - Failure/empty behavior: Exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `theme.py`.
 
-### Save/Load Project Presets
+### Export/Import Recipes
 
-- Entry point: Save Project, Load Project.
+- Entry point: Export Recipe, Import Recipe.
 - UI/component path: `app.py` project controls.
-- Data/state path: user-selected JSON project files; app settings store recent/default values.
-- Asset/media path: project JSON references user media paths but does not copy media.
+- Data/state path: user-selected recipe JSON files; app settings store recent/default values.
+- Asset/media path: recipe JSON references user media paths but does not copy media.
 - Success behavior: Timeline, audio, style/effects, framing, bypass, output, batch, seeds, and optimization controls restore.
-- Failure/empty behavior: Missing referenced media or invalid JSON should be reported through GUI/log.
+- Failure/empty behavior: Missing referenced media, invalid recipe JSON, or older project preset JSON should be reported through GUI/log.
 - Files likely involved in changes: `app.py`, docs.
 
 ### GitHub Pages Landing/Homepage
@@ -193,7 +193,7 @@ This map describes the current repository so future agents can edit with context
 
 - Desktop persistent settings: platform user config/application-support directory from `app.py` `_user_data_dir()`; includes `settings.json`.
 - Desktop previews: preview outputs are placed under a `Previews` folder next to the user-data/settings area.
-- User project presets: user-selected JSON files; media paths are referenced, not embedded.
+- User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
 - Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.
 - Static assets safe to edit with care: `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/demos/`, `assets/screenshots/`, `docs/assets/`.

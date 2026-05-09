@@ -39,7 +39,7 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 - Inspect first: component/widget definitions in `app.py`, shared stylesheet in `theme.py`, shared Lite/site components if any.
 - Searches to run: class/function names, signal connections, settings keys, usages in save/load/render code.
-- Common mistakes to avoid: breaking project preset restore, drag/drop events, table columns, or render-thread signal behavior.
+- Common mistakes to avoid: breaking recipe or legacy project preset restore, drag/drop events, table columns, or render-thread signal behavior.
 - High-risk files: `app.py`, `theme.py`, `docs/lite/app.js` if browser UI component logic is affected.
 - Required checks: `py_compile`; targeted GUI workflow; save/load smoke when controls persist state.
 - Update `AGENTS.md` when: new required validation or operating procedure is introduced.

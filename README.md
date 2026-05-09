@@ -216,8 +216,9 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 7. Choose ANSI Coverage if you want some sections to stay normal video.
 8. Pick Output Size and optional Optimize Output target.
 9. Use **Preview 5 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
+10. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
 
-Project presets save timeline items, media paths, trims, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON.
+Recipes save timeline items, media paths, trims, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
 
 ## Audio
 
