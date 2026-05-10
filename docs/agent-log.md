@@ -17,6 +17,32 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite physical-device smoke passed
+
+- Agent/task: Codex / continue after Xcode signing was configured and rerun the Apple Lite real-device checklist/native bridge decision.
+- Intent: Verify as much as possible on the connected iPhone without changing Lite/browser behavior, desktop behavior, publishing, pushing, tagging, or release packaging.
+- Files changed this pass: `apple-lite/WZRDVIDLite.xcodeproj/project.pbxproj`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No shipped behavior changed. The Xcode project keeps the local Personal Team signing setting for device builds; Apple Lite and desktop runtime code were not changed.
+- Commands/tools run: prior signing/device commands from this pass; `git diff --check`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; physical-device `xcodebuild`; `xcrun devicectl device install app`; `xcrun devicectl device process launch --environment-variables '{"WZRDVID_LITE_SMOKE":"1"}' com.samhowell.wzrdvid.lite`; normal non-smoke `xcrun devicectl device process launch`; targeted Lite/export grep.
+- Checks passed: The physical-device Debug build succeeded after selecting `Samuel Howell (Personal Team)`. `WZRD.VID Lite` version `0.2.0` build `1` installed on the connected iPhone. After the developer profile was trusted on-device, the Debug smoke harness launched and passed on the physical iPhone with no errors or warnings: bundled Lite load, file input surface, export blob surface, Spanish language switching, 15-second duration, Random clip assembly, synthetic local file import, random render completion, and generated `wzrdvid-lite-15s` download-link readiness. `Blob`, `URL.createObjectURL`, `File`, `DataTransfer`, `MediaRecorder`, `canvas.captureStream`, and `navigator.share` were available in the device WKWebView. Normal non-smoke app launch also succeeded.
+- Checks failed/blocked: Real Photos picker import, Files picker import, local video render, local video+photo random render, local audio import/render, and user-visible export/share/open behavior still require hand testing on the iPhone. The current Lite app creates a blob download link; it does not yet call `navigator.share`.
+- Decisions made: Do not add a native import/share bridge yet. No native bridge blocker has been confirmed. The main remaining bridge-decision item is whether tapping the rendered blob download link creates a user-accessible save/share/open handoff with real media; if it does not, prefer a narrow native export/share bridge.
+- Known gaps: Manual device testing is still needed for real Photos/Files media and user-facing export/share behavior before TestFlight.
+- Next recommended prompt: Manually test real Photos/Files import and rendered clip export/share on the installed WZRD.VID Lite iPhone app, then implement a narrow native export/share bridge only if the blob download handoff fails.
+
+## 2026-05-10 - Apple Lite installed on device, blocked by profile trust
+
+- Agent/task: Codex / configure Xcode signing for WZRD.VID Lite on the connected iPhone, rerun the real-device checklist, and update the native bridge decision.
+- Intent: Use local Xcode signing only, then install/launch the existing Apple Lite wrapper on the physical iPhone without changing Lite/browser behavior, desktop behavior, publishing, pushing, tagging, or release packaging.
+- Files changed this pass: `apple-lite/WZRDVIDLite.xcodeproj/project.pbxproj`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No shipped behavior changed. The Xcode project now has a local Personal Team signing setting for device builds; Lite code and desktop code were not changed.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; Xcode Signing & Capabilities UI via Computer Use; `security find-identity -v -p codesigning`; provisioning-profile checks; `xcrun devicectl list devices --timeout 30`; `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30`; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; physical-device `xcodebuild`; `xcrun devicectl device install app`; `xcrun devicectl device process launch` with `WZRDVID_LITE_SMOKE=1`; `xcrun devicectl device info apps`.
+- Checks passed: Xcode showed the connected `iPhone14` destination. Selecting `Samuel Howell (Personal Team)` in Signing & Capabilities created an Xcode-managed provisioning profile for `com.samhowell.wzrdvid.lite`. The physical-device Debug build succeeded with the Apple Development certificate and managed profile. `devicectl` installed `WZRD.VID Lite` version `0.2.0` build `1` on the connected iPhone.
+- Checks failed/blocked: Launching the installed app failed before startup because iOS reported the development profile has not been explicitly trusted by the user: `Unable to launch com.samhowell.wzrdvid.lite because it has an invalid code signature, inadequate entitlements or its profile has not been explicitly trusted by the user`. The debug smoke harness did not run.
+- Decisions made: Do not add a native import/share bridge yet. The pass is blocked at device profile trust before WKWebView launch, so there is still no confirmed import/export failure to fix.
+- Known gaps: Trust the developer profile on the iPhone, then rerun device launch/smoke. Physical-device Lite launch, offline load, language switching, Photos/Files import, random clip rendering, and export/share behavior remain unverified.
+- Next recommended prompt: Trust the WZRD.VID Lite developer profile on the iPhone, then rerun the installed app smoke and real-device checklist.
+
 ## 2026-05-10 - Apple Lite real-device checklist blocked by signing
 
 - Agent/task: Codex / rerun the Apple Lite real-device checklist after Developer Mode was enabled on the connected iPhone.
