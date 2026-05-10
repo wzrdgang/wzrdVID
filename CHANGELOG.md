@@ -7,6 +7,7 @@
 - Ran synthetic long-media stress smokes covering max length, random clip assembly, source/external audio, worky mode, match-to-music rejection, and preview-like renders.
 - Documented WZRD.VID Lite Apple app groundwork as research only while Apple Developer/D-U-N-S setup is pending.
 - Started WZRD.VID Lite Apple packaging groundwork with SwiftUI/WKWebView shell sources and a local Lite web-bundle prep script.
+- Added a simulator-ready WZRD.VID Lite Xcode project plus a debug simulator smoke harness for bundled Lite load, local import surface, language switching, random clips, and export/download readiness.
 
 ## v0.1.9 — 2026-05-10
 

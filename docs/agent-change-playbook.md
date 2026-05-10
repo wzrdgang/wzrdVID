@@ -95,7 +95,7 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 - Searches to run: `WKWebView`, `loadFileURL`, `LiteWeb`, `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `MediaRecorder`, `download`.
 - Common mistakes to avoid: turning Lite into a remote website wrapper, adding analytics/accounts/backend/remote config, bundling the desktop renderer or ffmpeg, committing generated `LiteWeb/`, or promising full desktop parity.
 - High-risk files: `apple-lite/WZRDVIDLite/App/LiteWebView.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/app.js`, `docs/i18n.js`.
-- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse with the iPhone Simulator SDK if Xcode is installed; `node --check docs/i18n.js docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`.
+- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator behavior is in scope; `node --check docs/i18n.js docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`.
 - Update `AGENTS.md` when: Apple Lite commands, boundaries, or generated paths change.
 - Update `docs/agent-impact-map.md` when: native wrapper structure, bundle prep, or Lite runtime flow changes.
 - Update `docs/agent-log.md` after the task.

@@ -26,18 +26,48 @@ The script copies only the Lite app and the asset folders it references:
 
 `LiteWeb/` is generated and ignored by git. Re-run the script whenever the static Lite app changes.
 
-## Create The Xcode Project
+## Xcode Project
 
-Until the Apple Developer account, Team ID, and final Bundle ID are ready, create the Xcode project manually:
+This folder includes a first-pass simulator-ready Xcode project at `WZRDVIDLite.xcodeproj`.
 
-1. Open Xcode.
-2. Create a new iOS App project named `WZRDVIDLite`.
-3. Use Swift and SwiftUI.
-4. Set the bundle identifier to the final approved identifier, or temporarily use `com.samhowell.wzrdvid.lite` for local simulator testing.
-5. Add the Swift files from `apple-lite/WZRDVIDLite/App/` to the app target.
-6. Use `apple-lite/WZRDVIDLite/App/Info.plist` as starter metadata, adjusting signing/team/version fields in Xcode as needed.
-7. Add `apple-lite/WZRDVIDLite/Resources/LiteWeb/` as a folder reference to the app target. It must be a folder reference so relative paths such as `../i18n.js` and `../assets/ui/...` continue to work.
-8. Build and run on iPhone/iPad Simulator.
+Current local defaults:
+
+- Bundle identifier: `com.samhowell.wzrdvid.lite`
+- Version: `0.2.0` / build `1`
+- Signing: local simulator builds should pass `CODE_SIGNING_ALLOWED=NO` until the Apple Developer team and final bundle ID are ready.
+- Bundled web resources: generated during Xcode builds by the `Prepare Lite Web Bundle` build phase.
+
+Open `apple-lite/WZRDVIDLite.xcodeproj` in Xcode for local simulator work. Adjust signing, Team ID, and Bundle ID only when the Apple Developer account/App Store Connect setup is ready.
+
+CLI simulator build:
+
+```bash
+xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj \
+  -scheme WZRDVIDLite \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -derivedDataPath apple-lite/DerivedData \
+  build CODE_SIGNING_ALLOWED=NO
+```
+
+## Simulator Smoke Harness
+
+Run the automated simulator smoke from the repo root:
+
+```bash
+python3 apple-lite/scripts/run_simulator_smoke.py
+```
+
+The smoke builds the app, installs it on an available iPhone simulator, launches with the debug-only `WZRDVID_LITE_SMOKE=1` harness, and checks:
+
+- bundled Lite UI load
+- local file input surface and synthetic local image import through the Lite browser code path
+- language switching to Spanish
+- 15-second duration control
+- Random clip assembly checkbox
+- browser render/export surface and generated download link
+
+The smoke harness is compiled into Debug builds only and stays dormant unless `WZRDVID_LITE_SMOKE=1` or `--lite-smoke` is supplied.
 
 ## Required Manual Smokes
 
@@ -53,7 +83,7 @@ Until the Apple Developer account, Team ID, and final Bundle ID are ready, creat
 
 ## Known Gaps
 
-- No committed `.xcodeproj` yet. Keep that for the post-D-U-N-S phase when the final Team ID and Bundle ID are known.
+- Final Apple Developer Team ID, production Bundle ID, App Store Connect record, and signing/export settings are not configured yet.
 - No native export/share bridge yet. If the browser download link does not work reliably in WKWebView, add a narrow JavaScript-to-native export bridge instead of changing Lite into a remote or backend app.
 - No TestFlight/App Store metadata yet.
 - No App Store submission, notarization, signing automation, or release packaging is included here.

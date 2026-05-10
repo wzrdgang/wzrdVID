@@ -27,7 +27,7 @@ Product boundaries:
 - Packaging: PyInstaller, macOS `.app`, ad-hoc codesign in `build_app.sh`.
 - Public site: static HTML/CSS/JS under `docs/`.
 - Lite prototype: vanilla browser JavaScript, Canvas, MediaRecorder, object URLs; no backend and no uploads.
-- Apple Lite groundwork: SwiftUI/WKWebView shell sources under `apple-lite/`; bundled web resources are generated locally from `docs/lite/`.
+- Apple Lite groundwork: SwiftUI/WKWebView shell and Xcode project under `apple-lite/`; bundled web resources are generated locally from `docs/lite/`.
 - Package manager: `pip` with `requirements.txt`; shell launchers create/use `.venv`.
 - Hosting target: GitHub Pages from `docs/`.
 - Test/lint tools: no formal test runner or formatter is configured. Use syntax/static checks listed below.
@@ -49,7 +49,7 @@ Product boundaries:
 - `docs/i18n.js`: static UI localization resources shared by the landing page and Lite.
 - `docs/I18N.md`: UI localization notes, fallback behavior, and language-addition workflow.
 - `docs/assets/`: Pages copies of selected public assets.
-- `apple-lite/`: WZRD.VID Lite Apple wrapper groundwork. SwiftUI/WKWebView sources live under `apple-lite/WZRDVIDLite/App/`; generated local web resources live under ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
+- `apple-lite/`: WZRD.VID Lite Apple wrapper groundwork. The simulator-ready Xcode project lives at `apple-lite/WZRDVIDLite.xcodeproj`; SwiftUI/WKWebView sources live under `apple-lite/WZRDVIDLite/App/`; generated local web resources live under ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
 - `examples/`: placeholder docs for safe example media.
 - `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`: generated/local outputs; do not edit or commit.
 - `demo/`: ignored local staging for demo media; do not treat as release-safe source.
@@ -158,6 +158,12 @@ Apple Lite bundle prep:
 python3 apple-lite/scripts/prepare_lite_web_bundle.py
 ```
 
+Apple Lite simulator smoke:
+
+```bash
+python3 apple-lite/scripts/run_simulator_smoke.py
+```
+
 Syntax/static checks:
 
 ```bash
@@ -189,7 +195,7 @@ Deploy/preview:
 | UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
 | Component logic desktop | `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke for changed flow where practical. |
 | Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. |
-| Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse with the iPhone Simulator SDK if Xcode is installed; keep generated `LiteWeb/` out of git. |
+| Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator UI behavior is in scope; keep generated `LiteWeb/` and `DerivedData/` out of git. |
 | Routing/navigation | Local static server; `curl` changed pages; verify relative asset/link paths. |
 | Build/deploy config | `git diff --check`; inspect `build_app.sh` or Pages config diff; run `./build_app.sh` only when packaging behavior changed; verify `dist/WZRD.VID.app` if build runs. |
 | Dependency/package changes | Explain why existing deps are insufficient; `pip install -r requirements.txt`; relevant py_compile/build checks. |

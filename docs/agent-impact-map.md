@@ -152,13 +152,13 @@ This map describes the current repository so future agents can edit with context
 
 ### WZRD.VID Lite Apple Wrapper Groundwork
 
-- Entry point: future Xcode iOS app target using SwiftUI sources under `apple-lite/WZRDVIDLite/App/`.
+- Entry point: `apple-lite/WZRDVIDLite.xcodeproj` iOS app target using SwiftUI sources under `apple-lite/WZRDVIDLite/App/`.
 - UI/component path: `ContentView.swift` embeds `LiteWebView.swift`, which loads bundled local Lite web files into `WKWebView`.
 - Data/state path: same Lite browser runtime model: local file picker/object URLs/Canvas/Web Audio/MediaRecorder, plus local UI language preference from the existing Lite JavaScript.
 - Asset/media path: `apple-lite/scripts/prepare_lite_web_bundle.py` copies `docs/lite/`, `docs/i18n.js`, and referenced `docs/assets/{branding,logo,ui}/` into ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
-- Success behavior: The native shell loads bundled Lite files locally and cancels non-local navigation.
+- Success behavior: The native shell loads bundled Lite files locally and cancels non-local navigation. Debug simulator builds can run `apple-lite/scripts/run_simulator_smoke.py`, which launches the app with a debug-only WKWebView smoke harness for local import surface, language switching, random clip rendering, and blob download readiness.
 - Failure/empty behavior: Missing generated `LiteWeb/` shows a native-shell HTML error. WKWebView blob download/export may require a future native share/export bridge.
-- Files likely involved in changes: `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/WZRDVIDLite/App/Info.plist`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/*`.
+- Files likely involved in changes: `apple-lite/WZRDVIDLite.xcodeproj`, `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/WZRDVIDLite/App/Info.plist`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `apple-lite/scripts/run_simulator_smoke.py`, `docs/lite/*`.
 
 ### GitHub Pages Deployment
 
@@ -179,6 +179,7 @@ This map describes the current repository so future agents can edit with context
 - GitHub Pages local preview: serve `docs/` with a simple static server such as `python3 -m http.server` from the `docs` directory.
 - GitHub Pages deployment: GitHub repo settings should deploy branch `main`, folder `/docs`, custom domain `wzrdvid.com` via `docs/CNAME`.
 - Apple Lite local bundle prep: `python3 apple-lite/scripts/prepare_lite_web_bundle.py` generates ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/` for Xcode folder-reference inclusion.
+- Apple Lite simulator smoke: `python3 apple-lite/scripts/run_simulator_smoke.py` builds `apple-lite/WZRDVIDLite.xcodeproj`, installs the app on an available iPhone simulator, and runs the debug-only WKWebView smoke harness.
 - GitHub Actions workflow: Not present in repo.
 - Output directories: `dist/`, `build/`, `.pyinstaller-cache/`, `.venv/`, caches, temp folders, and release zip are generated/local outputs unless explicitly being packaged outside source control.
 - Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
@@ -212,7 +213,7 @@ This map describes the current repository so future agents can edit with context
 - User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
 - Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.
-- Apple Lite generated web bundle: ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`, regenerated from `docs/lite/` and selected `docs/assets/` by `apple-lite/scripts/prepare_lite_web_bundle.py`.
+- Apple Lite generated web bundle: ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`, regenerated from `docs/lite/` and selected `docs/assets/` by `apple-lite/scripts/prepare_lite_web_bundle.py` or the Xcode build phase.
 - Static assets safe to edit with care: `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/demos/`, `assets/screenshots/`, `docs/assets/`.
 - Generated/build outputs: `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`, `WZRD.VID.spec`, `tmp/`, `temp/`, local release zips.
 - Media handling rules: Do not commit random copyrighted media or large local renders. Release-safe demo/screenshot assets under `assets/` and `docs/assets/` are intentionally allowed by `.gitignore` negation rules.

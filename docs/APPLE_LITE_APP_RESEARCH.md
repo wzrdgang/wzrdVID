@@ -56,9 +56,11 @@ Do not try to ship the desktop renderer, bundled ffmpeg, or full desktop feature
 ## Groundwork Added
 
 - `apple-lite/WZRDVIDLite/App/` contains starter SwiftUI/WKWebView shell sources.
+- `apple-lite/WZRDVIDLite.xcodeproj` contains a simulator-ready app target using the current starter sources.
 - `apple-lite/scripts/prepare_lite_web_bundle.py` prepares an ignored `LiteWeb/` bundle from `docs/lite/`, `docs/i18n.js`, and referenced static assets.
-- `apple-lite/README.md` documents manual Xcode project creation, target setup, local-only boundaries, and required simulator/device smokes.
-- No `.xcodeproj`, signing state, Team ID, App Store Connect app record, TestFlight build, or native export bridge has been added yet.
+- `apple-lite/scripts/run_simulator_smoke.py` builds the project, installs the app on an available iPhone simulator, and launches a debug-only WKWebView smoke harness for bundled Lite load, local import surface, language switching, random clip rendering, and download-link readiness.
+- `apple-lite/README.md` documents the Xcode project, target setup, local-only boundaries, and required simulator/device smokes.
+- No signing state, Team ID, App Store Connect app record, TestFlight build, or native export bridge has been added yet.
 
 ## Product Boundaries
 
