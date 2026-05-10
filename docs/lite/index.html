@@ -30,16 +30,16 @@
         <div id="mediaDrop" class="drop-zone" tabindex="0">
           <strong>Add Media</strong>
           <span>drag videos/photos here</span>
-          <small>mp4 mov webm png jpg jpeg webp gif</small>
-          <input id="mediaInput" type="file" multiple accept="video/*,image/*,.mp4,.mov,.mkv,.avi,.webm,.png,.jpg,.jpeg,.webp,.gif">
+          <small>desktop supports more formats // Lite depends on your browser</small>
+          <input id="mediaInput" type="file" multiple accept="video/*,image/*,.mp4,.mov,.m4v,.mts,.m2ts,.mkv,.avi,.webm,.png,.jpg,.jpeg,.webp,.avif,.gif,.bmp,.tif,.tiff,.heic,.heif">
         </div>
         <button id="mediaButton" class="btn btn-secondary" type="button">ADD MEDIA</button>
 
         <div id="audioDrop" class="drop-zone audio-zone" tabindex="0">
           <strong>Add Audio</strong>
           <span>drag audio here</span>
-          <small>mp3 wav m4a flac ogg or video with audio</small>
-          <input id="audioInput" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.mp4,.mov,.mkv,.webm">
+          <small>mp3 wav m4a flac ogg opus or video with audio</small>
+          <input id="audioInput" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.aif,.aiff,.mp4,.mov,.m4v,.mts,.m2ts,.avi,.mkv,.webm">
         </div>
         <button id="audioButton" class="btn btn-secondary" type="button">ADD AUDIO</button>
 
@@ -58,7 +58,7 @@
             <option>Classic ANSI Lite</option>
             <option>VHS Damage Lite</option>
             <option>Dial-Up Glitch</option>
-            <option>Public Access</option>
+            <option>PUBLIC ACCESS</option>
           </select>
         </label>
 
@@ -87,7 +87,7 @@
 
         <button id="renderButton" class="btn btn-primary" type="button">MAKE 30 SEC CLIP</button>
         <a id="downloadButton" class="btn btn-disabled" aria-disabled="true">DOWNLOAD CLIP</a>
-        <p class="small-note">Prototype note: Lite records with the browser's built-in MediaRecorder. It saves MP4 when the browser supports MP4 recording, otherwise it falls back to WebM. The desktop app is still the full MP4 engine.</p>
+        <p class="small-note">Prototype note: Lite records with the browser's built-in MediaRecorder. It saves MP4 when the browser supports MP4 recording, otherwise it falls back to WebM. Desktop supports more formats. Lite depends on your browser.</p>
       </section>
 
       <section class="preview-deck panel-frame">

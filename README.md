@@ -167,7 +167,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
 - Match visual timeline length to selected music by retiming, trimming, or looping.
 - ANSI/text-art rendering with color sampled from source frames.
-- **PUBLIC ACCESS** profile groundwork for public-access/camcorder-dub broadcast texture while keeping ANSI Coverage fully adjustable.
+- **PUBLIC ACCESS** renderer for camcorder-dub public-access texture while keeping ANSI Coverage fully adjustable.
 - Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, and mosaic collapse.
 - Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
 - Bypass-normal sections so chosen parts remain regular video instead of ANSI.
@@ -234,6 +234,18 @@ New projects default to **CRT Flash** transitions and **Fade Out** endings so ex
 - External audio/music: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.opus`, `.aiff`, `.aif`, plus video containers with audio tracks.
 
 Actual decode support still depends on the local Python/Pillow/OpenCV/ffmpeg install. If a file cannot be decoded, WZRD.VID rejects it with a log message instead of silently failing.
+
+Lite can accept many of the same file extensions, but it can only decode what the browser supports. Desktop supports broader ffmpeg-backed media handling; HEIC/HEIF in Lite is browser-limited.
+
+## PUBLIC ACCESS
+
+**PUBLIC ACCESS** is a real renderer profile, not “ANSI off.” It pushes source frames through a public-access/VHS treatment before the ANSI coverage decision: CRT softness, chroma bleed, scanlines, tape wobble, bottom head-switch noise, RF speckle, dropout streaks, and unstable broadcast contrast.
+
+- 0% ANSI: full non-ANSI PUBLIC ACCESS video.
+- 50% ANSI: mixed PUBLIC ACCESS video and PUBLIC ACCESS-treated ANSI sections.
+- 100% ANSI: full ANSI/text-art using PUBLIC ACCESS-treated source frames.
+
+The same idea is available in WZRD.VID Lite as a browser-only preset, with browser-dependent media decoding.
 
 ## Audio
 

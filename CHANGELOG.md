@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.7 — 2026-05-09
+
+- Added the real PUBLIC ACCESS renderer path for public-access/VHS source treatment before ANSI coverage is applied.
+- Preserved PUBLIC ACCESS compatibility with 0%, mixed, and 100% ANSI/text-art output.
+- Added PUBLIC ACCESS parity to WZRD.VID Lite with browser-side VHS/public-access treatment.
+- Expanded Lite accepted extensions while documenting browser-dependent decoding limits.
+- Bumped app/release metadata to v0.1.7.
+
 ## v0.1.6 — 2026-05-09
 
 - Added selectable 5-second and 10-second preview renders.

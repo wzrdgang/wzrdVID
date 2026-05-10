@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.7 PUBLIC ACCESS renderer prep
+
+- Agent/task: Codex / v0.1.7 real PUBLIC ACCESS renderer and Lite parity release prep.
+- Intent: Turn PUBLIC ACCESS from preset groundwork into a visible renderer treatment, keep ANSI coverage semantics intact, add Lite PUBLIC ACCESS parity and browser-dependent format copy, bump/package v0.1.7, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `renderer.py`, `presets.py`, `README.md`, `docs/index.html`, `docs/lite/index.html`, `docs/lite/app.js`, `docs/lite/README.md`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. PUBLIC ACCESS now applies camcorder-dub/VHS source treatment before ANSI coverage decisions, so 0%, mixed, and 100% ANSI outputs all share the analog broadcast source texture. Lite now includes a matching PUBLIC ACCESS preset and broader extension acceptance with browser-limited decode messaging.
+- Commands run: `git status --short --branch`; targeted `sed`/`rg`; `python3 -m py_compile`; `node --check docs/lite/app.js`; forbidden Lite network API grep; local Pages server and `curl`; Brave/Computer Use Lite load smoke; synthetic ffmpeg media generation; desktop render smokes for PUBLIC ACCESS 0%/50%/100% ANSI, 5s/10s paths, worky music mode, and HEIC; offscreen recipe/reset smoke; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; plist/version/size/checksum checks; packaged app launch smoke.
+- Checks passed: Python and Lite syntax checks, no forbidden Lite network APIs, static Pages checks, desktop PUBLIC ACCESS render smokes, H.264/yuv420p output verification, AAC worky audio output verification, HEIC render smoke on this machine, recipe/reset smoke, macOS app build, release ZIP package, plist version 0.1.7, and packaged app launch smoke passed.
+- Checks failed: Playwright CLI browser smoke could not run because Google Chrome is not installed at the expected path; Brave/Computer Use was used for the Lite page load smoke instead.
+- Decisions made: PUBLIC ACCESS uses the existing preset/effect-intensity surface instead of adding a new panel. The treatment is a pre-ANSI source layer, not an ANSI-off mode.
+- Known gaps: GitHub release publication remains intentionally deferred. Lite HEIC/HEIF remains browser-limited even though desktop can use ffmpeg-backed decoding.
+- Next recommended prompt: Publish v0.1.7 with the generated `WZRD.VID-macOS.zip` and SHA256 after reviewing the final release command.
+
 ## 2026-05-09 - v0.1.6 media expansion prep
 
 - Agent/task: Codex / focused v0.1.6 media expansion and broadcast artifact release prep.

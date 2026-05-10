@@ -4,16 +4,16 @@
   const DEFAULT_DURATION = 30;
   const MIN_ANSI_CHUNK = 0.5;
   const MAX_ANSI_CHUNK = 3.0;
-  const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi']);
-  const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
-  const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'aif', 'aiff']);
+  const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'webm', 'mkv', 'avi']);
+  const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'heif']);
+  const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'aif', 'aiff']);
 
   const presets = {
     'Chunkcore Chaos': { grid: 74, ramp: '  ░▒▓█', scanlines: 0.34, rgb: 5, tape: 0.34, mosaic: 0.4, punch: 0.28, fps: 15 },
     'Classic ANSI Lite': { grid: 96, ramp: ' .:-=+*#%@', scanlines: 0.2, rgb: 2, tape: 0.12, mosaic: 0.14, punch: 0.16, fps: 15 },
     'VHS Damage Lite': { grid: 84, ramp: '  ░▒▓█', scanlines: 0.46, rgb: 8, tape: 0.58, mosaic: 0.26, punch: 0.22, fps: 15 },
     'Dial-Up Glitch': { grid: 68, ramp: '  ░▒▓█', scanlines: 0.28, rgb: 9, tape: 0.44, mosaic: 0.62, punch: 0.36, fps: 15 },
-    'Public Access': { grid: 88, ramp: ' .:-=+*#%@', scanlines: 0.18, rgb: 3, tape: 0.24, mosaic: 0.2, punch: 0.2, fps: 15 }
+    'PUBLIC ACCESS': { grid: 88, ramp: ' .:-=+*#%@ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', scanlines: 0.38, rgb: 4, tape: 0.5, mosaic: 0.18, punch: 0.14, fps: 15, profile: 'publicAccess' }
   };
 
   const state = {
@@ -106,9 +106,13 @@
       return;
     }
     for (const item of accepted) {
-      const prepared = await prepareTimelineItem(item.file, item.kind);
-      state.media.push(prepared);
-      log(`loaded ${item.kind}: ${item.file.name}`);
+      try {
+        const prepared = await prepareTimelineItem(item.file, item.kind);
+        state.media.push(prepared);
+        log(`loaded ${item.kind}: ${item.file.name}`);
+      } catch (error) {
+        log(`could not decode ${item.file.name}: ${error.message || error}. Desktop supports more formats. Lite depends on your browser.`);
+      }
     }
     updateFileList();
     drawIdleFrame();
@@ -137,13 +141,29 @@
       video.muted = true;
       video.playsInline = true;
       video.preload = 'auto';
-      await waitForMetadata(video).catch(() => undefined);
-      return { file, kind, url, element: video, duration: Number.isFinite(video.duration) ? video.duration : 3 };
+      try {
+        await waitForMetadata(video);
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+          throw new Error('video codec/container is not supported by this browser');
+        }
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        throw error;
+      }
+      return { file, kind, url, element: video, duration: video.duration };
     }
     const image = new Image();
     image.decoding = 'async';
     image.src = url;
-    await image.decode().catch(() => undefined);
+    try {
+      await image.decode();
+      if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) {
+        throw new Error('image format is not supported by this browser');
+      }
+    } catch (error) {
+      URL.revokeObjectURL(url);
+      throw error;
+    }
     return { file, kind, url, element: image, duration: 2.4 };
   }
 
@@ -503,6 +523,7 @@
       ctx.fillStyle = `rgba(8, 7, 6, ${1 - Math.max(0, duration - time) / 2.2})`;
       ctx.fillRect(0, 0, w, h);
     }
+    if (preset.profile === 'publicAccess') applyPublicAccessSource(preset, time);
   }
 
   function drawCover(source, w, h) {
@@ -580,7 +601,69 @@
       ctx.imageSmoothingEnabled = true;
     }
     drawTapeDamage(preset.tape, time);
+    if (preset.profile === 'publicAccess') drawPublicAccessOverlay(preset, time);
     drawScanlines(preset.scanlines);
+  }
+
+  function applyPublicAccessSource(preset, time) {
+    const w = elements.canvas.width;
+    const h = elements.canvas.height;
+    const frame = ctx.getImageData(0, 0, w, h);
+    const data = frame.data;
+    const drift = Math.sin(time * 0.77) * 8;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      const luma = r * 0.299 + g * 0.587 + b * 0.114;
+      data[index] = clampByte(r * 0.72 + luma * 0.24 + 18 + drift);
+      data[index + 1] = clampByte(g * 0.68 + luma * 0.25 + 12);
+      data[index + 2] = clampByte(b * 0.62 + luma * 0.28 - 12 - drift);
+    }
+    ctx.putImageData(frame, 0, 0);
+
+    ctx.globalAlpha = 0.16;
+    ctx.globalCompositeOperation = 'screen';
+    ctx.drawImage(elements.canvas, Math.max(1, preset.rgb), 0);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(elements.canvas, -Math.max(1, preset.rgb - 1), 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.fillStyle = `rgba(246, 235, 212, ${0.045 + 0.018 * Math.sin(time * 1.9)})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawPublicAccessOverlay(preset, time) {
+    const w = elements.canvas.width;
+    const h = elements.canvas.height;
+    const bandHeight = Math.max(12, Math.floor(h * 0.065));
+    const bandY = h - bandHeight + Math.floor(Math.sin(time * 5.5) * 4);
+    ctx.save();
+    ctx.globalAlpha = 0.62;
+    for (let y = 0; y < bandHeight; y += 3) {
+      const offset = Math.sin(time * 13 + y * 0.7) * 24 * preset.tape;
+      tempCanvas.width = w;
+      tempCanvas.height = 2;
+      tempCtx.drawImage(elements.canvas, 0, Math.max(0, bandY + y), w, 2, 0, 0, w, 2);
+      ctx.drawImage(tempCanvas, offset, Math.max(0, bandY + y));
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(0, Math.max(0, bandY), w, bandHeight);
+    ctx.fillStyle = 'rgba(169, 244, 203, 0.08)';
+    ctx.fillRect(0, Math.max(0, bandY + 2), w, 2);
+    ctx.fillStyle = 'rgba(244, 166, 207, 0.08)';
+    ctx.fillRect(0, Math.max(0, bandY + bandHeight - 4), w, 2);
+
+    const dropoutCount = Math.floor(2 + preset.tape * 6);
+    for (let i = 0; i < dropoutCount; i += 1) {
+      const y = Math.floor(Math.random() * h);
+      const x = Math.floor(Math.random() * w * 0.82);
+      const width = Math.floor(randomBetween(w * 0.08, w * 0.45));
+      ctx.fillStyle = Math.random() > 0.55 ? 'rgba(255,255,235,0.15)' : 'rgba(0,0,0,0.18)';
+      ctx.fillRect(x, y, width, Math.max(1, Math.floor(randomBetween(1, 4))));
+    }
+    ctx.restore();
   }
 
   function drawTapeDamage(amount, time) {
@@ -606,6 +689,10 @@
     const h = elements.canvas.height;
     ctx.fillStyle = `rgba(0, 0, 0, ${amount * 0.22})`;
     for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 1);
+  }
+
+  function clampByte(value) {
+    return Math.max(0, Math.min(255, Math.round(value)));
   }
 
   function sleep(ms) {

@@ -313,7 +313,7 @@ def render_project(
 
     preset = get_preset(settings.preset_name)
     if preset.get("profile") == "public_access_v1":
-        _emit(log, "PUBLIC ACCESS profile: analog broadcast groundwork active; ANSI coverage controls still apply.")
+        _emit(log, "PUBLIC ACCESS renderer: camcorder dub, RF noise, tracking wear; ANSI coverage controls still apply.")
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
     layout = make_text_layout(settings.width_chars, settings.output_size, chunky_blocks=chunky_blocks)
     frame_count = max(1, math.ceil(render_duration * settings.fps))
@@ -828,26 +828,46 @@ def _render_frames(
                     held_frame = frame_rgb.copy()
                     hold_until = index + _stutter_hold_length(index, settings)
 
+            public_source: Image.Image | None = None
+            if preset.get("profile") == "public_access_v1":
+                public_source = prepare_public_access_source(
+                    frame_rgb,
+                    output_size=settings.output_size,
+                    preset=preset,
+                    effects=frame_effects,
+                    intensity=settings.effect_intensity,
+                    frame_index=index,
+                    fps=settings.fps,
+                    framing=_frame_framing_kwargs(settings),
+                    seed=settings.weird_seed or settings.random_seed,
+                )
+
             if is_bypass_time(output_t, bypass_intervals):
-                output_frame = render_normal_frame(
-                    frame_rgb,
-                    output_size=settings.output_size,
-                    effects=frame_effects,
-                    intensity=settings.effect_intensity,
-                    frame_index=index,
-                    fps=settings.fps,
-                    framing=_frame_framing_kwargs(settings),
-                )
+                if public_source is not None:
+                    output_frame = public_source
+                else:
+                    output_frame = render_normal_frame(
+                        frame_rgb,
+                        output_size=settings.output_size,
+                        effects=frame_effects,
+                        intensity=settings.effect_intensity,
+                        frame_index=index,
+                        fps=settings.fps,
+                        framing=_frame_framing_kwargs(settings),
+                    )
             else:
-                ansi_source = prepare_ansi_source(
-                    frame_rgb,
-                    output_size=settings.output_size,
-                    effects=frame_effects,
-                    intensity=settings.effect_intensity,
-                    frame_index=index,
-                    fps=settings.fps,
-                    framing=_frame_framing_kwargs(settings),
-                )
+                if public_source is not None:
+                    ansi_source = public_source
+                else:
+                    ansi_source = prepare_ansi_source(
+                        frame_rgb,
+                        output_size=settings.output_size,
+                        effects=frame_effects,
+                        intensity=settings.effect_intensity,
+                        frame_index=index,
+                        fps=settings.fps,
+                        framing=_frame_framing_kwargs(settings),
+                    )
                 output_frame = render_text_art_frame(
                     np.asarray(ansi_source),
                     preset=preset,
@@ -1333,6 +1353,137 @@ def prepare_ansi_source(
         angle = math.sin(frame_index * 0.09) * 0.42 * intensity
         image = image.rotate(angle, resample=Image.Resampling.BICUBIC, fillcolor=(0, 0, 0))
     return image
+
+
+def prepare_public_access_source(
+    frame_rgb: np.ndarray,
+    output_size: tuple[int, int],
+    preset: dict[str, Any],
+    effects: dict[str, bool],
+    intensity: float,
+    frame_index: int,
+    fps: int,
+    framing: dict[str, Any] | None = None,
+    seed: int | None = None,
+) -> Image.Image:
+    """Prepare the shared PUBLIC ACCESS source frame for normal and ANSI sections."""
+    image = render_normal_frame(
+        frame_rgb,
+        output_size=output_size,
+        effects=effects,
+        intensity=intensity,
+        frame_index=frame_index,
+        fps=fps,
+        framing=framing,
+    )
+    amount = max(0.0, min(2.0, float(preset.get("public_access_amount", 1.0)) * (0.72 + 0.34 * intensity)))
+    return _apply_public_access_treatment(image, frame_index, fps, amount, seed)
+
+
+def _apply_public_access_treatment(
+    image: Image.Image,
+    frame_index: int,
+    fps: int,
+    amount: float,
+    seed: int | None,
+) -> Image.Image:
+    """Camcorder-dub public-access texture without disabling ANSI coverage."""
+    amount = max(0.0, min(2.0, amount))
+    width, height = image.size
+    rng = random.Random((seed or 0) + frame_index * 1723)
+
+    # Generation loss and tube softness: small but always present for this profile.
+    softened = image.filter(ImageFilter.GaussianBlur(radius=0.45 + 0.34 * amount))
+    image = Image.blend(image, softened, min(0.58, 0.24 + 0.18 * amount))
+
+    arr = np.asarray(image, dtype=np.float32)
+    phase = frame_index / max(1, fps)
+
+    # Muted camcorder color with slow, uneven broadcast drift.
+    luma = (
+        arr[:, :, 0] * 0.299
+        + arr[:, :, 1] * 0.587
+        + arr[:, :, 2] * 0.114
+    )
+    arr = arr * (0.72 - 0.06 * amount) + luma[:, :, None] * (0.28 + 0.06 * amount)
+    warm = np.array([224, 215, 185], dtype=np.float32)
+    cool = np.array([178, 232, 206], dtype=np.float32)
+    tint = warm * (0.64 + 0.18 * math.sin(phase * 0.31)) + cool * (0.36 - 0.18 * math.sin(phase * 0.31))
+    arr = arr * (1.0 - 0.12 * amount) + tint * (0.12 * amount)
+
+    contrast = 0.96 + 0.045 * math.sin(phase * 2.7) + rng.uniform(-0.015, 0.015) * amount
+    brightness = 1.0 + 0.035 * math.sin(phase * 3.8 + 1.2) + rng.uniform(-0.012, 0.012) * amount
+    arr = ((arr - 127.5) * contrast + 127.5) * brightness
+    arr = np.clip(arr, 0, 255).astype(np.uint8)
+
+    # Chroma bleed and analog misregistration.
+    bleed = max(1, int(round(1.0 + 2.2 * amount + 1.4 * math.sin(phase * 1.7))))
+    shifted = arr.copy()
+    shifted[:, :, 0] = np.roll(arr[:, :, 0], bleed, axis=1)
+    shifted[:, :, 2] = np.roll(arr[:, :, 2], -max(1, bleed // 2), axis=1)
+    arr = shifted
+
+    # Horizontal tape wobble, with stronger instability near the head-switch band.
+    wobble = arr.copy()
+    base_amp = 1.2 + 3.0 * amount
+    for y in range(height):
+        bottom_bias = 1.0 + 1.6 * max(0.0, (y / max(1, height)) - 0.82)
+        shift = int(round(math.sin(y * 0.038 + phase * 7.2) * base_amp * bottom_bias))
+        if shift:
+            wobble[y, :, :] = np.roll(wobble[y, :, :], shift, axis=0)
+    arr = wobble
+
+    # Bottom head-switching noise band and tracking dirt.
+    band_h = max(6, int(height * (0.045 + 0.025 * amount)))
+    band_top = max(0, height - band_h - int(3 * math.sin(phase * 4.1)))
+    band = arr[band_top:, :, :].copy()
+    band_rng = np.random.default_rng((seed or 0) + frame_index * 313 + 19)
+    band_noise = band_rng.integers(-56, 64, size=band.shape, dtype=np.int16)
+    band = np.clip(band.astype(np.int16) + band_noise, 0, 255).astype(np.uint8)
+    for row in range(0, band.shape[0], 3):
+        shift = int(round(math.sin(row * 0.7 + phase * 12.0) * (12 + 16 * amount)))
+        band[row:row + 2, :, :] = np.roll(band[row:row + 2, :, :], shift, axis=1)
+    arr[band_top:, :, :] = band
+
+    # Sparse RF speckle and small dropout streaks.
+    speckle_rng = np.random.default_rng((seed or 0) + frame_index * 977 + 41)
+    speckle_mask = speckle_rng.random((height, width)) < (0.0018 + 0.0022 * amount)
+    if speckle_mask.any():
+        speckle_values = speckle_rng.choice(np.array([20, 235], dtype=np.uint8), size=int(speckle_mask.sum()))
+        arr[speckle_mask] = speckle_values[:, None]
+
+    line_count = int(1 + 4 * amount)
+    for _ in range(line_count):
+        if rng.random() > 0.34 + 0.12 * amount:
+            continue
+        y = rng.randrange(max(1, height))
+        h = rng.randint(1, max(2, int(4 + 4 * amount)))
+        x0 = rng.randrange(max(1, width))
+        span = rng.randint(max(18, width // 12), max(24, width // 2))
+        x1 = min(width, x0 + span)
+        shade = rng.choice([18, 36, 210, 238])
+        arr[y:min(height, y + h), x0:x1, :] = np.clip(
+            arr[y:min(height, y + h), x0:x1, :].astype(np.float32) * 0.45 + shade * 0.55,
+            0,
+            255,
+        ).astype(np.uint8)
+
+    result = Image.fromarray(arr, mode="RGB")
+    result = _apply_scanlines(result, line_gap=3, strength=min(0.48, 0.18 + 0.12 * amount))
+    result = _apply_public_access_vignette(result, amount)
+    return result
+
+
+def _apply_public_access_vignette(image: Image.Image, amount: float) -> Image.Image:
+    arr = np.asarray(image, dtype=np.float32)
+    height, width = arr.shape[:2]
+    yy, xx = np.ogrid[:height, :width]
+    x = (xx - width / 2.0) / max(1.0, width / 2.0)
+    y = (yy - height / 2.0) / max(1.0, height / 2.0)
+    distance = np.clip((x * x + y * y) ** 0.5, 0.0, 1.25)
+    vignette = 1.0 - np.clip((distance - 0.48) * (0.18 + 0.10 * amount), 0.0, 0.28)
+    arr *= vignette[:, :, None]
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), mode="RGB")
 
 
 def render_normal_frame(
