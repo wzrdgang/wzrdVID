@@ -82,13 +82,13 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 - Confirm Random clip assembly appears and can be toggled.
 - Attempt a short render with local media.
 - Verify the output download/share path. The native shell now intercepts rendered Lite blobs and presents an iOS share sheet because WKWebView blob downloads opened the clip for playback on a real device.
-- Verify audio separately. Real-device manual testing found visual import/preview worked, but audio from added audio/source clips did not come through yet.
+- Verify audio separately. Real-device manual testing found export works after the native bridge, but added audio was still silent before the Web Audio fallback. The current build now smoke-selects `webAudio` on iPhone and needs a hand audio retest.
 - Confirm no external navigation is allowed from inside the wrapper.
 
 ## Known Gaps
 
 - Final Apple Developer Team ID, production Bundle ID, App Store Connect record, and signing/export settings are not configured yet.
 - Native export/share bridge has a first implementation for rendered Lite blobs. It keeps the browser renderer local, sends the rendered blob to Swift through `WKScriptMessageHandler`, writes a temporary local file, and opens the iOS share sheet.
-- Apple Lite audio is not resolved yet. Real-device manual testing found no sound from added audio or source clips, so the iOS audio-capture path needs a separate focused pass before TestFlight.
+- Apple Lite added-audio capture has a first Web Audio fallback for iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable. Simulator and physical-device smokes select `webAudio`, but audible/exported audio still needs a real media hand retest. Source clip audio is not currently preserved from Lite's visual source timeline.
 - No TestFlight/App Store metadata yet.
 - No App Store submission, notarization, signing automation, or release packaging is included here.

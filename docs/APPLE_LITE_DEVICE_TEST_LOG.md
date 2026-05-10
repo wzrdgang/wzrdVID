@@ -1,7 +1,7 @@
 # WZRD.VID Lite Real-Device Test Log
 
 Date: 2026-05-10
-Status: manual import/preview passed; native export bridge implemented; iOS audio capture still unresolved
+Status: manual import/export passed; added-audio Web Audio fallback implemented; audio hand retest pending
 
 This is the guided manual test log for WZRD.VID Lite on a physical iPhone or iPad. It is intentionally manual because the simulator smoke can verify the bundled WKWebView surface, but it cannot prove the real iOS document/photo picker and user-facing export/share behavior.
 
@@ -53,7 +53,7 @@ Physical-device launch/smoke result:
 - Smoke checks passed: bundled Lite load, file input surface, export blob surface, Spanish language switching, 15-second duration control, Random clip assembly checkbox, synthetic local file import, random render completion, and generated `wzrdvid-lite-15s` download link readiness.
 - A normal non-smoke `devicectl` launch of `com.samhowell.wzrdvid.lite` also succeeded.
 
-Current blocker: iOS audio capture is still unresolved. The manual device test confirmed real Photos/Files import and visual preview worked, but rendered/previewed clips did not include sound from either added audio or source clips. The manual device test also confirmed the browser blob download handoff failed because tapping download opened the clip for playback instead of giving a reliable save/share path.
+Current blocker: added-audio output needs one more manual iPhone retest after the Web Audio fallback. The manual device test confirmed real Photos/Files import, visual preview, and post-bridge download/export worked. It also confirmed rendered/previewed clips were still silent before the Web Audio fallback.
 
 Manual interaction attempt:
 
@@ -78,6 +78,20 @@ Native export bridge implementation result:
 - Simulator smoke passed with `nativeExportBridge: true` and `nativeRenderedClipReady: true`.
 - Physical iPhone Debug build, install, and smoke passed with `nativeExportBridge: true` and `nativeRenderedClipReady: true`; the updated app was launched normally after install.
 - Manual tapping of the post-bridge share sheet still needs a direct iPhone retest.
+
+Manual user results after native export bridge:
+
+- Download/export worked on the installed iPhone app.
+- Added audio and source clip audio were still silent in preview and the downloaded clip.
+- Decision update: keep the export bridge. Add a browser-side Web Audio fallback for the explicit Add Audio bus because physical-device smoke shows `Audio.prototype.captureStream` is unavailable while `AudioContext` and `createMediaStreamDestination()` are available.
+
+Added-audio Web Audio fallback implementation result:
+
+- `docs/lite/app.js` now tries `HTMLAudioElement.captureStream()` first, then falls back to `AudioContext.createMediaElementSource()` plus `createMediaStreamDestination()` for the explicit Add Audio bus.
+- The fallback also connects to `audioContext.destination` so added audio should be audible during render/preview and captured into the MediaRecorder stream.
+- Simulator smoke passed with `audioCaptureStream: false`, `audioContext: true`, `mediaStreamDestination: true`, `audioMode: "webAudio"`, and `audioPipelineReady: true`.
+- Physical iPhone Debug build, install, and smoke passed with `audioCaptureStream: false`, `audioContext: true`, `mediaStreamDestination: true`, `audioMode: "webAudio"`, and `audioPipelineReady: true`; the updated app was launched normally after install.
+- Manual audible/output audio retest still needs to confirm the Web Audio fallback fixes real added-audio clips. Source clip audio remains out of scope for this fallback because Lite samples/seeks source media as visual timeline material rather than preserving source audio.
 
 ## Boundaries
 
@@ -150,11 +164,11 @@ Record each item as `pass`, `fail`, or `blocked`.
 | Render | 15 second video render completes | pending | Needs hand test with real local video. |
 | Render | 15 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
 | Render | Optional 30 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
-| Audio | Optional local audio import arms audio bus | fail | Manual user test found no sound from added audio or source clips. Needs a separate iOS audio-capture investigation. |
-| Audio | Optional audio render completes or fails clearly | fail | Visual preview/render path worked, but audio was silent. |
+| Audio | Optional local audio import arms audio bus | pending | Failed before fallback: manual user test found no sound. Web Audio fallback is now installed and smoke-selected as `audioMode: "webAudio"` on physical iPhone; needs hand retest with added audio. |
+| Audio | Optional audio render completes or fails clearly | pending | Failed before fallback: visual preview/render path worked, but audio was silent. Retest after Web Audio fallback install. |
 | Export | Download/export control appears after render | pass | Automated device smoke verified a generated blob download link. |
-| Export | Tapping export/download produces a user-accessible file, share sheet, Files save, or another clear handoff | pending | Failed before bridge: manual user test found the blob download only opened the clip for playback. Native export/share bridge is now installed and needs a hand retest. |
-| Export | Exported file can be opened or shared outside the app | pending | Failed before bridge: no reliable save/share handoff from the browser download link. Retest after native bridge install. |
+| Export | Tapping export/download produces a user-accessible file, share sheet, Files save, or another clear handoff | pass | Failed before bridge, then manual user retest confirmed download/export worked after native bridge install. |
+| Export | Exported file can be opened or shared outside the app | pass | Manual user retest confirmed export/download worked after native bridge install. |
 | Privacy | No sign-in, upload, remote config, analytics, or network prompt appears | pass | Automated smoke completed without sign-in/upload/network prompt; static no-network boundary unchanged. |
 | Stability | No crash during import/render/export loop | pass | Automated smoke exited cleanly after import/render/download-link readiness. |
 
@@ -184,4 +198,4 @@ Prefer the narrowest bridge:
 
 Current decision: native export/share bridge is needed and has been implemented for rendered blobs. Native import bridge is not needed based on this manual test.
 
-Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, generated download-link readiness, real Photos/Files import, and the native export bridge smoke now pass on the physical iPhone. The browser blob download handoff failed on real-device manual testing by opening the clip for playback instead of providing a reliable save/share path, so the narrow bridge now intercepts the rendered blob and presents an iOS share sheet from the native wrapper. The post-bridge share sheet still needs a direct hand retest. The separate no-audio result remains unresolved and should be investigated before TestFlight.
+Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, generated download-link readiness, real Photos/Files import, native export bridge smoke, and manual post-bridge export now pass on the physical iPhone. The browser blob download handoff failed on real-device manual testing by opening the clip for playback instead of providing a reliable save/share path, so the narrow bridge now intercepts the rendered blob and presents an iOS share sheet from the native wrapper. Added-audio capture now has a Web Audio fallback that smoke-selects on the physical iPhone; manual audible/output retest remains pending. Source clip audio is not implemented for Lite's visual source timeline and remains future work.

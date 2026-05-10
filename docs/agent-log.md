@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite added-audio Web Audio fallback
+
+- Agent/task: Codex / update the Apple Lite device-test result after manual export retest passed but audio remained silent, then implement the narrow added-audio fix.
+- Intent: Keep the native export bridge, fix only the explicit Add Audio bus for iOS WKWebView, preserve Lite's local-only/no-upload boundary, and avoid desktop renderer/media changes.
+- Files changed this pass: `docs/lite/app.js`, `apple-lite/WZRDVIDLite/App/LiteSmokeHarness.swift`, `apple-lite/README.md`, `docs/lite/README.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-impact-map.md`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, Lite/Apple Lite added-audio behavior only. Lite still tries `HTMLAudioElement.captureStream()` first, then falls back to Web Audio `createMediaElementSource()` plus `createMediaStreamDestination()` for the explicit Add Audio bus. The fallback also connects to `audioContext.destination` so added audio should be audible during render and captured into MediaRecorder. Source clip audio is still not preserved from Lite's visual source timeline.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; targeted `rg`/`sed` inspections of Lite audio/export code and docs; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Lite forbidden-network grep; `python3 apple-lite/scripts/run_simulator_smoke.py`; physical iPhone `xcodebuild`; `xcrun devicectl device install app`; physical iPhone smoke launch with `WZRDVID_LITE_SMOKE=1`; normal physical iPhone launch; local static server with `curl` checks for `/`, `/lite/`, and `lite/app.js`; `git diff --check`.
+- Checks passed: Manual user retest confirmed native export/download now works. JavaScript, Python, plist, forbidden-network, static site, and whitespace checks passed. Simulator smoke passed with `audioCaptureStream: false`, `audioContext: true`, `mediaStreamDestination: true`, `audioMode: "webAudio"`, `audioPipelineReady: true`, and all prior Lite smoke checks passing. Physical iPhone Debug build/install passed; physical smoke passed with the same `webAudio` audio pipeline result; normal physical launch succeeded.
+- Checks failed/blocked: Manual user retest before this fallback found added audio/source clip audio silent in preview and exported clip. The Web Audio fallback is smoke-selected on the physical iPhone, but audible/exported audio with real added audio still needs direct hand retest. Source clip audio remains future work.
+- Decisions made: Export bridge is confirmed useful and remains. Native import bridge is not needed. The narrow audio fix is browser-side Web Audio fallback for explicitly added audio, not a native audio renderer or source-clip audio mixer.
+- Known gaps: Retest real added audio on iPhone. If the Web Audio fallback is still silent in the saved clip, inspect whether iOS MediaRecorder is dropping Web Audio destination tracks and consider a more native audio/export strategy.
+- Next recommended prompt: Retest WZRD.VID Lite on the iPhone with an explicitly added audio file after the Web Audio fallback, then report whether audio is audible during render and present in the downloaded/shared clip.
+
 ## 2026-05-10 - Apple Lite native export bridge
 
 - Agent/task: Codex / update the native bridge decision from manual iPhone results and implement only the narrow native bridge needed for the confirmed export blocker.

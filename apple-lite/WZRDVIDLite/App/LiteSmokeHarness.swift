@@ -67,10 +67,39 @@ enum LiteSmokeHarness {
         const randomClip = document.querySelector('#randomClipAssembly');
         const renderButton = document.querySelector('#renderButton');
         const downloadButton = document.querySelector('#downloadButton');
+        const audioInput = document.querySelector('#audioInput');
         const fileList = document.querySelector('#fileList');
         const canvas = document.querySelector('#previewCanvas');
+        const makeToneWavFile = () => {
+          const sampleRate = 8000;
+          const seconds = 1;
+          const samples = sampleRate * seconds;
+          const buffer = new ArrayBuffer(44 + samples * 2);
+          const view = new DataView(buffer);
+          const write = (offset, text) => {
+            for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+          };
+          write(0, 'RIFF');
+          view.setUint32(4, 36 + samples * 2, true);
+          write(8, 'WAVE');
+          write(12, 'fmt ');
+          view.setUint32(16, 16, true);
+          view.setUint16(20, 1, true);
+          view.setUint16(22, 1, true);
+          view.setUint32(24, sampleRate, true);
+          view.setUint32(28, sampleRate * 2, true);
+          view.setUint16(32, 2, true);
+          view.setUint16(34, 16, true);
+          write(36, 'data');
+          view.setUint32(40, samples * 2, true);
+          for (let i = 0; i < samples; i += 1) {
+            const sample = Math.sin((i / sampleRate) * 440 * Math.PI * 2) * 0.25;
+            view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * 32767, true);
+          }
+          return new File([buffer], 'lite-smoke-tone.wav', { type: 'audio/wav' });
+        };
 
-        check('liteLoaded', Boolean(mediaInput && languageSelect && durationSelect && randomClip && renderButton && downloadButton && canvas));
+        check('liteLoaded', Boolean(mediaInput && audioInput && languageSelect && durationSelect && randomClip && renderButton && downloadButton && canvas));
         check('fileInputSurface', Boolean(mediaInput && mediaInput.type === 'file' && mediaInput.accept.includes('video') && mediaInput.accept.includes('image')));
 
         result.capabilities.fileConstructor = typeof File === 'function';
@@ -81,6 +110,20 @@ enum LiteSmokeHarness {
         result.capabilities.captureStream = typeof canvas?.captureStream === 'function';
         result.capabilities.navigatorShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
         result.capabilities.nativeExportBridge = Boolean(window.webkit?.messageHandlers?.wzrdvidExport);
+        result.capabilities.audioCaptureStream = typeof Audio !== 'undefined' && typeof Audio.prototype.captureStream === 'function';
+        result.capabilities.audioContext = typeof AudioContext === 'function' || typeof webkitAudioContext === 'function';
+        result.capabilities.mediaStreamDestination = (() => {
+          const Context = window.AudioContext || window.webkitAudioContext;
+          if (!Context) return false;
+          try {
+            const context = new Context();
+            const supported = typeof context.createMediaStreamDestination === 'function';
+            context.close?.();
+            return supported;
+          } catch {
+            return false;
+          }
+        })();
         check('exportBlobSurface', Boolean(result.capabilities.blob && result.capabilities.objectURL && downloadButton && 'download' in downloadButton));
         check('nativeExportBridgeSurface', Boolean(result.capabilities.nativeExportBridge && window.WZRDVID_LITE_EXPORT?.shareRenderedClip), 'native export bridge unavailable');
 
@@ -111,8 +154,18 @@ enum LiteSmokeHarness {
             await sleep(100);
           }
           check('localFileImportSynthetic', (fileList.textContent || '').includes('lite-smoke.png'), text('#fileList'));
+          const audioTransfer = new DataTransfer();
+          audioTransfer.items.add(makeToneWavFile());
+          audioInput.files = audioTransfer.files;
+          audioInput.dispatchEvent(new Event('change', { bubbles: true }));
+          for (let index = 0; index < 60; index += 1) {
+            if ((fileList.textContent || '').includes('lite-smoke-tone.wav')) break;
+            await sleep(100);
+          }
+          check('localAudioImportSynthetic', (fileList.textContent || '').includes('lite-smoke-tone.wav'), text('#fileList'));
         } else {
           check('localFileImportSynthetic', false, 'File/DataTransfer unavailable in WKWebView smoke context');
+          check('localAudioImportSynthetic', false, 'File/DataTransfer unavailable in WKWebView smoke context');
         }
 
         if (result.checks.localFileImportSynthetic && result.capabilities.mediaRecorder && result.capabilities.captureStream) {
@@ -124,10 +177,14 @@ enum LiteSmokeHarness {
           check('randomRenderCompleted', (downloadButton.getAttribute('href') || '').startsWith('blob:'), text('#statusLine'));
           check('exportDownloadReady', Boolean(downloadButton.download && downloadButton.download.includes('wzrdvid-lite-15s')), downloadButton.download || '');
           check('nativeRenderedClipReady', Boolean(window.WZRDVID_LITE_EXPORT?.hasRenderedClip?.()), 'native rendered clip payload unavailable');
+          const audioMode = window.WZRDVID_LITE_EXPORT?.audioMode?.() || '';
+          result.audioMode = audioMode;
+          check('audioPipelineReady', ['captureStream', 'webAudio'].includes(audioMode), audioMode || 'no audio mode');
         } else {
           check('randomRenderCompleted', false, 'MediaRecorder/canvas capture unavailable or local import failed');
           check('exportDownloadReady', false, 'Render did not produce a download link');
           check('nativeRenderedClipReady', false, 'Render did not produce a native export payload');
+          check('audioPipelineReady', false, 'Render did not run');
         }
 
         const required = [
@@ -138,10 +195,12 @@ enum LiteSmokeHarness {
           'duration15',
           'randomCheckbox',
           'localFileImportSynthetic',
+          'localAudioImportSynthetic',
           'randomRenderCompleted',
           'exportDownloadReady',
           'nativeExportBridgeSurface',
-          'nativeRenderedClipReady'
+          'nativeRenderedClipReady',
+          'audioPipelineReady'
         ];
         result.passed = required.every((name) => result.checks[name] === true);
       } catch (error) {

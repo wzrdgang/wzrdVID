@@ -23,6 +23,7 @@
     renderedBlob: null,
     renderedFilename: '',
     renderedType: '',
+    lastAudioMode: 'none',
     renderAbort: false
   };
 
@@ -142,6 +143,7 @@
 
   window.WZRDVID_LITE_EXPORT = {
     hasRenderedClip: () => Boolean(state.renderedBlob && state.renderedFilename),
+    audioMode: () => state.lastAudioMode,
     shareRenderedClip: shareRenderedClipWithNative
   };
 
@@ -484,6 +486,7 @@
     const chunks = [];
     const canvasStream = elements.canvas.captureStream(fps);
     const mixedStream = new MediaStream(canvasStream.getVideoTracks());
+    state.lastAudioMode = 'none';
     const audioController = await prepareAudioStream(duration);
     if (audioController?.track) mixedStream.addTrack(audioController.track);
 
@@ -562,31 +565,120 @@
     if (!state.audio) return null;
     const audio = state.audio.audio;
     const captureStream = audio.captureStream || audio.mozCaptureStream;
-    if (!captureStream) {
-      log(t('lite.log_audio_capture_missing'));
+    if (captureStream) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.loop = true;
+      audio.volume = 0.92;
+      audio.muted = false;
+      audio.playsInline = true;
+      const stream = captureStream.call(audio);
+      const track = stream.getAudioTracks()[0];
+      if (!track) {
+        state.lastAudioMode = 'no-track';
+        log(t('lite.log_no_audio_track'));
+        return null;
+      }
+      state.lastAudioMode = 'captureStream';
+      return makeAudioController({
+        track,
+        setLevel: (level) => { audio.volume = Math.max(0.0001, 0.92 * level); },
+        startPlayback: async () => {
+          audio.currentTime = 0;
+          await audio.play().catch(() => log(t('lite.log_audio_blocked')));
+        },
+        stopPlayback: () => {
+          audio.pause();
+          audio.volume = 0.92;
+        }
+      }, duration);
+    }
+
+    const webAudioController = prepareWebAudioController(duration);
+    if (webAudioController) return webAudioController;
+
+    state.lastAudioMode = 'unavailable';
+    log(t('lite.log_audio_capture_missing'));
+    return null;
+  }
+
+  function prepareWebAudioController(duration) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!state.audio || !AudioContext) return null;
+
+    const audio = new Audio(state.audio.url);
+    audio.preload = 'auto';
+    audio.loop = true;
+    audio.volume = 1;
+    audio.muted = false;
+    audio.playsInline = true;
+
+    let audioContext;
+    try {
+      audioContext = new AudioContext();
+    } catch {
       return null;
     }
-    audio.pause();
-    audio.currentTime = 0;
-    audio.loop = true;
-    audio.volume = 0.92;
-    const stream = captureStream.call(audio);
-    const track = stream.getAudioTracks()[0];
+    if (!audioContext.createMediaElementSource || !audioContext.createMediaStreamDestination) {
+      audioContext.close?.();
+      return null;
+    }
+
+    let source;
+    let gain;
+    let destination;
+    try {
+      source = audioContext.createMediaElementSource(audio);
+      gain = audioContext.createGain();
+      destination = audioContext.createMediaStreamDestination();
+      gain.gain.value = 0.92;
+      source.connect(gain);
+      gain.connect(destination);
+      gain.connect(audioContext.destination);
+    } catch {
+      audioContext.close?.();
+      return null;
+    }
+
+    const track = destination.stream.getAudioTracks()[0];
     if (!track) {
+      audioContext.close?.();
       log(t('lite.log_no_audio_track'));
       return null;
     }
+    state.lastAudioMode = 'webAudio';
+    return makeAudioController({
+      track,
+      setLevel: (level) => { gain.gain.value = Math.max(0.0001, 0.92 * level); },
+      startPlayback: async () => {
+        audio.currentTime = 0;
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume().catch(() => {});
+        }
+        await audio.play().catch(() => log(t('lite.log_audio_blocked')));
+      },
+      stopPlayback: () => {
+        audio.pause();
+        try { source.disconnect(); } catch { /* already disconnected */ }
+        try { gain.disconnect(); } catch { /* already disconnected */ }
+        track.stop();
+        audioContext.close?.();
+      }
+    }, duration);
+  }
+
+  function makeAudioController(playback, duration) {
     let fadeTimer = 0;
     let fadeInterval = 0;
     return {
-      track,
+      track: playback.track,
       start: async () => {
-        await audio.play().catch(() => log(t('lite.log_audio_blocked')));
+        await playback.startPlayback();
         fadeTimer = window.setTimeout(() => {
           const started = performance.now();
           fadeInterval = window.setInterval(() => {
             const progress = Math.min(1, (performance.now() - started) / 1800);
-            audio.volume = Math.max(0.0001, 0.92 * (1 - progress));
+            playback.setLevel(1 - progress);
             if (progress >= 1) window.clearInterval(fadeInterval);
           }, 80);
         }, Math.max(0, duration - 2.0) * 1000);
@@ -594,8 +686,7 @@
       stop: () => {
         window.clearTimeout(fadeTimer);
         window.clearInterval(fadeInterval);
-        audio.pause();
-        audio.volume = 0.92;
+        playback.stopPlayback();
       }
     };
   }
