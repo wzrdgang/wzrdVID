@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Full site and Lite localization key coverage
+
+- Agent/task: Codex / normalize public site and WZRD.VID Lite localization coverage across all supported languages before v0.1.9 publication.
+- Intent: Bring `docs/i18n.js` up to the same key coverage standard as the desktop app by filling the current English homepage/Lite/runtime key set for every supported site/Lite language while keeping translations draft.
+- Files changed this pass: `docs/i18n.js`, `docs/I18N.md`, `docs/agent-log.md`.
+- Behavior changed: No. Static UI localization resources and localization notes only; desktop behavior, renderer/media behavior, Lite render behavior, no-upload/no-network behavior, deployment config, versioning, packaging, pushing, tagging, and release publication were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; site/Lite i18n audits; site/Lite key coverage audit; placeholder consistency audit; `rg -n "\\{[a-zA-Z0-9_]+\\}|%s|%d" docs/i18n.js`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; full Python compile command; Lite forbidden-network grep; local Pages server with `curl` checks for `/`, `/lite/`, and `/i18n.js`; Arabic `dir=rtl` runtime smoke; Brave/Computer Use visual smoke for Spanish, Russian, Japanese, and Arabic site/Lite localization; `git diff --check`.
+- Checks passed: Coverage audit reports `missing=0 extra=0` for English, Spanish, Brazilian Portuguese, French, German, Russian, Ukrainian, Japanese, Korean, Simplified Chinese, Traditional Chinese, Filipino/Tagalog, Hindi, and Arabic in `docs/i18n.js`. Placeholder audit passed. JavaScript and Python syntax checks passed. Lite forbidden-network grep returned no forbidden APIs. Local Pages root, Lite, and `i18n.js` loaded. Brave smoke confirmed homepage hero/download/Lite links localized in Spanish/Russian/Japanese, Lite controls and Random clip assembly localized in Japanese/Arabic, duration controls remained usable, and Arabic switched the document direction to RTL structurally.
+- Checks failed: Playwright CLI browser smoke was not available because its default Chrome target was not installed at `/Applications/Google Chrome.app`; visual smoke used Brave through Computer Use instead.
+- Decisions made: Added a static site/Lite coverage overlay in `docs/i18n.js` instead of changing the runtime fallback API, Lite rendering, localStorage behavior, or page markup. Brand and technical terms such as WZRD.VID, WZRD.VID Lite, worky.mode, wzrdgang, ANSI, MP4, FFmpeg, codec names, and creative preset names remain stable where appropriate.
+- Known gaps: Non-English site/Lite strings now have complete key coverage but remain draft and need fluent/native review. Arabic RTL support remains structural only, not full RTL visual QA. Lite runtime rendering behavior was not changed or re-smoked beyond static/browser UI checks.
+- Next recommended prompt: Rebuild/package v0.1.9 after full desktop/site/Lite localization coverage, then manually review the app and Lite before publishing.
+
 ## 2026-05-10 - Full desktop localization key coverage
 
 - Agent/task: Codex / normalize desktop localization coverage across all supported desktop languages before v0.1.9 publication.
