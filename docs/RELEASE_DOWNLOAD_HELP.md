@@ -37,7 +37,7 @@ If you wanted the double-click app, go back to the latest release and choose the
 There is no automatic updater yet.
 
 1. Open WZRD.VID.
-2. Check the update status in the **Output** tab.
+2. Check the update status in the app header.
 3. If a newer version is available, click **Download Update**.
 4. Download the latest `WZRD.VID-macOS.zip` release asset.
 5. Unzip it.
