@@ -17,6 +17,45 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - v0.1.9 localization release prep
+
+- Agent/task: Codex / version, commit, package, and prepare the localization-focused v0.1.9 release.
+- Intent: Verify the homepage notice removal and second-pass localization polish, bump app metadata to v0.1.9, build the macOS app, package the release ZIP, and prepare the local commit without changing renderer/media behavior or deployment config.
+- Files changed this pass: `VERSION`, `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, UI/site/localization only. Version metadata now reports v0.1.9, and the release notes document the localization polish and homepage notice removal. Renderer, ffmpeg, media processing, `docs/CNAME`, release scripts, and generated build outputs were not changed.
+- Commands run: `git status --short --branch`; required repo docs reads; release docs/version inspection; homepage notice stale-phrase grep; Lite forbidden-network grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; local Pages server with `curl` checks for `/`, `/lite/`, and `i18n.js`; desktop offscreen Spanish language smoke; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; plist/version checks; package size and SHA256 checks; packaged app GUI launch smoke.
+- Checks passed: Homepage stale notice grep is clean, Python and JavaScript syntax checks passed, no forbidden Lite network APIs were found, local Pages root/Lite/i18n loaded, desktop language switching updated primary Spanish UI without restart, `dist/WZRD.VID.app` built, `WZRD.VID-macOS.zip` packaged, bundle version reads 0.1.9, SHA256 is `01808a7dc06ee8963e90a254bbab676a6b6434320c9c0ce78aafa5c26a16deae`, and normal packaged GUI launch showed `WZRD.VID v0.1.9`.
+- Checks failed: Packaged offscreen launch smoke failed because the bundled Qt app exposes the Cocoa platform plugin only; normal GUI packaged launch passed after that.
+- Decisions made: Kept the release as a UI/localization/site release. Did not rebuild translation architecture, edit renderer/media code, touch `docs/CNAME`, or publish the GitHub Release.
+- Known gaps: Non-English strings remain draft/partial and need fluent review. Arabic RTL support remains structural only. Intel/universal packaged builds remain a future packaging task. GitHub release publication remains deferred.
+- Next recommended prompt: Publish v0.1.9 on GitHub Releases with the prepared ZIP and SHA256 after reviewing the release notes.
+
+## 2026-05-10 - Homepage notice removal and localization polish
+
+- Agent/task: Codex / scoped homepage notice removal plus second-pass UI localization support.
+- Intent: Remove the top homepage Mac install notice block and tighten high-visibility desktop/site/Lite localization without changing renderer, media handling, uploads, deployment config, versioning, packaging, or release state.
+- Files changed this pass: `README.md`, `app.py`, `app_i18n.py`, `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/lite/index.html`, `docs/I18N.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, UI-only. The homepage top notice block is gone. Desktop localization now covers more common tooltips, table type labels, user-facing warning/dialog copy, the session log label, and header signal text. Site/Lite ARIA labels and remaining download-note translations were tightened.
+- Commands run: `git status --short --branch`; required repo docs reads; homepage notice grep before/after; required desktop and site/Lite visible-string audits; localization key audit; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; Lite forbidden-network grep; local Pages server with `curl` checks for `/`, `/lite/`, and `i18n.js`; desktop offscreen Spanish language smoke; Brave/Computer Use visual smoke for local site and Lite; `git diff --check`.
+- Checks passed: Homepage notice/stale-phrase grep is clean, Python and JavaScript syntax checks passed, no forbidden Lite network APIs were found, local Pages root and Lite loaded, desktop Spanish language switching updated primary controls/dialog strings without restart, and local site/Lite rendered in Spanish with no obvious first-viewport regression.
+- Checks failed: Browser plugin runtime tools were not exposed in this session; rendered smoke used Brave through Computer Use instead.
+- Decisions made: Preset/effect names, codec names, preset descriptions, raw ffmpeg/probe/render errors, and low-level render logs remain stable English internals. The README sentence was reworded only to remove the stale phrase caught by the required grep.
+- Known gaps: Non-English strings remain draft/partial and need fluent review. Arabic RTL support remains structural only. Some combo option labels and preset descriptions still require restart-safe, schema-safe localization work before they should be translated.
+- Next recommended prompt: Version, commit, package, and prepare the next wzrdVID release after verifying the homepage notice removal and second-pass localization polish.
+
+## 2026-05-10 - UI localization groundwork
+
+- Agent/task: Codex / desktop, WZRD.VID Lite, and public-site UI localization/readability pass.
+- Intent: Make the desktop app, Lite, and wzrdvid.com usable worldwide at the UI/readability layer only while preserving local-first/no-upload behavior, static GitHub Pages deployment, and renderer/ffmpeg behavior.
+- Files changed: `app.py`, `app_i18n.py`, `theme.py`, `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/I18N.md`, `docs/lite/index.html`, `docs/lite/app.js`, `docs/lite/styles.css`, `AGENTS.md`, `docs/agent-impact-map.md`, `docs/agent-change-playbook.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, UI-only. Desktop, Lite, and the public site now expose language selectors, persist the selected UI language locally, fall back to English, and update major visible interface strings without changing media processing, project JSON beyond the safe app setting, deployment config, or `docs/CNAME`.
+- Commands run: `git status --short --branch`; required repo docs reads; targeted `rg`/`sed`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; desktop offscreen Qt language smoke; local static server with `curl` checks for `/` and `/lite/`; Lite forbidden network API grep; visible-string audit grep; Brave/Computer Use visual smoke for site and Lite language switching; `git diff --check`.
+- Checks passed: Python syntax, site/Lite JavaScript syntax, desktop language switching smoke, local Pages root and Lite loads, no forbidden Lite `fetch`/`XMLHttpRequest`/`sendBeacon`/`WebSocket` matches, visual smoke with Spanish selected, and diff whitespace check passed.
+- Checks failed: Browser plugin Node REPL control surface was not available in this session, so the rendered-page smoke used Brave through Computer Use instead.
+- Decisions made: Used lightweight Python/JavaScript dictionary resources with stable keys instead of Qt `.ts/.qm` files or a static-site build step. Translations are marked draft and centralized for later review. Arabic gets structural `dir` support, not a claim of complete RTL QA.
+- Known gaps: Non-English translations are draft/partial and need native review. Some desktop lower-level engine option names, detailed tooltips, raw ffmpeg/probe/render errors, branding strings, and support/log internals remain English. No content/media/subtitle translation was added.
+- Next recommended prompt: Review the draft translation resources for the target languages and tighten the remaining high-visibility desktop strings without touching renderer behavior.
+
 ## 2026-05-09 - Website download wording cleanup
 
 - Agent/task: Codex / front-page v0.1.8 website copy cleanup.
@@ -26,7 +65,7 @@ Entries are reverse chronological: newest entry near the top.
 - Commands run: `git status --short --branch`; targeted `rg`/`sed`; local Pages server and `curl`; `git diff --check`.
 - Checks passed: Front page no longer contains the removed Source ZIP warning, README/install/help docs still retain Source ZIP vs packaged app guidance, local `/` and `/lite/` Pages checks passed, and diff check passed.
 - Checks failed: None.
-- Decisions made: Homepage now uses softer normal-user wording: packaged Mac app as the normal install path, Apple Silicon currently recommended, Intel Macs source-run for now.
+- Decisions made: Homepage used softer normal-user wording for packaged Mac app guidance and Intel Mac source-run guidance.
 - Known gaps: v0.1.8 GitHub release remains unpublished. App ZIP was not rebuilt because the change is website copy only.
 - Next recommended prompt: Publish v0.1.8 with the existing packaged app ZIP and unchanged SHA256 after reviewing the release command.
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.9 — 2026-05-10
+
+- Added UI localization architecture for the desktop app, wzrdvid.com, and WZRD.VID Lite with English fallback and draft translations for the initial target language set.
+- Added desktop and web language selectors with local-only UI language persistence.
+- Improved Unicode/global readability support with system font fallbacks, wrapping hardening, and structural Arabic `dir` support on the static site and Lite.
+- Removed the top homepage Mac install notice block while preserving the remaining release ZIP guidance.
+- Tightened high-visibility desktop localization coverage for common tooltips, table type labels, warning/dialog copy, status labels, and header/session-log text.
+- Documented localization resource locations, fallback behavior, and draft/native-review limits.
+- Bumped app/release metadata to v0.1.9.
+
 ## v0.1.8 — 2026-05-09
 
 - Clarified that current packaged Mac ZIPs are tested primarily on Apple Silicon Macs, with Intel Mac users directed to the source-run path for now.

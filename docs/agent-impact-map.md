@@ -6,11 +6,11 @@ This map describes the current repository so future agents can edit with context
 
 ### Desktop GUI Shell
 
-- Owning files/directories: `app.py`, `theme.py`, `assets/ui/`, `assets/branding/`, `assets/logo/`.
+- Owning files/directories: `app.py`, `app_i18n.py`, `theme.py`, `assets/ui/`, `assets/branding/`, `assets/logo/`.
 - Purpose: PySide6 desktop interface for timeline sources, audio controls, style/effects settings, output controls, preview rendering, recipe import/export, batch render, and logs.
 - Inbound dependencies: `run.py`, `run.sh`, `run_windows.bat`, user file selections, drag/drop events, saved settings JSON, recipe/project preset JSON.
 - Outbound dependencies: `renderer.py`, `ffmpeg_utils.py`, `presets.py`, Qt widgets/styles/assets, local filesystem, temp preview/output folders.
-- High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, thread behavior, and table columns can break render, save/load, or audio mix flows.
+- High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, thread behavior, table columns, and localization keys can break render, save/load, or audio mix flows.
 
 ### Render Engine
 
@@ -46,7 +46,7 @@ This map describes the current repository so future agents can edit with context
 
 ### GitHub Pages Landing Site
 
-- Owning files/directories: `docs/index.html`, `docs/styles.css`, `docs/CNAME`, `docs/assets/`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/RELEASE_CHECKLIST.md`.
+- Owning files/directories: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/CNAME`, `docs/assets/`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/RELEASE_CHECKLIST.md`.
 - Purpose: Static landing/download page for `wzrdvid.com` and GitHub Pages, with release links, demo media, screenshots, Lite link, and source/download guidance.
 - Inbound dependencies: GitHub Pages configured to deploy branch `main` folder `/docs`, custom domain DNS, static assets copied under `docs/assets/` or referenced from repository paths that resolve on Pages.
 - Outbound dependencies: browser rendering, GitHub Releases latest URL, GitHub repo URL, `docs/CNAME` custom domain.
@@ -54,7 +54,7 @@ This map describes the current repository so future agents can edit with context
 
 ### WZRD.VID Lite Browser App
 
-- Owning files/directories: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`, `docs/lite/README.md`.
+- Owning files/directories: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`, `docs/i18n.js`, `docs/lite/README.md`.
 - Purpose: Browser-only, static WZRD.VID Lite prototype for local 15/30/60-second chaos cuts using drag/drop, Canvas, Web Audio, and MediaRecorder. It does not upload user files.
 - Inbound dependencies: browser file inputs/drop events, local media selected by user.
 - Outbound dependencies: object URLs, Canvas, Web Audio, MediaRecorder, downloaded blob output.
@@ -83,6 +83,7 @@ This map describes the current repository so future agents can edit with context
 - Entry point: `python run.py`, `python app.py`, `./run.sh`, `run_windows.bat`, or macOS `dist/WZRD.VID.app`.
 - UI/component path: `app.py` creates the PySide6 application and main window; `theme.py` supplies stylesheet/assets.
 - Data/state path: `app.py` loads settings from `_user_data_dir()` (`WZRD.VID/settings.json` under the platform user config/application-support location).
+- Localization path: `app_i18n.py` resolves the UI language and falls back to English for missing keys; selected `ui_language` persists in local settings.
 - Asset/media path: app icon and UI/branding assets under `assets/` when running from source or bundled by PyInstaller.
 - Success behavior: Main window opens with Source, Style, and Output tabs.
 - Failure/empty behavior: Missing ffmpeg/ffprobe is surfaced in the GUI/log with platform-specific install guidance.
@@ -133,20 +134,21 @@ This map describes the current repository so future agents can edit with context
 - Entry point: `docs/index.html` at GitHub Pages root or `wzrdvid.com`.
 - UI/component path: static HTML/CSS in `docs/index.html` and `docs/styles.css`.
 - Data/state path: none; all static.
+- Localization path: `docs/i18n.js` applies `data-i18n` text and stores only the UI language preference in localStorage.
 - Asset/media path: `docs/assets/` and release/repo links.
 - Success behavior: Users see hero, demo, screenshots, download links, Lite link, rights/source notes, and footer.
 - Failure/empty behavior: Missing relative assets show broken images/video; bad release links send users to wrong downloads.
-- Files likely involved in changes: `docs/index.html`, `docs/styles.css`, `docs/assets/`, `docs/CNAME`.
+- Files likely involved in changes: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/assets/`, `docs/CNAME`.
 
 ### WZRD.VID Lite Import, Render, and Download
 
 - Entry point: `docs/lite/index.html`, Add Media, Add Audio, drag/drop, MAKE CLIP.
 - UI/component path: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`.
-- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, ANSI intervals, Canvas state, MediaRecorder blobs.
+- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, ANSI intervals, Canvas state, MediaRecorder blobs. UI language preference may be stored in localStorage only.
 - Asset/media path: local user files only; browser object URLs; no upload/server path.
 - Success behavior: Browser renders a max 15/30/60-second local chaos cut and exposes a download button.
 - Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback.
-- Files likely involved in changes: `docs/lite/app.js`, `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/README.md`.
+- Files likely involved in changes: `docs/lite/app.js`, `docs/lite/index.html`, `docs/lite/styles.css`, `docs/i18n.js`, `docs/lite/README.md`.
 
 ### GitHub Pages Deployment
 
@@ -175,6 +177,7 @@ This map describes the current repository so future agents can edit with context
 | File/path | Why high-risk | What depends on it | Safe edit guidance | Required checks after editing |
 | --- | --- | --- | --- | --- |
 | `app.py` | Central desktop UI, settings, threading, timeline/audio bindings | Desktop app workflows, save/load, preview, render/batch | Keep edits scoped; verify affected controls and project JSON | `python3 -m py_compile app.py ...`; targeted GUI/source render smoke if behavior changed |
+| `app_i18n.py` | Desktop UI localization resources and fallback helpers | Visible desktop labels, language selector, local settings preference | Keep stable keys and English fallback; mark draft translations | `py_compile`; source GUI smoke if practical |
 | `renderer.py` | Core media timeline/render/effect engine | Preview/full render/batch outputs | Avoid broad timing/render rewrites; test representative media | `py_compile`; tiny render smoke; affected media tests |
 | `ffmpeg_utils.py` | ffmpeg discovery, probing, audio mix/mux, optimization | Audio output, final MP4 compatibility, file-size targets | Preserve subprocess list args and path safety | `py_compile`; ffprobe/ffmpeg smoke; AAC/H.264 verification if output changed |
 | `presets.py` | Style preset definitions consumed by UI/renderer | Preset dropdown and visual output | Additive changes are safer than renames/removals | `py_compile`; preview/tiny render with changed preset |
@@ -185,6 +188,7 @@ This map describes the current repository so future agents can edit with context
 | `VERSION` | Single app/release version source | Desktop app visible version and `build_app.sh` Info.plist metadata | Keep in sync with changelog/release tag | `py_compile`; `./build_app.sh`; Info.plist version check |
 | `docs/CNAME` | Custom domain binding | `wzrdvid.com` GitHub Pages | Do not change outside domain task | Pages preview/live check after push |
 | `docs/index.html` | Public landing/download page | Website, download guidance, Lite link | Preserve relative paths and brand/license copy | local static preview; link/path checks |
+| `docs/i18n.js` | Static landing/Lite localization resources | Public site and Lite visible copy, language preference, RTL document direction | Keep static/no-network behavior; use stable keys and English fallback | `node --check docs/i18n.js`; local static preview; grep Lite network APIs |
 | `docs/lite/app.js` | Browser-only Lite logic/privacy/timing | Lite render/download behavior | Keep no-upload rule; avoid network APIs | `node --check`; local browser smoke; grep network APIs |
 | `assets/` and `docs/assets/` | Branding/demo/UI assets | Desktop app, README, Pages | Avoid deleting intentional assets; check file size/licensing | `git status`; asset path checks; preview/readme/site checks |
 | `LICENSE`, `NOTICE.md`, `README.md` | Public rights, brand, and user instructions | GitHub readers, release users, contributors | Keep source-available wording consistent | targeted `rg` for stale license/branding terms |

@@ -15,13 +15,23 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 ## 2. Copy/Text/Content
 
-- Inspect first: `README.md`, `docs/index.html`, `docs/lite/index.html`, `app.py`, `theme.py`, legal docs if rights copy is nearby.
+- Inspect first: `README.md`, `docs/index.html`, `docs/i18n.js`, `docs/lite/index.html`, `app.py`, `app_i18n.py`, `theme.py`, legal docs if rights copy is nearby.
 - Searches to run: exact old copy, brand strings, stale names, licensing terms, old identity/worky.mode style references when relevant.
 - Common mistakes to avoid: broad rewrites, accidental legal changes, changing layout to fit copy without instruction.
 - High-risk files: `README.md`, `docs/index.html`, `docs/lite/index.html`, `app.py` header/status copy.
 - Required checks: docs-only checks; local visual preview if text length/wrapping changed; `py_compile` if Python string changes are inside code.
 - Update `AGENTS.md` when: public terminology rules change.
 - Update `docs/agent-impact-map.md` when: content changes affect flows/download/deployment behavior.
+- Update `docs/agent-log.md` after the task.
+
+## 2A. UI Localization
+
+- Inspect first: `app_i18n.py`, `app.py`, `docs/i18n.js`, `docs/index.html`, `docs/lite/index.html`, `docs/I18N.md`.
+- Searches to run: visible string greps in `app.py`/site/Lite, `data-i18n` keys, localStorage key `wzrdvid.uiLanguage`, and forbidden Lite network APIs.
+- Common mistakes to avoid: translating renderer/content intelligence, using English text as keys, dropping English fallback, adding remote config/analytics, or changing Lite no-upload behavior.
+- High-risk files: `app.py`, `app_i18n.py`, `docs/i18n.js`, `docs/lite/app.js`, `docs/index.html`, `docs/lite/index.html`.
+- Required checks: `py_compile` for Python localization changes; `node --check docs/i18n.js docs/lite/app.js`; local static preview and curl; `git diff --check`; Lite forbidden-network grep.
+- Update `AGENTS.md`/impact map when: localization storage, resource locations, fallback behavior, or validation expectations change.
 - Update `docs/agent-log.md` after the task.
 
 ## 3. Styling/Layout

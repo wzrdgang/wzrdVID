@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-i18n-title="site.meta.title" data-i18n-description="site.meta.description">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,8 +14,15 @@
 </head>
 <body>
   <div class="page-shell">
+    <div class="language-bar" aria-label="Language" data-i18n-aria-label="language.label">
+      <label class="language-control">
+        <span data-i18n="language.label">Language</span>
+        <select data-i18n-language-select aria-label="Language" data-i18n-aria-label="language.label"></select>
+      </label>
+      <span class="language-note" data-i18n="language.note">Draft UI translations. Files stay local.</span>
+    </div>
     <header class="broadcast-header panel-frame" aria-labelledby="site-title">
-      <div class="ticker-line">FRAME 00:00:00:00 //// CH-03 //// WZRD.VID CONTROL FEED //// NO DROPOUT</div>
+      <div class="ticker-line" data-i18n="site.ticker">FRAME 00:00:00:00 //// CH-03 //// WZRD.VID CONTROL FEED //// NO DROPOUT</div>
       <div class="hero-grid">
         <div class="logo-card">
           <img src="assets/branding/wzrdvid_primary.png" alt="//wzrdVID" class="primary-logo">
@@ -23,113 +30,113 @@
         </div>
         <div class="signal-bug">worky.mode / wzrdgang</div>
       </div>
-      <p class="eyebrow">ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations</p>
-      <div class="black-strip">&gt;&gt; source bus quiet // mp4 lane ready _ <span>░▒▓</span></div>
-      <nav class="button-row" aria-label="Primary actions">
-        <a class="btn btn-primary" href="https://github.com/wzrdgang/wzrdVID/releases/latest">Download WZRD.VID for macOS</a>
-        <span class="button-help">The packaged Mac app is the normal install path. Apple Silicon currently recommended.</span>
-        <a class="btn btn-secondary" href="https://github.com/wzrdgang/wzrdVID">View GitHub</a>
-        <a class="btn btn-ghost" href="lite/">Try WZRD.VID Lite</a>
+      <p class="eyebrow" data-i18n="site.eyebrow">ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations</p>
+      <div class="black-strip"><span data-i18n="site.black_strip">&gt;&gt; source bus quiet // mp4 lane ready _</span> <span>░▒▓</span></div>
+      <nav class="button-row" aria-label="Primary actions" data-i18n-aria-label="site.primary_actions">
+        <a class="btn btn-primary" href="https://github.com/wzrdgang/wzrdVID/releases/latest" data-i18n="site.download_mac">Download WZRD.VID for macOS</a>
+        <a class="btn btn-secondary" href="https://github.com/wzrdgang/wzrdVID" data-i18n="site.github">View GitHub</a>
+        <a class="btn btn-ghost" href="lite/" data-i18n="site.try_lite">Try WZRD.VID Lite</a>
       </nav>
     </header>
 
     <main>
       <section class="intro-deck panel-frame">
-        <div class="deck-label">//// TEXTMODE FEED</div>
+        <div class="deck-label" data-i18n="site.textmode_label">//// TEXTMODE FEED</div>
         <div class="intro-copy">
-          <h1 id="site-title">worky’s lo-fi // ANSI dream machine</h1>
-          <p>WZRD.VID turns videos/photos/audio into lo-fi textmode broadcast artifacts, chunky ANSI, VHS damage, glitch cuts, and cursed little MP4s.</p>
+          <h1 id="site-title" data-i18n="site.intro_title">worky’s lo-fi // ANSI dream machine</h1>
+          <p data-i18n="site.intro_body">WZRD.VID turns videos/photos/audio into lo-fi textmode broadcast artifacts, chunky ANSI, VHS damage, glitch cuts, and cursed little MP4s.</p>
         </div>
         <div class="deck-readout">
-          <span>LOCAL-FIRST</span>
-          <span>MP4 OUT</span>
-          <span>NO UPLOADS</span>
+          <span data-i18n="site.readout.local">LOCAL-FIRST</span>
+          <span data-i18n="site.readout.mp4">MP4 OUT</span>
+          <span data-i18n="site.readout.no_uploads">NO UPLOADS</span>
         </div>
       </section>
 
-      <section class="media-grid" aria-label="Demo and screenshots">
+      <section class="media-grid" aria-label="Demo and screenshots" data-i18n-aria-label="site.media_grid">
         <div class="media-card panel-frame demo-card">
-          <div class="deck-label">//// DEMO VIDEO</div>
+          <div class="deck-label" data-i18n="site.demo_label">//// DEMO VIDEO</div>
           <video src="assets/demos/demo.mp4" controls playsinline preload="metadata" poster="assets/screenshots/demo1.png"></video>
         </div>
         <div class="media-card panel-frame shots-card">
-          <div class="deck-label">//// APP STILLS</div>
+          <div class="deck-label" data-i18n="site.shots_label">//// APP STILLS</div>
           <div class="shot-grid">
-            <a href="assets/screenshots/demo1.png"><img src="assets/screenshots/demo1.png" alt="WZRD.VID source timeline screen"></a>
-            <a href="assets/screenshots/demo2.png"><img src="assets/screenshots/demo2.png" alt="WZRD.VID style controls screen"></a>
-            <a href="assets/screenshots/demo3.png"><img src="assets/screenshots/demo3.png" alt="WZRD.VID output controls screen"></a>
+            <a href="assets/screenshots/demo1.png"><img src="assets/screenshots/demo1.png" alt="WZRD.VID source timeline screen" data-i18n-alt="site.alt.timeline"></a>
+            <a href="assets/screenshots/demo2.png"><img src="assets/screenshots/demo2.png" alt="WZRD.VID style controls screen" data-i18n-alt="site.alt.style"></a>
+            <a href="assets/screenshots/demo3.png"><img src="assets/screenshots/demo3.png" alt="WZRD.VID output controls screen" data-i18n-alt="site.alt.output"></a>
           </div>
         </div>
       </section>
 
-      <section class="deck-row" aria-label="Download and project info">
+      <section class="deck-row" aria-label="Download and project info" data-i18n-aria-label="site.download_project_info">
         <article class="deck-card panel-frame" id="download">
-          <div class="deck-label">DOWNLOAD DECK</div>
-          <h2>Desktop app is the full version.</h2>
-          <p>Run the full local renderer on your Mac. Multi-source timelines, HEIC/photo motion loops, worky audio texture, chunky ANSI, real PUBLIC ACCESS VHS rendering, endings, size targets, and phone-sendable exports.</p>
-          <a class="btn btn-primary full" href="https://github.com/wzrdgang/wzrdVID/releases/latest">Download WZRD.VID for macOS</a>
-          <p class="small-note">The packaged Mac app is the normal install path. Apple Silicon currently recommended; Intel Macs can run from source for now.</p>
+          <div class="deck-label" data-i18n="site.download_label">DOWNLOAD DECK</div>
+          <h2 data-i18n="site.download_title">Desktop app is the full version.</h2>
+          <p data-i18n="site.download_body">Run the full local renderer on your Mac. Multi-source timelines, HEIC/photo motion loops, worky audio texture, chunky ANSI, real PUBLIC ACCESS VHS rendering, endings, size targets, and phone-sendable exports.</p>
+          <a class="btn btn-primary full" href="https://github.com/wzrdgang/wzrdVID/releases/latest" data-i18n="site.download_mac">Download WZRD.VID for macOS</a>
+          <p class="small-note" data-i18n="site.download_note">Use the latest ZIP from GitHub Releases. Intel Macs can run from source for now.</p>
           <ol class="install-steps">
-            <li>Download WZRD.VID for macOS</li>
-            <li>Unzip</li>
-            <li>Open WZRD.VID.app</li>
-            <li>Right-click Open if macOS warns</li>
-            <li>Install ffmpeg if prompted: <code>brew install ffmpeg</code></li>
+            <li data-i18n="site.install.1">Download WZRD.VID for macOS</li>
+            <li data-i18n="site.install.2">Unzip</li>
+            <li data-i18n="site.install.3">Open WZRD.VID.app</li>
+            <li data-i18n="site.install.4">Right-click Open if macOS warns</li>
+            <li><span data-i18n="site.install.5">Install ffmpeg if prompted:</span> <code>brew install ffmpeg</code></li>
           </ol>
-          <p class="small-note">Updates work the same way: download the latest ZIP and replace the old app manually. WZRD.VID can notify you, but it does not auto-install updates yet.</p>
+          <p class="small-note" data-i18n="site.update_note">Updates work the same way: download the latest ZIP and replace the old app manually. WZRD.VID can notify you, but it does not auto-install updates yet.</p>
         </article>
 
         <article class="deck-card panel-frame" id="lite">
-          <div class="deck-label">LITE DECK</div>
-          <h2>WZRD.VID Lite</h2>
-          <p class="big-tag">15/30/60-second browser chaos cut</p>
-          <p>Browser-only prototype: drag videos/photos/audio into the browser, choose a preset including PUBLIC ACCESS, choose random ANSI coverage, render a 15/30/60 second clip locally, then download it.</p>
-          <p class="small-note">The desktop app is the full machine. Lite is the browser toy.</p>
+          <div class="deck-label" data-i18n="site.lite_label">LITE DECK</div>
+          <h2 data-i18n="site.lite_title">WZRD.VID Lite</h2>
+          <p class="big-tag" data-i18n="site.lite_tag">15/30/60-second browser chaos cut</p>
+          <p data-i18n="site.lite_body">Browser-only prototype: drag videos/photos/audio into the browser, choose a preset including PUBLIC ACCESS, choose random ANSI coverage, render a 15/30/60 second clip locally, then download it.</p>
+          <p class="small-note" data-i18n="site.lite_note">The desktop app is the full machine. Lite is the browser toy.</p>
           <ul class="terminal-list">
-            <li>local files // no upload</li>
-            <li>short renders // fast weirdness</li>
-            <li>prototype online now</li>
+            <li data-i18n="site.lite_bullet_1">local files // no upload</li>
+            <li data-i18n="site.lite_bullet_2">short renders // fast weirdness</li>
+            <li data-i18n="site.lite_bullet_3">prototype online now</li>
           </ul>
-          <a class="btn btn-secondary" href="lite/">Open Lite</a>
+          <a class="btn btn-secondary" href="lite/" data-i18n="site.open_lite">Open Lite</a>
         </article>
 
         <article class="deck-card panel-frame" id="source">
-          <div class="deck-label">SOURCE DECK</div>
-          <h2>Source-available weirdware.</h2>
-          <p>Read the code, run it locally, modify it for yourself, and send focused contributions back upstream.</p>
-          <a class="btn btn-secondary full" href="https://github.com/wzrdgang/wzrdVID">Open GitHub Repo</a>
-          <p class="small-note">Source-available. Free for personal, noncommercial use. Branding reserved.</p>
+          <div class="deck-label" data-i18n="site.source_label">SOURCE DECK</div>
+          <h2 data-i18n="site.source_title">Source-available weirdware.</h2>
+          <p data-i18n="site.source_body">Read the code, run it locally, modify it for yourself, and send focused contributions back upstream.</p>
+          <a class="btn btn-secondary full" href="https://github.com/wzrdgang/wzrdVID" data-i18n="site.open_repo">Open GitHub Repo</a>
+          <p class="small-note" data-i18n="site.source_note">Source-available. Free for personal, noncommercial use. Branding reserved.</p>
         </article>
       </section>
 
-      <section class="feature-board panel-frame" aria-label="Feature list">
-        <div class="deck-label">//// CONTROL BOARD</div>
+      <section class="feature-board panel-frame" aria-label="Feature list" data-i18n-aria-label="site.features_aria">
+        <div class="deck-label" data-i18n="site.features_label">//// CONTROL BOARD</div>
         <div class="feature-grid">
-          <span>drag/drop timeline</span>
-          <span>photo + video sources</span>
-          <span>audio file or video audio</span>
-          <span>worky music mode</span>
-          <span>external + source mix</span>
-          <span>HEIC / HEIF motion loops</span>
-          <span>EXIF photo orientation</span>
-          <span>5s / 10s previews</span>
-          <span>music timeline offset</span>
-          <span>ANSI + chunky blocks</span>
-          <span>PUBLIC ACCESS VHS render</span>
-          <span>VHS / glitch / scanlines</span>
-          <span>29 MB text-limit exports</span>
-          <span>batch variants</span>
-          <span>normal-video bypass</span>
-          <span>local-first workflow</span>
+          <span data-i18n="site.feature.1">drag/drop timeline</span>
+          <span data-i18n="site.feature.2">photo + video sources</span>
+          <span data-i18n="site.feature.3">audio file or video audio</span>
+          <span data-i18n="site.feature.4">worky music mode</span>
+          <span data-i18n="site.feature.5">external + source mix</span>
+          <span data-i18n="site.feature.6">HEIC / HEIF motion loops</span>
+          <span data-i18n="site.feature.7">EXIF photo orientation</span>
+          <span data-i18n="site.feature.8">5s / 10s previews</span>
+          <span data-i18n="site.feature.9">music timeline offset</span>
+          <span data-i18n="site.feature.10">ANSI + chunky blocks</span>
+          <span data-i18n="site.feature.11">PUBLIC ACCESS VHS render</span>
+          <span data-i18n="site.feature.12">VHS / glitch / scanlines</span>
+          <span data-i18n="site.feature.13">29 MB text-limit exports</span>
+          <span data-i18n="site.feature.14">batch variants</span>
+          <span data-i18n="site.feature.15">normal-video bypass</span>
+          <span data-i18n="site.feature.16">local-first workflow</span>
         </div>
       </section>
     </main>
 
     <footer class="site-footer panel-frame">
       <span>//// WZRD.VID ////</span>
-      <span>TXT MODE PIPELINE | ANSI CONVERTER | LO-FI ENGINE</span>
+      <span data-i18n="site.footer_tech">TXT MODE PIPELINE | ANSI CONVERTER | LO-FI ENGINE</span>
       <span>worky.mode / wzrdgang</span>
     </footer>
   </div>
+  <script src="i18n.js" defer></script>
 </body>
 </html>

@@ -8,7 +8,10 @@ def _ui_asset(name: str) -> str:
     return (Path(__file__).resolve().parent / "assets" / "ui" / name).as_posix()
 
 
-SANS_FONT_STACK = '"Avenir Next", "Helvetica Neue", "Segoe UI", Arial, sans-serif'
+SANS_FONT_STACK = (
+    '"Avenir Next", "Helvetica Neue", "Segoe UI", "Noto Sans", '
+    '"Noto Sans CJK SC", "Noto Sans Arabic", "Noto Sans Devanagari", Arial, sans-serif'
+)
 
 if platform.system() == "Darwin":
     MONO_FONT_STACK = 'Menlo, Monaco, "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace'

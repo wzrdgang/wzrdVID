@@ -17,7 +17,7 @@ The output is a normal `.mp4`. It visually looks like terminal/video-art output,
 
 ## Download the Mac App (Apple Silicon)
 
-For most people on Apple Silicon macOS, this is the normal install path:
+For most people on Apple Silicon macOS, this is the recommended release download:
 
 1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
 2. Download the release asset named `WZRD.VID-macOS.zip`.

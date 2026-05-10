@@ -29,7 +29,7 @@ body {
     url("assets/ui/jazz_backdrop_field.png"),
     linear-gradient(135deg, #f6a4cd 0%, #ffd6eb 38%, #fff1da 100%);
   background-size: auto, auto, 720px 420px, auto;
-  font-family: Arial Black, Impact, Helvetica Neue, Arial, sans-serif;
+  font-family: Arial Black, Impact, Helvetica Neue, Segoe UI, Noto Sans, Noto Sans CJK SC, Noto Sans Arabic, Noto Sans Devanagari, Arial, sans-serif;
   letter-spacing: 0;
 }
 
@@ -72,6 +72,43 @@ body::after {
   z-index: 1;
   width: min(1440px, calc(100% - 24px));
   margin: 12px auto 20px;
+}
+
+.language-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 241, 218, 0.82);
+  box-shadow: 4px 4px 0 var(--ink);
+  font: 900 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.language-control select {
+  max-width: min(52vw, 280px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+  font: 900 13px/1.2 Segoe UI, Noto Sans, Arial, sans-serif;
+}
+
+.language-note {
+  max-width: 420px;
+  font: 900 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--soft-ink);
 }
 
 .panel-frame {
@@ -209,19 +246,6 @@ body::after {
   margin-top: 18px;
 }
 
-.button-help {
-  display: inline-flex;
-  align-items: center;
-  max-width: 360px;
-  min-height: 52px;
-  padding: 8px 12px;
-  border: 3px solid var(--ink);
-  border-radius: 12px;
-  background: rgba(255, 241, 218, 0.78);
-  font: 900 12px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  box-shadow: 4px 4px 0 var(--ink);
-}
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -235,7 +259,10 @@ body::after {
   text-decoration: none;
   text-transform: uppercase;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   background-image: url("assets/ui/button_print_tile.png");
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -461,6 +488,7 @@ p {
     rgba(255, 241, 218, 0.72);
   font-weight: 950;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .site-footer {
@@ -475,6 +503,28 @@ p {
   color: var(--mint);
   font-weight: 900;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+p,
+.deck-label,
+.terminal-list,
+.install-steps,
+.deck-readout {
+  overflow-wrap: anywhere;
+}
+
+html[dir="rtl"] .deck-label {
+  left: auto;
+  right: 22px;
+}
+
+html[dir="rtl"] .button-row,
+html[dir="rtl"] .site-footer,
+html[dir="rtl"] .language-bar {
+  direction: rtl;
 }
 
 @media (max-width: 980px) {

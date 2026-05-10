@@ -14,10 +14,12 @@ import tempfile
 import traceback
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
+from app_i18n import SUPPORTED_LANGUAGES, language_label, resolve_language, translate
 import cv2
 from PIL import Image, ImageOps
 from PySide6.QtCore import QThread, QTimer, QUrl, Signal, Qt
@@ -82,7 +84,7 @@ RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
 UPDATE_CHECK_TIMEOUT_SECONDS = 6
 RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
-APP_VERSION_FALLBACK = "0.1.8"
+APP_VERSION_FALLBACK = "0.1.9"
 
 
 def _resource_path(name: str) -> Path:
@@ -270,7 +272,17 @@ def _user_data_dir() -> Path:
 
 def _default_app_font() -> QFont:
     families = set(QFontDatabase.families())
-    for family in ("Avenir Next", "Helvetica Neue", "Segoe UI", "Arial"):
+    for family in (
+        "Avenir Next",
+        "Helvetica Neue",
+        "Segoe UI",
+        "Noto Sans",
+        "Microsoft YaHei",
+        "Yu Gothic",
+        "Apple SD Gothic Neo",
+        "Arial Unicode MS",
+        "Arial",
+    ):
         if family in families:
             return QFont(family, 13)
     fallback = QFont()
@@ -658,11 +670,19 @@ class ManualBlockRow(QWidget):
     remove_requested = Signal(object)
     changed = Signal()
 
-    def __init__(self, start: str = "0:12", end: str = "0:18") -> None:
+    def __init__(
+        self,
+        start: str = "0:12",
+        end: str = "0:18",
+        translator: Callable[[str], str] | None = None,
+    ) -> None:
         super().__init__()
+        self._translator = translator or (lambda key: translate("en", key))
+        self.start_label = QLabel()
         self.start_field = QLineEdit(start)
+        self.end_label = QLabel()
         self.end_field = QLineEdit(end)
-        self.remove_button = QPushButton("REMOVE")
+        self.remove_button = QPushButton()
         self.remove_button.setObjectName("dangerButton")
 
         self.start_field.setPlaceholderText("0:12")
@@ -673,14 +693,21 @@ class ManualBlockRow(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(QLabel("Start"))
+        layout.addWidget(self.start_label)
         layout.addWidget(self.start_field)
-        layout.addWidget(QLabel("End"))
+        layout.addWidget(self.end_label)
         layout.addWidget(self.end_field)
         layout.addWidget(self.remove_button)
+        self.apply_i18n(self._translator)
 
     def values(self) -> tuple[str, str]:
         return self.start_field.text().strip(), self.end_field.text().strip()
+
+    def apply_i18n(self, translator: Callable[[str], str]) -> None:
+        self._translator = translator
+        self.start_label.setText(translator("label.start"))
+        self.end_label.setText(translator("label.end"))
+        self.remove_button.setText(translator("button.remove"))
 
 
 class MainWindow(QMainWindow):
@@ -701,11 +728,16 @@ class MainWindow(QMainWindow):
         self.active_task = "render"
         self._chunky_auto = False
         self.signal_status_label: QLabel | None = None
-        self._signal_messages = [
-            ">> signal locked // textmode pipeline armed _",
-            ">> ghost frame waiting // export deck idle _",
-            ">> late feed clean // block noise low _",
-            ">> source bus quiet // mp4 lane ready _",
+        self.ui_language = "system"
+        self._updating_language_combo = False
+        self._i18n_text_widgets: list[tuple[object, str]] = []
+        self._i18n_tooltip_widgets: list[tuple[QWidget, str]] = []
+        self._i18n_group_boxes: list[tuple[QGroupBox, str]] = []
+        self._signal_message_keys = [
+            "signal.locked",
+            "signal.ghost",
+            "signal.clean",
+            "signal.source",
         ]
         self._signal_index = 0
         self.latest_release_url = RELEASES_LATEST_URL
@@ -716,9 +748,11 @@ class MainWindow(QMainWindow):
         self.resize(1080, 700)
 
         self.video_path = QLineEdit()
-        self.video_duration = QLabel("Timeline: no sources")
+        self.language_combo = QComboBox()
+        self._populate_language_combo()
+        self.video_duration = self._label("status.timeline_none")
         self.timeline_table = MediaDropTableWidget(0, 6, {"video", "photo"})
-        self.timeline_table.setHorizontalHeaderLabels(["File", "Type", "Duration", "Trim start", "End / Hold", "Include Audio"])
+        self._apply_timeline_headers()
         self.timeline_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.timeline_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.timeline_table.setAlternatingRowColors(True)
@@ -727,21 +761,21 @@ class MainWindow(QMainWindow):
         self.timeline_table.verticalHeader().setMinimumWidth(34)
         self.timeline_table.horizontalHeader().setMinimumSectionSize(72)
         self.timeline_table.setObjectName("timelineTable")
-        self.add_videos_button = QPushButton("ADD VIDEO(S)")
+        self.add_videos_button = self._button("button.add_videos")
         self.add_videos_button.setObjectName("secondaryButton")
-        self.add_photos_button = QPushButton("ADD PHOTO(S)")
+        self.add_photos_button = self._button("button.add_photos")
         self.add_photos_button.setObjectName("secondaryButton")
-        self.remove_source_button = QPushButton("REMOVE")
+        self.remove_source_button = self._button("button.remove")
         self.remove_source_button.setObjectName("dangerButton")
-        self.move_source_up_button = QPushButton("UP")
+        self.move_source_up_button = self._button("button.up")
         self.move_source_up_button.setObjectName("secondaryButton")
-        self.move_source_down_button = QPushButton("DOWN")
+        self.move_source_down_button = self._button("button.down")
         self.move_source_down_button.setObjectName("secondaryButton")
-        self.clear_sources_button = QPushButton("CLEAR ALL")
+        self.clear_sources_button = self._button("button.clear_all")
         self.clear_sources_button.setObjectName("dangerButton")
-        self.shuffle_sources_button = QPushButton("SHUFFLE")
+        self.shuffle_sources_button = self._button("button.shuffle")
         self.shuffle_sources_button.setObjectName("secondaryButton")
-        self.preview_source_button = QPushButton("PREVIEW SELECTED")
+        self.preview_source_button = self._button("button.preview_selected")
         self.preview_source_button.setObjectName("secondaryButton")
         for button, minimum_width in (
             (self.add_videos_button, 120),
@@ -756,18 +790,18 @@ class MainWindow(QMainWindow):
             button.setMinimumWidth(minimum_width)
         self.audio_path = MediaDropLineEdit({"audio", "video"})
         self.audio_path.setObjectName("audioPath")
-        self.audio_path.setToolTip("Drag audio here, or choose audio files/video files with audio tracks.")
-        self.audio_duration = QLabel("Duration: -")
-        self.worky_music_mode = QCheckBox("worky’s music mode")
-        self.worky_music_mode.setToolTip("tiny mono broadcast audio // crushed public-access transmission")
+        self._register_tooltip(self.audio_path, "tooltip.audio_path")
+        self.audio_duration = self._label("status.duration_empty")
+        self.worky_music_mode = self._checkbox("check.worky_music")
+        self._register_tooltip(self.worky_music_mode, "tooltip.worky_music")
         self.audio_mode = QComboBox()
         self.audio_mode.addItems(AUDIO_MODES)
-        self.audio_mode.setToolTip("Silent removes audio. External only uses selected music/audio. Source audio only uses checked timeline rows. Mix combines both.")
-        self.match_timeline_to_audio = QCheckBox("Match video length to music")
-        self.match_timeline_to_audio.setToolTip("Speeds up or slows down the visual timeline so it ends with the selected music.")
+        self._register_tooltip(self.audio_mode, "tooltip.audio_mode")
+        self.match_timeline_to_audio = self._checkbox("check.match_music")
+        self._register_tooltip(self.match_timeline_to_audio, "tooltip.match_timeline")
         self.match_timeline_mode = QComboBox()
         self.match_timeline_mode.addItems(MATCH_TIMELINE_MODES)
-        self.match_timeline_mode.setToolTip("Choose whether music matching retimes, trims, or loops the visual timeline.")
+        self._register_tooltip(self.match_timeline_mode, "tooltip.match_timeline_mode")
         self.output_path = QLineEdit()
 
         self.video_start = QLineEdit("0:00")
@@ -776,8 +810,8 @@ class MainWindow(QMainWindow):
         self.audio_end = QLineEdit("auto")
         self.audio_timeline_start = QLineEdit("0:00")
         self.audio_timeline_end = QLineEdit("auto")
-        self.audio_timeline_start.setToolTip("When the selected external music/audio begins inside the rendered video timeline.")
-        self.audio_timeline_end.setToolTip("Optional point in the rendered video timeline where external music/audio stops.")
+        self._register_tooltip(self.audio_timeline_start, "tooltip.audio_timeline_start")
+        self._register_tooltip(self.audio_timeline_end, "tooltip.audio_timeline_end")
         for field in (self.video_start, self.video_end, self.audio_start, self.audio_end, self.audio_timeline_start, self.audio_timeline_end):
             field.setPlaceholderText("0:00, 1:40, 100, 12.5, or auto")
 
@@ -793,11 +827,8 @@ class MainWindow(QMainWindow):
         self.style_preview.setObjectName("stylePreview")
         self.style_preview.setTextFormat(Qt.TextFormat.RichText)
         self.style_preview.setWordWrap(True)
-        self.chunky_blocks = QCheckBox("Use chunky blocks")
-        self.chunky_blocks.setToolTip(
-            "Chunky block mode uses big shaded block glyphs instead of dense ASCII symbols. "
-            "It is bolder, more readable, and usually compresses better."
-        )
+        self.chunky_blocks = self._checkbox("check.chunky_blocks")
+        self._register_tooltip(self.chunky_blocks, "tooltip.chunky_blocks")
         self.effect_checks: dict[str, QCheckBox] = {}
         for key, label, tooltip in EFFECTS:
             checkbox = QCheckBox(label)
@@ -816,33 +847,33 @@ class MainWindow(QMainWindow):
 
         self.fit_mode = QComboBox()
         self.fit_mode.addItems(FIT_MODES)
-        self.fit_mode.setToolTip("Controls how tall, wide, and vertical media are placed before text conversion.")
+        self._register_tooltip(self.fit_mode, "tooltip.fit_mode")
         self.anchor_mode = QComboBox()
         self.anchor_mode.addItems(ANCHORS)
-        self.anchor_mode.setToolTip("Biases the crop toward a side before offset sliders are applied.")
+        self._register_tooltip(self.anchor_mode, "tooltip.anchor_mode")
         self.letterbox_background = QComboBox()
         self.letterbox_background.addItems(LETTERBOX_BACKGROUNDS)
-        self.letterbox_background.setToolTip("Background used by Fit/Letterbox mode.")
-        self.upper_bias = QCheckBox("Preserve faces / upper frame bias")
-        self.upper_bias.setToolTip("Simple upper-third crop bias for portrait footage. No face data leaves the app.")
+        self._register_tooltip(self.letterbox_background, "tooltip.letterbox_background")
+        self.upper_bias = self._checkbox("check.upper_bias")
+        self._register_tooltip(self.upper_bias, "tooltip.upper_bias")
         self.upper_bias.setChecked(True)
         self.dither_mode = QComboBox()
         self.dither_mode.addItems(DITHER_MODES)
-        self.dither_mode.setToolTip("Adds texture before ANSI character selection: ordered dots, halftone, or low-bit camera looks.")
+        self._register_tooltip(self.dither_mode, "tooltip.dither_mode")
         self.transition_mode = QComboBox()
         self.transition_mode.addItems(TRANSITION_MODES)
         self._set_combo_text(self.transition_mode, DEFAULT_TRANSITION_MODE)
-        self.transition_mode.setToolTip("Bootleg transition style between timeline items.")
+        self._register_tooltip(self.transition_mode, "tooltip.transition_mode")
         self.ending_mode = QComboBox()
         self.ending_mode.addItems(ENDING_MODES)
         self._set_combo_text(self.ending_mode, DEFAULT_ENDING_MODE)
-        self.ending_mode.setToolTip("Adds a clean ending treatment instead of a raw hard cut.")
-        self.loop_friendly = QCheckBox("Make loop-friendly")
-        self.loop_friendly.setToolTip("Crossfades the final moments toward the first frame for better looping exports.")
-        self.reroll_weirdness_button = QPushButton("REROLL WEIRDNESS")
+        self._register_tooltip(self.ending_mode, "tooltip.ending_mode")
+        self.loop_friendly = self._checkbox("check.loop_friendly")
+        self._register_tooltip(self.loop_friendly, "tooltip.loop_friendly")
+        self.reroll_weirdness_button = self._button("button.reroll_weirdness")
         self.reroll_weirdness_button.setObjectName("secondaryButton")
-        self.reroll_weirdness_button.setToolTip("Rerolls bypass chunks, glitch timing, stutter holds, transition picks, and collapse moments without changing sources.")
-        self.weird_seed_label = QLabel(f"Weird seed: {self.weird_seed}")
+        self._register_tooltip(self.reroll_weirdness_button, "tooltip.reroll_weirdness")
+        self.weird_seed_label = QLabel(self.tr("status.weird_seed", seed=self.weird_seed))
         self.weird_seed_label.setObjectName("estimate")
 
         self.output_size_preset = QComboBox()
@@ -870,7 +901,7 @@ class MainWindow(QMainWindow):
         self.audio_bitrate_spin.setRange(32, 320)
         self.audio_bitrate_spin.setSingleStep(16)
         self.audio_bitrate_spin.setSuffix(" kbps")
-        self.target_size_enabled = QCheckBox("Auto-optimize final video size")
+        self.target_size_enabled = self._checkbox("check.target_size")
         self.optimize_preset = QComboBox()
         self.optimize_preset.addItems(list(OPTIMIZE_PRESETS.keys()))
         for index in range(self.optimize_preset.count()):
@@ -890,27 +921,27 @@ class MainWindow(QMainWindow):
         self.target_size_mb.setSuffix(" MB")
         self.target_size_mb.setValue(29.0)
         self.target_size_mb.setEnabled(False)
-        self.estimated_size_label = QLabel("Estimated final size: add a source")
+        self.estimated_size_label = self._label("status.estimated_add_source")
         self.estimated_size_label.setObjectName("estimate")
-        self.optimize_estimate_label = QLabel("Optimize estimate: disabled")
+        self.optimize_estimate_label = self._label("status.optimize_disabled")
         self.optimize_estimate_label.setObjectName("estimate")
-        self.final_size_label = QLabel("Final output size: -")
+        self.final_size_label = self._label("status.final_size_empty")
         self.final_size_label.setObjectName("estimate")
-        self.update_status_label = QLabel(f"Current: v{APP_VERSION} | Latest: checking...")
+        self.update_status_label = QLabel(self.tr("status.update_checking", version=APP_VERSION))
         self.update_status_label.setObjectName("estimate")
-        self.check_update_button = QPushButton("CHECK UPDATE")
+        self.check_update_button = self._button("button.check_update")
         self.check_update_button.setObjectName("secondaryButton")
-        self.check_update_button.setToolTip("Check GitHub Releases for a newer WZRD.VID download.")
-        self.download_update_button = QPushButton("DOWNLOAD UPDATE")
+        self._register_tooltip(self.check_update_button, "tooltip.check_update")
+        self.download_update_button = self._button("button.download_update")
         self.download_update_button.setObjectName("secondaryButton")
-        self.download_update_button.setToolTip("Open the latest WZRD.VID GitHub Release in your browser.")
+        self._register_tooltip(self.download_update_button, "tooltip.download_update")
         self.download_update_button.setEnabled(False)
         self.download_update_button.hide()
-        self.max_width_spin.setToolTip("Final MP4 width limit. ANSI character width controls art detail separately.")
-        self.output_fps_spin.setToolTip("Final MP4 frame rate. Lower values compress much smaller.")
-        self.crf_spin.setToolTip("H.264 quality scale. Higher CRF means smaller files and more compression.")
-        self.audio_bitrate_spin.setToolTip("AAC bitrate for muxed music. Lower values reduce final MP4 size.")
-        self.target_size_mb.setToolTip("Maximum size for the optimized copy. 29 MB is built in for text-message limits.")
+        self._register_tooltip(self.max_width_spin, "tooltip.max_width")
+        self._register_tooltip(self.output_fps_spin, "tooltip.output_fps")
+        self._register_tooltip(self.crf_spin, "tooltip.crf")
+        self._register_tooltip(self.audio_bitrate_spin, "tooltip.audio_bitrate")
+        self._register_tooltip(self.target_size_mb, "tooltip.target_size")
         for spinbox in (
             self.max_width_spin,
             self.output_fps_spin,
@@ -930,67 +961,67 @@ class MainWindow(QMainWindow):
         self.random_percent.setRange(0, 100)
         self.random_percent.setValue(10)
         self.random_percent.setSuffix("%")
-        self.reroll_button = QPushButton("REROLL RANDOM")
+        self.reroll_button = self._button("button.reroll_random")
         self.reroll_button.setObjectName("secondaryButton")
-        self.coverage_bar = QLabel("[████████████████████] 100% ANSI / 0% normal")
-        self.coverage_detail = QLabel("0 normal sections selected")
-        self.seed_label = QLabel(f"Seed: {self.random_seed}")
-        self.add_block_button = QPushButton("+ ADD BLOCK")
+        self.coverage_bar = QLabel(self.tr("status.coverage_full"))
+        self.coverage_detail = QLabel(self.tr("status.coverage_detail", count=0))
+        self.seed_label = QLabel(self.tr("status.seed", seed=self.random_seed))
+        self.add_block_button = self._button("button.add_block")
         self.add_block_button.setObjectName("secondaryButton")
         self.manual_blocks_widget = QWidget()
         self.manual_blocks_layout = QVBoxLayout(self.manual_blocks_widget)
         self.manual_blocks_layout.setContentsMargins(0, 0, 0, 0)
         self.manual_blocks_layout.setSpacing(8)
 
-        self.preview_label = QLabel("NO VIDEO\nSELECT SOURCE")
+        self.preview_label = self._label("status.no_video")
         self.preview_label.setObjectName("preview")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setFixedSize(184, 104)
 
-        self.start_button = QPushButton("MAKE VIDEO")
+        self.start_button = self._button("button.make_video")
         self.start_button.setObjectName("makeButton")
-        self.preview_button = QPushButton("PREVIEW 5 SEC")
+        self.preview_button = QPushButton()
         self.preview_button.setObjectName("secondaryButton")
         self.preview_duration = QComboBox()
         self.preview_duration.addItems(PREVIEW_DURATION_OPTIONS.keys())
-        self.preview_duration.setToolTip("Preview render length. Keep it tight: 5s or 10s.")
+        self._register_tooltip(self.preview_duration, "tooltip.preview_duration")
         self.preview_from = QComboBox()
         self.preview_from.addItems(["Start", "Middle", "Custom timestamp"])
         self.preview_custom = QLineEdit("0:00")
         self.preview_custom.setPlaceholderText("0:00, 1:40, or 12.5")
         self.preview_custom.setEnabled(False)
-        self.open_preview_button = QPushButton("OPEN PREVIEW")
+        self.open_preview_button = self._button("button.open_preview")
         self.open_preview_button.setObjectName("secondaryButton")
         self.open_preview_button.setEnabled(False)
         self.open_preview_button.hide()
-        self.save_project_button = QPushButton("EXPORT RECIPE")
+        self.save_project_button = self._button("button.export_recipe")
         self.save_project_button.setObjectName("secondaryButton")
-        self.save_project_button.setToolTip("Export a recipe JSON that references your media paths without copying media files.")
-        self.load_project_button = QPushButton("IMPORT RECIPE")
+        self._register_tooltip(self.save_project_button, "tooltip.export_recipe")
+        self.load_project_button = self._button("button.import_recipe")
         self.load_project_button.setObjectName("secondaryButton")
-        self.load_project_button.setToolTip("Import a WZRD.VID recipe or older project preset JSON.")
-        self.reset_project_button = QPushButton("RESET PROJECT")
+        self._register_tooltip(self.load_project_button, "tooltip.import_recipe")
+        self.reset_project_button = self._button("button.reset_project")
         self.reset_project_button.setObjectName("dangerButton")
-        self.reset_project_button.setToolTip("Reset controls and clear selected sources. This never deletes media or output files.")
-        self.open_output_button = QPushButton("OPEN OUTPUT FOLDER")
+        self._register_tooltip(self.reset_project_button, "tooltip.reset_project")
+        self.open_output_button = self._button("button.open_output")
         self.open_output_button.setObjectName("secondaryButton")
         self.open_output_button.setEnabled(False)
         self.open_output_button.hide()
-        self.copy_report_button = QPushButton("COPY REPORT")
+        self.copy_report_button = self._button("button.copy_report")
         self.copy_report_button.setObjectName("secondaryButton")
-        self.copy_report_button.setToolTip("Copy a sanitized support report with app, media, output, and log details.")
-        self.batch_enabled = QCheckBox("Enable batch render")
+        self._register_tooltip(self.copy_report_button, "tooltip.copy_report")
+        self.batch_enabled = self._checkbox("check.batch")
         self.batch_checks: dict[str, QCheckBox] = {}
         for variant in BATCH_VARIANTS:
             checkbox = QCheckBox(variant)
             checkbox.setChecked(variant in {"29 MB Text Limit", "Chunkcore"})
             self.batch_checks[variant] = checkbox
-        self.batch_button = QPushButton("MAKE BATCH")
+        self.batch_button = self._button("button.make_batch")
         self.batch_button.setObjectName("makeButton")
-        self.cancel_batch_button = QPushButton("CANCEL BATCH")
+        self.cancel_batch_button = self._button("button.cancel_batch")
         self.cancel_batch_button.setObjectName("dangerButton")
         self.cancel_batch_button.setEnabled(False)
-        self.batch_status_label = QLabel("Batch: off")
+        self.batch_status_label = self._label("status.batch_off")
         self.batch_status_label.setObjectName("estimate")
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
@@ -1015,6 +1046,99 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(250, self.check_media_tools)
         QTimer.singleShot(1400, lambda: self.check_for_updates(manual=False))
 
+    def active_language(self) -> str:
+        return resolve_language(self.ui_language)
+
+    def tr(self, key: str, **values: object) -> str:
+        return translate(self.active_language(), key, **values)
+
+    def _register_text(self, widget: object, key: str) -> object:
+        self._i18n_text_widgets.append((widget, key))
+        if hasattr(widget, "setText"):
+            widget.setText(self.tr(key))
+        return widget
+
+    def _register_tooltip(self, widget: QWidget, key: str) -> None:
+        self._i18n_tooltip_widgets.append((widget, key))
+        widget.setToolTip(self.tr(key))
+
+    def _label(self, key: str) -> QLabel:
+        return self._register_text(QLabel(), key)  # type: ignore[return-value]
+
+    def _button(self, key: str) -> QPushButton:
+        return self._register_text(QPushButton(), key)  # type: ignore[return-value]
+
+    def _checkbox(self, key: str) -> QCheckBox:
+        return self._register_text(QCheckBox(), key)  # type: ignore[return-value]
+
+    def _group_box(self, key: str) -> QGroupBox:
+        group = QGroupBox()
+        self._i18n_group_boxes.append((group, key))
+        group.setTitle(self.tr(key))
+        return group
+
+    def _populate_language_combo(self) -> None:
+        current = self.ui_language
+        self._updating_language_combo = True
+        self.language_combo.clear()
+        active = self.active_language()
+        for code, _name in SUPPORTED_LANGUAGES:
+            self.language_combo.addItem(language_label(code, active), code)
+        index = self.language_combo.findData(current)
+        self.language_combo.setCurrentIndex(index if index >= 0 else 0)
+        self._updating_language_combo = False
+
+    def _language_changed(self) -> None:
+        if self._updating_language_combo:
+            return
+        code = str(self.language_combo.currentData() or "system")
+        if code == self.ui_language:
+            return
+        self.ui_language = code
+        self._apply_translations()
+        self._save_settings()
+        self.append_log(self.tr("log.language_changed", selected_language=language_label(code, self.active_language())))
+
+    def _apply_timeline_headers(self) -> None:
+        self.timeline_table.setHorizontalHeaderLabels(
+            [
+                self.tr("table.file"),
+                self.tr("table.type"),
+                self.tr("table.duration"),
+                self.tr("table.trim_start"),
+                self.tr("table.end_hold"),
+                self.tr("table.include_audio"),
+            ]
+        )
+
+    def _apply_translations(self) -> None:
+        self._populate_language_combo()
+        for widget, key in self._i18n_text_widgets:
+            if hasattr(widget, "setText"):
+                widget.setText(self.tr(key))
+        for widget, key in self._i18n_tooltip_widgets:
+            widget.setToolTip(self.tr(key))
+        for group, key in self._i18n_group_boxes:
+            group.setTitle(self.tr(key))
+        self._apply_timeline_headers()
+        if hasattr(self, "main_tabs"):
+            self.main_tabs.setTabText(0, self.tr("tab.source"))
+            self.main_tabs.setTabText(1, self.tr("tab.style"))
+            self.main_tabs.setTabText(2, self.tr("tab.output"))
+        for row in self.block_rows:
+            row.apply_i18n(lambda key: self.tr(key))
+        self._update_preview_controls()
+        self._update_timeline_duration_label()
+        self._refresh_slider_labels()
+        self._update_audio_controls()
+        self._update_output_size_estimate()
+        self._update_optimize_estimate()
+        self._update_coverage_summary()
+        self._refresh_timeline_table()
+        self._refresh_signal_status()
+        if self.update_worker is None:
+            self.update_status_label.setText(self.tr("status.update_checking", version=APP_VERSION))
+
     def _start_signal_timer(self) -> None:
         self._rotate_signal_status()
         self.signal_timer = QTimer(self)
@@ -1025,11 +1149,22 @@ class MainWindow(QMainWindow):
     def _rotate_signal_status(self) -> None:
         if self.signal_status_label is None:
             return
-        message = self._signal_messages[self._signal_index % len(self._signal_messages)]
+        message_key = self._signal_message_keys[self._signal_index % len(self._signal_message_keys)]
         self._signal_index += 1
+        self._set_signal_status(message_key)
+
+    def _refresh_signal_status(self) -> None:
+        if self.signal_status_label is None:
+            return
+        index = max(0, self._signal_index - 1) % len(self._signal_message_keys)
+        self._set_signal_status(self._signal_message_keys[index])
+
+    def _set_signal_status(self, message_key: str) -> None:
+        if self.signal_status_label is None:
+            return
         # Tiny static texture on the status strip, kept away from editable controls.
         blocks = random.choice(("░▒▓", "▓▒░", "█░█", "▒▒//"))
-        self.signal_status_label.setText(f"{message}  {blocks}")
+        self.signal_status_label.setText(f"{self.tr(message_key)}  {blocks}")
 
     def _make_slider(self, minimum: int, maximum: int, value: int) -> tuple[QSlider, QLabel]:
         slider = QSlider(Qt.Orientation.Horizontal)
@@ -1049,17 +1184,17 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._build_header())
 
-        tabs = QTabWidget()
-        tabs.setObjectName("mainTabs")
-        tabs.addTab(
+        self.main_tabs = QTabWidget()
+        self.main_tabs.setObjectName("mainTabs")
+        self.main_tabs.addTab(
             self._tab_scroll([
                 self._build_file_group(),
                 self._build_trim_group(),
                 self._build_framing_group(),
             ]),
-            "SOURCE",
+            self.tr("tab.source"),
         )
-        tabs.addTab(
+        self.main_tabs.addTab(
             self._tab_scroll([
                 self._build_style_group(),
                 self._build_slider_group(),
@@ -1067,7 +1202,7 @@ class MainWindow(QMainWindow):
                 self._build_transition_group(),
                 self._build_ending_group(),
             ]),
-            "STYLE",
+            self.tr("tab.style"),
         )
         output_tab = QWidget()
         output_tab.setObjectName("tabSurface")
@@ -1081,7 +1216,7 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(self._build_batch_group())
         output_layout.addWidget(self._build_output_group())
         log_row = QHBoxLayout()
-        log_label = QLabel("SESSION LOG")
+        log_label = self._label("label.session_log")
         log_label.setObjectName("subtitle")
         log_row.addWidget(log_label)
         log_row.addStretch(1)
@@ -1089,9 +1224,9 @@ class MainWindow(QMainWindow):
         output_layout.addLayout(log_row)
         output_layout.addWidget(self.log_output, stretch=1)
         output_layout.addStretch(1)
-        tabs.addTab(self._scroll_widget(output_tab), "OUTPUT")
+        self.main_tabs.addTab(self._scroll_widget(output_tab), self.tr("tab.output"))
 
-        layout.addWidget(tabs, stretch=1)
+        layout.addWidget(self.main_tabs, stretch=1)
         self.setCentralWidget(root)
 
     def _tab_scroll(self, groups: list[QWidget]) -> QScrollArea:
@@ -1200,11 +1335,11 @@ class MainWindow(QMainWindow):
         swoosh.setFixedHeight(26)
         layout.addWidget(swoosh)
 
-        subtitle = QLabel(APP_SUBTITLE)
+        subtitle = self._label("app.subtitle")
         subtitle.setObjectName("tagline")
         layout.addWidget(subtitle)
 
-        lab_line = QLabel(">> signal locked // textmode pipeline armed _  ░▒▓")
+        lab_line = QLabel(f"{self.tr('signal.locked')}  ░▒▓")
         lab_line.setObjectName("terminalStrip")
         self.signal_status_label = lab_line
         layout.addWidget(lab_line)
@@ -1215,7 +1350,7 @@ class MainWindow(QMainWindow):
         return header
 
     def _build_file_group(self) -> QGroupBox:
-        group = QGroupBox("Sources / Timeline")
+        group = self._group_box("group.sources")
         group.setObjectName("sourcePanel")
         layout = QVBoxLayout(group)
 
@@ -1241,19 +1376,17 @@ class MainWindow(QMainWindow):
         source_row.addWidget(self.preview_label)
         layout.addLayout(source_row)
 
-        timeline_note = QLabel(
-            "Drag videos/photos here, or use the buttons. Timeline plays top-to-bottom. Video rows use trim start/end and Include Audio; photo rows use End / Hold as seconds on screen."
-        )
+        timeline_note = self._label("note.timeline")
         timeline_note.setObjectName("muted")
         timeline_note.setWordWrap(True)
         layout.addWidget(timeline_note)
         layout.addWidget(self.video_duration)
 
         music_row = QGridLayout()
-        music_button = QPushButton("SELECT MUSIC / AUDIO")
+        music_button = self._button("button.select_music")
         music_button.setObjectName("secondaryButton")
-        music_button.setToolTip("You can choose audio files or video files with audio tracks. You can also drag audio here.")
-        clear_music_button = QPushButton("CLEAR")
+        self._register_tooltip(music_button, "tooltip.select_music")
+        clear_music_button = self._button("button.clear")
         clear_music_button.setObjectName("dangerButton")
         music_button.clicked.connect(self.select_audio)
         clear_music_button.clicked.connect(self.clear_audio)
@@ -1268,41 +1401,41 @@ class MainWindow(QMainWindow):
         return group
 
     def _build_trim_group(self) -> QGroupBox:
-        group = QGroupBox("Time Slice / Audio")
+        group = self._group_box("group.time")
         group.setObjectName("timePanel")
         grid = QGridLayout(group)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
 
-        grid.addWidget(QLabel("Timeline start"), 0, 0)
+        grid.addWidget(self._label("label.timeline_start"), 0, 0)
         grid.addWidget(self.video_start, 0, 1)
-        grid.addWidget(QLabel("Timeline end"), 0, 2)
+        grid.addWidget(self._label("label.timeline_end"), 0, 2)
         grid.addWidget(self.video_end, 0, 3)
 
-        grid.addWidget(QLabel("Music trim start"), 1, 0)
+        grid.addWidget(self._label("label.music_trim_start"), 1, 0)
         grid.addWidget(self.audio_start, 1, 1)
-        grid.addWidget(QLabel("Music trim end"), 1, 2)
+        grid.addWidget(self._label("label.music_trim_end"), 1, 2)
         grid.addWidget(self.audio_end, 1, 3)
 
-        grid.addWidget(QLabel("Music start in video"), 2, 0)
+        grid.addWidget(self._label("label.music_start_video"), 2, 0)
         grid.addWidget(self.audio_timeline_start, 2, 1)
-        grid.addWidget(QLabel("Music end in video"), 2, 2)
+        grid.addWidget(self._label("label.music_end_video"), 2, 2)
         grid.addWidget(self.audio_timeline_end, 2, 3)
 
-        grid.addWidget(QLabel("Audio Mix"), 3, 0)
+        grid.addWidget(self._label("label.audio_mix"), 3, 0)
         grid.addWidget(self.audio_mode, 3, 1)
         grid.addWidget(self.match_timeline_to_audio, 3, 2)
         grid.addWidget(self.match_timeline_mode, 3, 3)
         return group
 
     def _build_style_group(self) -> QGroupBox:
-        group = QGroupBox("Style Stack")
+        group = self._group_box("group.style")
         group.setObjectName("stylePanel")
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
         style_row = QHBoxLayout()
         style_row.setSpacing(10)
-        style_row.addWidget(QLabel("Text mode"))
+        style_row.addWidget(self._label("label.text_mode"))
         style_row.addWidget(self.preset, stretch=1)
         layout.addLayout(style_row)
         layout.addWidget(self.style_preview)
@@ -1310,7 +1443,7 @@ class MainWindow(QMainWindow):
         dither_row = QHBoxLayout()
         dither_row.addWidget(self.chunky_blocks)
         dither_row.addStretch(1)
-        dither_row.addWidget(QLabel("Dither"))
+        dither_row.addWidget(self._label("label.dither"))
         dither_row.addWidget(self.dither_mode)
         layout.addLayout(dither_row)
 
@@ -1331,39 +1464,39 @@ class MainWindow(QMainWindow):
         return group
 
     def _build_slider_group(self) -> QGroupBox:
-        group = QGroupBox("Block Detail")
+        group = self._group_box("group.block_detail")
         group.setObjectName("blockDetailPanel")
         layout = QVBoxLayout(group)
         layout.addWidget(
             self._slider_row(
-                "Character width",
+                "slider.character_width",
                 self.width_slider,
                 self.width_value,
-                "Art detail. Higher values draw more ANSI characters before the video is compressed.",
+                "tooltip.character_width",
             )
         )
-        layout.addWidget(self._slider_row("Effect intensity", self.intensity_slider, self.intensity_value))
+        layout.addWidget(self._slider_row("slider.effect_intensity", self.intensity_slider, self.intensity_value))
         return group
 
     def _build_framing_group(self) -> QGroupBox:
-        group = QGroupBox("Canvas / Framing")
+        group = self._group_box("group.framing")
         group.setObjectName("framingPanel")
         layout = QVBoxLayout(group)
         grid = QGridLayout()
-        grid.addWidget(QLabel("Fit mode"), 0, 0)
+        grid.addWidget(self._label("label.fit_mode"), 0, 0)
         grid.addWidget(self.fit_mode, 0, 1)
-        grid.addWidget(QLabel("Anchor"), 0, 2)
+        grid.addWidget(self._label("label.anchor"), 0, 2)
         grid.addWidget(self.anchor_mode, 0, 3)
-        grid.addWidget(QLabel("Bars"), 1, 0)
+        grid.addWidget(self._label("label.bars"), 1, 0)
         grid.addWidget(self.letterbox_background, 1, 1)
         grid.addWidget(self.upper_bias, 1, 2, 1, 2)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
         layout.addLayout(grid)
-        layout.addWidget(self._slider_row("Horizontal offset", self.framing_x_slider, self.framing_x_value))
-        layout.addWidget(self._slider_row("Vertical offset", self.framing_y_slider, self.framing_y_value))
-        layout.addWidget(self._slider_row("Zoom / crop", self.framing_zoom_slider, self.framing_zoom_value))
-        note = QLabel("Framing happens before ANSI conversion, so portrait clips and photos keep the same crop in preview and render.")
+        layout.addWidget(self._slider_row("slider.horizontal_offset", self.framing_x_slider, self.framing_x_value))
+        layout.addWidget(self._slider_row("slider.vertical_offset", self.framing_y_slider, self.framing_y_value))
+        layout.addWidget(self._slider_row("slider.zoom_crop", self.framing_zoom_slider, self.framing_zoom_value))
+        note = self._label("note.framing")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
@@ -1371,54 +1504,54 @@ class MainWindow(QMainWindow):
         return group
 
     def _build_transition_group(self) -> QGroupBox:
-        group = QGroupBox("Transitions")
+        group = self._group_box("group.transitions")
         group.setObjectName("transitionPanel")
         layout = QVBoxLayout(group)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Mode"))
+        row.addWidget(self._label("label.mode"))
         row.addWidget(self.transition_mode, stretch=1)
         layout.addLayout(row)
-        layout.addWidget(self._slider_row("Transition intensity", self.transition_intensity_slider, self.transition_intensity_value))
-        note = QLabel("Short ugly cuts between timeline items: flash, burn, roll, wipe, RGB burst, buffer underrun, or random.")
+        layout.addWidget(self._slider_row("slider.transition_intensity", self.transition_intensity_slider, self.transition_intensity_value))
+        note = self._label("note.transitions")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
         return group
 
     def _build_ending_group(self) -> QGroupBox:
-        group = QGroupBox("Ending")
+        group = self._group_box("group.ending")
         group.setObjectName("endingPanel")
         layout = QVBoxLayout(group)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Ending mode"))
+        row.addWidget(self._label("label.ending_mode"))
         row.addWidget(self.ending_mode, stretch=1)
         row.addWidget(self.loop_friendly)
         layout.addLayout(row)
-        note = QLabel("Fade, collapse, freeze, shutdown, or buffer-exhaust the ending. Non-hard-cut endings fade music out automatically.")
+        note = self._label("note.ending")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
         return group
 
     def _build_output_size_group(self) -> QGroupBox:
-        group = QGroupBox("Output Size")
+        group = self._group_box("group.output_size")
         group.setObjectName("outputSizePanel")
         layout = QVBoxLayout(group)
 
         preset_row = QHBoxLayout()
-        preset_row.addWidget(QLabel("Preset"))
+        preset_row.addWidget(self._label("label.preset"))
         preset_row.addWidget(self.output_size_preset, stretch=1)
         layout.addLayout(preset_row)
         layout.addWidget(self.output_size_description)
 
         custom_grid = QGridLayout()
-        custom_grid.addWidget(QLabel("Max width"), 0, 0)
+        custom_grid.addWidget(self._label("label.max_width"), 0, 0)
         custom_grid.addWidget(self.max_width_spin, 0, 1)
-        custom_grid.addWidget(QLabel("Output FPS"), 0, 2)
+        custom_grid.addWidget(self._label("label.output_fps"), 0, 2)
         custom_grid.addWidget(self.output_fps_spin, 0, 3)
-        custom_grid.addWidget(QLabel("CRF"), 1, 0)
+        custom_grid.addWidget(self._label("label.crf"), 1, 0)
         custom_grid.addWidget(self.crf_spin, 1, 1)
-        custom_grid.addWidget(QLabel("Audio"), 1, 2)
+        custom_grid.addWidget(self._label("label.audio"), 1, 2)
         custom_grid.addWidget(self.audio_bitrate_spin, 1, 3)
         custom_grid.setColumnStretch(1, 1)
         custom_grid.setColumnStretch(3, 1)
@@ -1429,7 +1562,7 @@ class MainWindow(QMainWindow):
         estimate_row.addStretch(1)
         layout.addLayout(estimate_row)
 
-        note = QLabel("Character width controls text-art detail. Output Size controls final MP4 dimensions, FPS, and compression.")
+        note = self._label("note.output_size")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
@@ -1437,15 +1570,15 @@ class MainWindow(QMainWindow):
         return group
 
     def _build_optimize_group(self) -> QGroupBox:
-        group = QGroupBox("Optimize Output")
+        group = self._group_box("group.optimize")
         group.setObjectName("optimizePanel")
         layout = QVBoxLayout(group)
 
         enable_row = QHBoxLayout()
         enable_row.addWidget(self.target_size_enabled)
-        enable_row.addWidget(QLabel("Preset"))
+        enable_row.addWidget(self._label("label.preset"))
         enable_row.addWidget(self.optimize_preset, stretch=1)
-        enable_row.addWidget(QLabel("Max size"))
+        enable_row.addWidget(self._label("label.max_size"))
         enable_row.addWidget(self.target_size_mb)
         layout.addLayout(enable_row)
         layout.addWidget(self.optimize_description)
@@ -1456,14 +1589,14 @@ class MainWindow(QMainWindow):
         status_row.addWidget(self.final_size_label)
         layout.addLayout(status_row)
 
-        note = QLabel("Optimization keeps the unoptimized MP4, then writes a separate _optimized_29mb-style copy.")
+        note = self._label("note.optimize")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
         return group
 
     def _build_batch_group(self) -> QGroupBox:
-        group = QGroupBox("Output Variants")
+        group = self._group_box("group.batch")
         group.setObjectName("batchPanel")
         layout = QVBoxLayout(group)
         top_row = QHBoxLayout()
@@ -1484,7 +1617,7 @@ class MainWindow(QMainWindow):
         action_row.addStretch(1)
         layout.addLayout(action_row)
 
-        note = QLabel("Batch render uses the same timeline, music, bypass sections, and effects; variants only override style or output sizing.")
+        note = self._label("note.batch")
         note.setObjectName("muted")
         note.setWordWrap(True)
         layout.addWidget(note)
@@ -1501,27 +1634,27 @@ class MainWindow(QMainWindow):
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
-        label = QLabel(label_text)
+        label = self._label(label_text)
         label.setMinimumWidth(170)
         if tooltip:
-            row.setToolTip(tooltip)
-            label.setToolTip(tooltip)
-            slider.setToolTip(tooltip)
-            value_label.setToolTip(tooltip)
+            self._register_tooltip(row, tooltip)
+            self._register_tooltip(label, tooltip)
+            self._register_tooltip(slider, tooltip)
+            self._register_tooltip(value_label, tooltip)
         layout.addWidget(label)
         layout.addWidget(slider, stretch=1)
         layout.addWidget(value_label)
         return row
 
     def _build_coverage_group(self) -> QGroupBox:
-        group = QGroupBox("ANSI Coverage")
+        group = self._group_box("group.coverage")
         group.setObjectName("coveragePanel")
         layout = QVBoxLayout(group)
 
         mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel("Mode"))
+        mode_row.addWidget(self._label("label.mode"))
         mode_row.addWidget(self.bypass_mode, stretch=1)
-        mode_row.addWidget(QLabel("Random normal"))
+        mode_row.addWidget(self._label("label.random_normal"))
         mode_row.addWidget(self.random_percent)
         mode_row.addWidget(self.reroll_button)
         layout.addLayout(mode_row)
@@ -1538,7 +1671,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(divider)
 
         manual_header = QHBoxLayout()
-        manual_header.addWidget(QLabel("Manual normal blocks"))
+        manual_header.addWidget(self._label("label.manual_blocks"))
         manual_header.addStretch(1)
         manual_header.addWidget(self.add_block_button)
         layout.addLayout(manual_header)
@@ -1547,11 +1680,11 @@ class MainWindow(QMainWindow):
         return group
 
     def _build_output_group(self) -> QGroupBox:
-        group = QGroupBox("Output")
+        group = self._group_box("group.output")
         group.setObjectName("outputPanel")
         layout = QVBoxLayout(group)
         output_row = QHBoxLayout()
-        choose_button = QPushButton("CHOOSE OUTPUT")
+        choose_button = self._button("button.choose_output")
         choose_button.setObjectName("secondaryButton")
         choose_button.clicked.connect(self.select_output)
         output_row.addWidget(choose_button)
@@ -1559,9 +1692,9 @@ class MainWindow(QMainWindow):
 
         preview_row = QHBoxLayout()
         preview_row.addWidget(self.preview_button)
-        preview_row.addWidget(QLabel("Length"))
+        preview_row.addWidget(self._label("label.length"))
         preview_row.addWidget(self.preview_duration)
-        preview_row.addWidget(QLabel("Preview from"))
+        preview_row.addWidget(self._label("label.preview_from"))
         preview_row.addWidget(self.preview_from)
         preview_row.addWidget(self.preview_custom)
         preview_row.addWidget(self.open_preview_button)
@@ -1574,6 +1707,14 @@ class MainWindow(QMainWindow):
         project_row.addStretch(1)
         project_row.addWidget(self.open_output_button)
 
+        language_row = QHBoxLayout()
+        language_row.addWidget(self._label("language.label"))
+        language_row.addWidget(self.language_combo)
+        language_note = self._label("language.note")
+        language_note.setObjectName("muted")
+        language_note.setWordWrap(True)
+        language_row.addWidget(language_note, stretch=1)
+
         update_row = QHBoxLayout()
         update_row.addWidget(self.update_status_label, stretch=1)
         update_row.addWidget(self.check_update_button)
@@ -1585,6 +1726,7 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.progress, stretch=1)
 
         layout.addLayout(output_row)
+        layout.addLayout(language_row)
         layout.addLayout(preview_row)
         layout.addLayout(project_row)
         layout.addLayout(update_row)
@@ -1621,6 +1763,7 @@ class MainWindow(QMainWindow):
         self.copy_report_button.clicked.connect(self.copy_report)
         self.check_update_button.clicked.connect(lambda: self.check_for_updates(manual=True))
         self.download_update_button.clicked.connect(self.open_update_download)
+        self.language_combo.currentIndexChanged.connect(self._language_changed)
         self.preset.currentTextChanged.connect(self._update_preset_description)
         self.chunky_blocks.toggled.connect(self._save_settings)
         self.output_size_preset.currentTextChanged.connect(self._apply_output_size_preset)
@@ -1712,7 +1855,7 @@ class MainWindow(QMainWindow):
     def add_videos(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self,
-            "Add video source(s)",
+            self.tr("file.add_video_title"),
             str(Path.home()),
             "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
         )
@@ -1721,7 +1864,7 @@ class MainWindow(QMainWindow):
     def add_photos(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self,
-            "Add photo source(s)",
+            self.tr("file.add_photo_title"),
             str(Path.home()),
             "Photo files (*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif)",
         )
@@ -1756,24 +1899,24 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 APP_NAME,
-                "Some dropped files are not supported timeline media:\n" + "\n".join(skipped[:8]),
+                self.tr("dialog.unsupported_timeline_drop", files="\n".join(skipped[:8])),
             )
 
     def _append_timeline_item(self, path: str, kind: str) -> bool:
         source = Path(path)
         if not source.exists():
             self.append_log(f"Rejected missing source file: {path}")
-            QMessageBox.warning(self, APP_NAME, f"Source file does not exist:\n{path}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.source_missing", path=path))
             return False
         requested_kind = kind if kind in {"video", "photo"} else self._guess_source_kind(path, kind)
         detected_kind = media_kind(path)
         if requested_kind == "video" and detected_kind != "video":
             self.append_log(f"Rejected non-video source: {source.name}")
-            QMessageBox.warning(self, APP_NAME, f"Add Video(s) only accepts video files:\n{path}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_video_only", path=path))
             return False
         if requested_kind == "photo" and detected_kind != "photo":
             self.append_log(f"Rejected non-photo source: {source.name}")
-            QMessageBox.warning(self, APP_NAME, f"Add Photo(s) only accepts image files:\n{path}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_photo_only", path=path))
             return False
         kind = requested_kind
         duration = 0.0
@@ -1781,7 +1924,7 @@ class MainWindow(QMainWindow):
         include_audio = False
         if kind == "video":
             if not is_video_file(path):
-                QMessageBox.warning(self, APP_NAME, f"Add Video(s) only accepts video files:\n{path}")
+                QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_video_only", path=path))
                 return False
             try:
                 duration = ffmpeg_utils.get_duration(path)
@@ -1793,11 +1936,11 @@ class MainWindow(QMainWindow):
                 )
             except Exception as exc:  # noqa: BLE001
                 self.append_log(f"Could not probe video source {source.name}: {exc}")
-                QMessageBox.warning(self, APP_NAME, f"Could not probe video duration:\n{exc}")
+                QMessageBox.warning(self, APP_NAME, self.tr("dialog.probe_video_failed", error=exc))
                 return False
         else:
             if not is_image_file(path):
-                QMessageBox.warning(self, APP_NAME, f"Add Photo(s) only accepts image files:\n{path}")
+                QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_photo_only", path=path))
                 return False
             try:
                 self._validate_photo_source(path)
@@ -1867,7 +2010,7 @@ class MainWindow(QMainWindow):
                 file_item = self._table_item(Path(path).name or path, editable=False)
                 file_item.setToolTip(path)
                 self.timeline_table.setItem(row, 0, file_item)
-                self.timeline_table.setItem(row, 1, self._table_item(kind.title(), editable=False))
+                self.timeline_table.setItem(row, 1, self._table_item(self.tr(f"kind.{kind}"), editable=False))
                 self.timeline_table.setItem(row, 2, self._table_item(self._timeline_duration_text(item), editable=False))
                 if kind == "photo":
                     self.timeline_table.setItem(row, 3, self._table_item("", editable=False))
@@ -1921,10 +2064,10 @@ class MainWindow(QMainWindow):
         flags |= Qt.ItemFlag.ItemIsUserCheckable
         if is_video and has_audio:
             flags |= Qt.ItemFlag.ItemIsEnabled
-            item.setToolTip("Include this video's original audio in Source audio modes.")
+            item.setToolTip(self.tr("tooltip.timeline_audio_on"))
         else:
             flags &= ~Qt.ItemFlag.ItemIsEnabled
-            item.setToolTip("Photos and videos without audio are silent in the source audio mix.")
+            item.setToolTip(self.tr("tooltip.timeline_audio_off"))
         item.setFlags(flags)
         item.setCheckState(Qt.CheckState.Checked if include_audio and has_audio else Qt.CheckState.Unchecked)
         return item
@@ -2025,7 +2168,7 @@ class MainWindow(QMainWindow):
         self.timeline_items.clear()
         self._refresh_timeline_table()
         self.preview_label.setPixmap(QPixmap())
-        self.preview_label.setText("NO SOURCE\nADD VIDEO OR PHOTO")
+        self.preview_label.setText(self.tr("status.no_source"))
         self._after_timeline_changed()
 
     def shuffle_timeline(self) -> None:
@@ -2041,7 +2184,7 @@ class MainWindow(QMainWindow):
         index = self._selected_timeline_index()
         if index is None:
             self.preview_label.setPixmap(QPixmap())
-            self.preview_label.setText("NO SOURCE\nADD VIDEO OR PHOTO")
+            self.preview_label.setText(self.tr("status.no_source"))
             return
         item = self.timeline_items[index]
         path = str(item.get("path", ""))
@@ -2090,7 +2233,7 @@ class MainWindow(QMainWindow):
             pixmap = self._image_to_preview_pixmap(framed)
         except Exception:  # noqa: BLE001 - preview should fail softly.
             self.preview_label.setPixmap(QPixmap())
-            self.preview_label.setText("PHOTO\nPREVIEW UNAVAILABLE")
+            self.preview_label.setText(self.tr("status.photo_preview_unavailable"))
             return
         self.preview_label.setText("")
         self.preview_label.setPixmap(pixmap)
@@ -2143,13 +2286,18 @@ class MainWindow(QMainWindow):
     def _update_timeline_duration_label(self) -> None:
         total = self._timeline_total_duration(strict=False)
         if total is None:
-            self.video_duration.setText("Timeline: no sources")
+            self.video_duration.setText(self.tr("status.timeline_none"))
             self.video_duration_seconds = None
             return
-        source_word = "source" if len(self.timeline_items) == 1 else "sources"
+        source_word = self.tr("word.source" if len(self.timeline_items) == 1 else "word.sources")
         self.video_duration_seconds = total
         self.video_duration.setText(
-            f"Timeline: {ffmpeg_utils.format_duration(total)} across {len(self.timeline_items)} {source_word}"
+            self.tr(
+                "status.timeline_across",
+                duration=ffmpeg_utils.format_duration(total),
+                count=len(self.timeline_items),
+                source_word=source_word,
+            )
         )
 
     def _timeline_items_for_render(self, strict: bool) -> list[TimelineItem]:
@@ -2229,7 +2377,7 @@ class MainWindow(QMainWindow):
 
     def _update_preview_controls(self) -> None:
         seconds = int(self._selected_preview_seconds())
-        self.preview_button.setText(f"PREVIEW {seconds} SEC")
+        self.preview_button.setText(self.tr("button.preview_seconds", seconds=seconds))
         self.preview_custom.setEnabled(self.preview_from.currentText() == "Custom timestamp")
 
     def _selected_preview_seconds(self) -> float:
@@ -2238,7 +2386,7 @@ class MainWindow(QMainWindow):
     def select_audio(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select music / audio file",
+            self.tr("file.select_audio_title"),
             str(Path.home()),
             "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus *.aiff *.aif *.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
         )
@@ -2268,24 +2416,24 @@ class MainWindow(QMainWindow):
                 + (" ..." if len(skipped) > 8 else "")
             )
         if attempted:
-            QMessageBox.warning(self, APP_NAME, "No dropped audio file could be used. Choose an audio file, or a video file with an audio track.")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.no_audio_drop_used"))
         else:
-            QMessageBox.warning(self, APP_NAME, "Drop an audio file, or a video file with an audio track, onto the audio field.")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.drop_audio_prompt"))
 
     def _set_external_audio_path(self, path: str, *, from_drop: bool) -> bool:
         if not is_audio_container_file(path):
             self.append_log(f"Rejected unsupported music/audio file type: {Path(path).name or path}")
-            QMessageBox.warning(self, APP_NAME, f"Unsupported music/audio file type:\n{path}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.unsupported_audio_type", path=path))
             return False
         try:
             if not has_audio_stream(path):
-                raise ValueError("Selected music file has no audio track.")
+                raise ValueError(self.tr("dialog.selected_audio_no_track"))
         except ValueError as exc:
             QMessageBox.warning(self, APP_NAME, str(exc))
             self.append_log(str(exc))
             return False
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, APP_NAME, f"Could not inspect selected music file:\n{exc}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.inspect_audio_failed", error=exc))
             self.append_log(f"Could not inspect selected music file: {exc}")
             return False
         self.audio_path.setText(path)
@@ -2304,7 +2452,7 @@ class MainWindow(QMainWindow):
     def clear_audio(self) -> None:
         self.audio_path.clear()
         self.audio_duration_seconds = None
-        self.audio_duration.setText("Duration: -")
+        self.audio_duration.setText(self.tr("status.duration_empty"))
         self.audio_start.setText("0:00")
         self.audio_end.setText("auto")
         self.audio_timeline_start.setText("0:00")
@@ -2319,7 +2467,7 @@ class MainWindow(QMainWindow):
         starting_path = self.output_path.text().strip() or str(Path.home() / "final_wzrd.mp4")
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Choose output MP4",
+            self.tr("file.output_title"),
             starting_path,
             "MP4 video (*.mp4)",
         )
@@ -2348,16 +2496,14 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(
             self,
             APP_NAME,
-            f"WZRD.VID needs {missing_text} before it can render video.\n\n"
-            f"{guidance}\n\n"
-            "Then restart the app.",
+            self.tr("dialog.missing_tools", tools=missing_text, guidance=guidance),
         )
         self.append_log(f"Missing media tools: {missing_text}. {guidance}")
 
     def _load_video_preview(self, path: str, start_seconds: float | None = None) -> None:
         capture = cv2.VideoCapture(path)
         if not capture.isOpened():
-            self.preview_label.setText("PREVIEW\nUNAVAILABLE")
+            self.preview_label.setText(self.tr("status.preview_unavailable"))
             self.preview_label.setPixmap(QPixmap())
             return
         try:
@@ -2369,7 +2515,7 @@ class MainWindow(QMainWindow):
         finally:
             capture.release()
         if not ok:
-            self.preview_label.setText("PREVIEW\nUNAVAILABLE")
+            self.preview_label.setText(self.tr("status.preview_unavailable"))
             self.preview_label.setPixmap(QPixmap())
             return
 
@@ -2391,40 +2537,44 @@ class MainWindow(QMainWindow):
                 else ffmpeg_utils.get_duration(path)
             )
         except Exception as exc:  # noqa: BLE001 - present a clear GUI error.
-            label.setText("Duration: unknown")
+            label.setText(self.tr("status.duration_unknown"))
             if media_label == "video":
                 self.video_duration_seconds = None
             else:
                 self.audio_duration_seconds = None
             self.append_log(f"Could not probe {media_label}: {exc}")
-            QMessageBox.warning(self, APP_NAME, f"Could not probe {media_label} duration:\n{exc}")
+            QMessageBox.warning(
+                self,
+                APP_NAME,
+                self.tr("dialog.probe_duration_failed", media_label=media_label, error=exc),
+            )
             return
         if media_label == "video":
             self.video_duration_seconds = duration
         else:
             self.audio_duration_seconds = duration
-        label.setText(f"Duration: {ffmpeg_utils.format_duration(duration)}")
+        label.setText(self.tr("status.duration", duration=ffmpeg_utils.format_duration(duration)))
         self.append_log(f"Detected {media_label} duration: {ffmpeg_utils.format_duration(duration)}")
         self._update_output_size_estimate()
         self._update_optimize_estimate()
 
     def reroll_random_sections(self) -> None:
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self.seed_label.setText(f"Seed: {self.random_seed}")
+        self.seed_label.setText(self.tr("status.seed", seed=self.random_seed))
         self._update_coverage_summary()
         self._save_settings()
 
     def reroll_weirdness(self) -> None:
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self.seed_label.setText(f"Seed: {self.random_seed}")
-        self.weird_seed_label.setText(f"Weird seed: {self.weird_seed}")
+        self.seed_label.setText(self.tr("status.seed", seed=self.random_seed))
+        self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         self._update_coverage_summary()
         self.append_log("Rerolled weirdness seeds for cuts, glitches, holds, transitions, and collapse hits.")
         self._save_settings()
 
     def add_manual_block(self, start: str = "0:12", end: str = "0:18") -> None:
-        row = ManualBlockRow(start, end)
+        row = ManualBlockRow(start, end, translator=lambda key: self.tr(key))
         row.remove_requested.connect(self.remove_manual_block)
         row.changed.connect(self._update_coverage_summary)
         self.block_rows.append(row)
@@ -2488,25 +2638,21 @@ class MainWindow(QMainWindow):
             self.match_timeline_to_audio.setChecked(False)
             self.match_timeline_to_audio.blockSignals(was_blocked)
         if mode == AUDIO_MIX and self.match_timeline_to_audio.isChecked():
-            self.audio_duration.setToolTip(
-                "Match-to-music uses the external track only; selected source audio is disabled for that render."
-            )
+            self.audio_duration.setToolTip(self.tr("tooltip.audio_match_external_only"))
         elif mode == AUDIO_MIX:
             if self.worky_music_mode.isChecked():
-                self.audio_duration.setToolTip("Final MP4 mixes worky-processed external audio with checked timeline video audio.")
+                self.audio_duration.setToolTip(self.tr("tooltip.audio_mix_worky"))
             else:
-                self.audio_duration.setToolTip("Final MP4 mixes selected external audio with checked timeline video audio.")
+                self.audio_duration.setToolTip(self.tr("tooltip.audio_mix_external"))
         elif external_active:
             if self.worky_music_mode.isChecked():
-                self.audio_duration.setToolTip("Selected external music/audio will be crushed into tiny mono broadcast texture before muxing.")
+                self.audio_duration.setToolTip(self.tr("tooltip.audio_external_worky"))
             else:
-                self.audio_duration.setToolTip("Selected external music/audio will be muxed into the final MP4.")
+                self.audio_duration.setToolTip(self.tr("tooltip.audio_external"))
         elif mode == AUDIO_SOURCE:
-            self.audio_duration.setToolTip(
-                "Final MP4 uses checked video timeline audio; photo gaps and unchecked rows are silent."
-            )
+            self.audio_duration.setToolTip(self.tr("tooltip.audio_source_only"))
         else:
-            self.audio_duration.setToolTip("Final MP4 will have no audio stream.")
+            self.audio_duration.setToolTip(self.tr("tooltip.audio_silent"))
 
     def _selected_audio_duration(self, strict: bool) -> float | None:
         audio_path = self.audio_path.text().strip()
@@ -2543,9 +2689,9 @@ class MainWindow(QMainWindow):
     def _update_coverage_summary(self) -> None:
         duration = self._current_render_duration(strict=False)
         if duration is None or duration <= 0:
-            self.coverage_bar.setText("[████████████████████] 100% ANSI / 0% normal")
-            self.coverage_detail.setText("Add a source to preview coverage")
-            self.seed_label.setText(f"Seed: {self.random_seed}")
+            self.coverage_bar.setText(self.tr("status.coverage_full"))
+            self.coverage_detail.setText(self.tr("status.coverage_add_source"))
+            self.seed_label.setText(self.tr("status.seed", seed=self.random_seed))
             return
         try:
             intervals = build_bypass_intervals(
@@ -2558,7 +2704,7 @@ class MainWindow(QMainWindow):
                 seed=self.random_seed,
             )
         except Exception as exc:  # noqa: BLE001
-            self.coverage_bar.setText("Coverage unavailable")
+            self.coverage_bar.setText(self.tr("status.coverage_unavailable"))
             self.coverage_detail.setText(str(exc))
             return
 
@@ -2567,9 +2713,9 @@ class MainWindow(QMainWindow):
         ansi_pct = 100.0 - normal_pct
         filled = int(round(20 * (ansi_pct / 100.0)))
         bar = "█" * filled + "░" * (20 - filled)
-        self.coverage_bar.setText(f"[{bar}] {ansi_pct:.0f}% ANSI / {normal_pct:.0f}% normal")
-        self.coverage_detail.setText(f"{len(intervals)} normal sections selected")
-        self.seed_label.setText(f"Seed: {self.random_seed}")
+        self.coverage_bar.setText(self.tr("status.coverage_bar", bar=bar, ansi_pct=ansi_pct, normal_pct=normal_pct))
+        self.coverage_detail.setText(self.tr("status.coverage_detail", count=len(intervals)))
+        self.seed_label.setText(self.tr("status.seed", seed=self.random_seed))
 
     def _refresh_slider_labels(self) -> None:
         self.width_value.setText(f"{self.width_slider.value()} chars")
@@ -2701,7 +2847,7 @@ class MainWindow(QMainWindow):
     def _update_output_size_estimate(self) -> None:
         duration = self._current_render_duration(strict=False)
         if duration is None or duration <= 0:
-            self.estimated_size_label.setText("Estimated final size: add a source")
+            self.estimated_size_label.setText(self.tr("status.estimated_add_source"))
             return
 
         values = self._output_size_values()
@@ -2712,18 +2858,18 @@ class MainWindow(QMainWindow):
         low = max(0.1, estimate_mb * 0.75)
         high = max(low + 0.1, estimate_mb * 1.45)
         self.estimated_size_label.setText(
-            f"Estimated final size: ~{low:.1f}-{high:.1f} MB"
+            self.tr("status.estimated_final", low=low, high=high)
         )
 
     def _update_optimize_estimate(self) -> None:
         values = self._optimize_values()
         if not values["enabled"]:
-            self.optimize_estimate_label.setText("Optimize estimate: disabled")
+            self.optimize_estimate_label.setText(self.tr("status.optimize_disabled"))
             return
         duration = self._current_render_duration(strict=False)
         if duration is None or duration <= 0:
             self.optimize_estimate_label.setText(
-                f"Optimize target: <= {float(values['target_mb']):.1f} MB"
+                self.tr("status.optimize_target", target=float(values["target_mb"]))
             )
             return
         has_audio_output = self._current_audio_mode_has_output()
@@ -2734,8 +2880,11 @@ class MainWindow(QMainWindow):
             150_000,
         )
         self.optimize_estimate_label.setText(
-            f"Optimize target: <= {float(values['target_mb']):.1f} MB, "
-            f"video ~{video_bitrate / 1000:.0f} kbps"
+            self.tr(
+                "status.optimize_video",
+                target=float(values["target_mb"]),
+                kbps=video_bitrate / 1000,
+            )
         )
 
     def _update_preset_description(self) -> None:
@@ -2798,7 +2947,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, APP_NAME, str(exc))
             return
         if not variants:
-            QMessageBox.warning(self, APP_NAME, "Select at least one batch variant.")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.batch_empty"))
             return
 
         self._save_settings()
@@ -2891,7 +3040,7 @@ class MainWindow(QMainWindow):
         return candidate
 
     def batch_variant_changed(self, name: str, index: int, total: int) -> None:
-        self.batch_status_label.setText(f"Batch: {index}/{total} - {name}")
+        self.batch_status_label.setText(self.tr("status.batch_progress", index=index, total=total, name=name))
 
     def start_render(self) -> None:
         if self.batch_enabled.isChecked():
@@ -3271,14 +3420,18 @@ class MainWindow(QMainWindow):
             self.last_output_path = outputs[-1] if outputs else None
             self.open_output_button.setEnabled(bool(outputs))
             self.open_output_button.setVisible(bool(outputs))
-            self.batch_status_label.setText(f"Batch complete: {len(outputs)} file(s)")
+            self.batch_status_label.setText(self.tr("status.batch_complete", count=len(outputs)))
             if outputs:
                 size_lines = [f"{Path(path).name}: {self._file_size_text(path)}" for path in outputs]
-                self.final_size_label.setText(f"Final output size: {self._file_size_text(outputs[-1])}")
+                self.final_size_label.setText(self.tr("status.final_size", size=self._file_size_text(outputs[-1])))
                 self.append_log("Finished batch render:")
                 for path in outputs:
                     self.append_log(f"  {path} ({self._file_size_text(path)})")
-                QMessageBox.information(self, APP_NAME, "Batch complete:\n" + "\n".join(size_lines))
+                QMessageBox.information(
+                    self,
+                    APP_NAME,
+                    self.tr("dialog.batch_complete", details="\n".join(size_lines)),
+                )
             else:
                 self.append_log("Batch finished without output files.")
         else:
@@ -3286,18 +3439,19 @@ class MainWindow(QMainWindow):
             self.open_output_button.setEnabled(True)
             self.open_output_button.show()
             size_text = self._file_size_text(output_path)
-            self.final_size_label.setText(f"Final output size: {size_text}")
+            self.final_size_label.setText(self.tr("status.final_size", size=size_text))
             self.append_log(f"Finished render: {output_path}")
             self.append_log(f"Final output size: {size_text}")
-            QMessageBox.information(self, APP_NAME, f"Render complete:\n{output_path}")
+            QMessageBox.information(self, APP_NAME, self.tr("dialog.render_complete", path=output_path))
 
 
     def render_failed(self, message: str) -> None:
         self._set_render_controls_enabled(True)
-        label = "Preview" if self.active_task == "preview" else ("Batch" if self.active_task == "batch" else "Render")
+        task_key = "task.preview" if self.active_task == "preview" else ("task.batch" if self.active_task == "batch" else "task.render")
+        label = self.tr(task_key)
         self.append_log(f"{label} failed: {message}")
         self.last_render_error = message
-        QMessageBox.critical(self, APP_NAME, f"{label} failed:\n{message}")
+        QMessageBox.critical(self, APP_NAME, self.tr("dialog.task_failed", task=label, message=message))
 
     def thread_finished(self) -> None:
         self.worker = None
@@ -3378,9 +3532,9 @@ class MainWindow(QMainWindow):
             if manual:
                 self.append_log("Update check already running.")
             return
-        self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: checking...")
+        self.update_status_label.setText(self.tr("status.update_checking", version=APP_VERSION))
         self.check_update_button.setEnabled(False)
-        self.download_update_button.setText("DOWNLOAD UPDATE")
+        self.download_update_button.setText(self.tr("button.download_update"))
         self.download_update_button.setEnabled(False)
         self.download_update_button.hide()
         self.latest_release_url = RELEASES_LATEST_URL
@@ -3394,13 +3548,15 @@ class MainWindow(QMainWindow):
         latest_display = latest_tag if latest_tag.startswith("v") else f"v{latest_tag}"
         self.latest_release_url = release_url or RELEASES_LATEST_URL
         if is_newer:
-            self.update_status_label.setText(f"Current: v{APP_VERSION} | Latest: {latest_display} available")
-            self.download_update_button.setText("DOWNLOAD UPDATE")
+            self.update_status_label.setText(
+                self.tr("status.update_available", version=APP_VERSION, latest=latest_display)
+            )
+            self.download_update_button.setText(self.tr("button.download_update"))
             self.download_update_button.setEnabled(True)
             self.download_update_button.show()
             self.append_log(f"Update available: {latest_display}")
         else:
-            self.update_status_label.setText(f"Current: v{APP_VERSION} | WZRD.VID is current")
+            self.update_status_label.setText(self.tr("status.update_current", version=APP_VERSION))
             self.download_update_button.setEnabled(False)
             self.download_update_button.hide()
             self.append_log(f"Update check complete: current release is {latest_display}.")
@@ -3409,9 +3565,9 @@ class MainWindow(QMainWindow):
         self.check_update_button.setEnabled(True)
 
     def update_check_failed(self, message: str) -> None:
-        self.update_status_label.setText(f"Current: v{APP_VERSION} | Update check unavailable - check manually")
+        self.update_status_label.setText(self.tr("status.update_failed", version=APP_VERSION))
         self.latest_release_url = RELEASES_LATEST_URL
-        self.download_update_button.setText("CHECK MANUALLY")
+        self.download_update_button.setText(self.tr("button.check_manually"))
         self.download_update_button.setEnabled(True)
         self.download_update_button.show()
         self.check_update_button.setEnabled(True)
@@ -3497,7 +3653,7 @@ class MainWindow(QMainWindow):
             response = QMessageBox.question(
                 self,
                 APP_NAME,
-                "Reset current project? This clears the app settings but does not delete media or output files.",
+                self.tr("dialog.reset"),
                 QMessageBox.StandardButton.Reset | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Cancel,
             )
@@ -3510,9 +3666,9 @@ class MainWindow(QMainWindow):
         self.audio_path.clear()
         self.output_path.clear()
         self.audio_duration_seconds = None
-        self.audio_duration.setText("Duration: -")
+        self.audio_duration.setText(self.tr("status.duration_empty"))
         self.video_duration_seconds = None
-        self.video_duration.setText("Timeline: no sources")
+        self.video_duration.setText(self.tr("status.timeline_none"))
         self.video_start.setText("0:00")
         self.video_end.setText("auto")
         self.audio_start.setText("0:00")
@@ -3549,7 +3705,7 @@ class MainWindow(QMainWindow):
         self.random_percent.setValue(10)
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self.weird_seed_label.setText(f"Weird seed: {self.weird_seed}")
+        self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         for row in list(self.block_rows):
             self.remove_manual_block(row)
 
@@ -3560,10 +3716,10 @@ class MainWindow(QMainWindow):
         self.batch_enabled.setChecked(False)
         for name, checkbox in self.batch_checks.items():
             checkbox.setChecked(name in {"29 MB Text Limit", "Chunkcore"})
-        self.batch_status_label.setText("Batch: off")
+        self.batch_status_label.setText(self.tr("status.batch_off"))
 
         self.preview_label.setPixmap(QPixmap())
-        self.preview_label.setText("NO SOURCE\nADD VIDEO OR PHOTO")
+        self.preview_label.setText(self.tr("status.no_source"))
         self.progress.setValue(0)
         self.last_output_path = None
         self.last_preview_path = None
@@ -3572,10 +3728,10 @@ class MainWindow(QMainWindow):
         self.open_output_button.setEnabled(False)
         self.open_preview_button.hide()
         self.open_preview_button.setEnabled(False)
-        self.final_size_label.setText("Final output size: -")
+        self.final_size_label.setText(self.tr("status.final_size_empty"))
         self._set_combo_text(self.preview_duration, "5s")
         self.log_output.clear()
-        self.append_log("Project reset.")
+        self.append_log(self.tr("log.project_reset"))
         self._refresh_slider_labels()
         self._apply_output_size_preset()
         self._apply_optimize_preset()
@@ -3588,7 +3744,7 @@ class MainWindow(QMainWindow):
     def save_project_preset(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export WZRD.VID recipe",
+            self.tr("file.export_recipe_title"),
             str(Path.home() / "wzrdvid-recipe.json"),
             "WZRD.VID recipe (*.json)",
         )
@@ -3599,14 +3755,14 @@ class MainWindow(QMainWindow):
         try:
             Path(path).write_text(json.dumps(self._project_state(), indent=2))
         except OSError as exc:
-            QMessageBox.warning(self, APP_NAME, f"Could not export recipe:\n{exc}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.export_recipe_failed", error=exc))
             return
         self.append_log(f"Exported recipe: {path}")
 
     def load_project_preset(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Import WZRD.VID recipe",
+            self.tr("file.import_recipe_title"),
             str(Path.home()),
             "WZRD.VID recipe or legacy project preset (*.json);;All files (*)",
         )
@@ -3615,10 +3771,10 @@ class MainWindow(QMainWindow):
         try:
             data = json.loads(Path(path).read_text())
         except (OSError, json.JSONDecodeError) as exc:
-            QMessageBox.warning(self, APP_NAME, f"Could not import recipe:\n{exc}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.import_recipe_failed", error=exc))
             return
         if not isinstance(data, dict):
-            QMessageBox.warning(self, APP_NAME, "Recipe JSON must contain an object.")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.recipe_invalid"))
             return
         self._apply_project_state(data)
         if self.audio_path.text().strip() and Path(self.audio_path.text().strip()).exists():
@@ -3630,21 +3786,21 @@ class MainWindow(QMainWindow):
     def open_output_folder(self) -> None:
         raw_path = self.last_output_path or self.output_path.text().strip()
         if not raw_path:
-            QMessageBox.information(self, APP_NAME, "No output file has been rendered yet.")
+            QMessageBox.information(self, APP_NAME, self.tr("dialog.no_output"))
             return
         folder = Path(raw_path).expanduser().parent
         if not folder.exists():
-            QMessageBox.warning(self, APP_NAME, f"Output folder does not exist:\n{folder}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.output_folder_missing", folder=folder))
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def open_preview(self) -> None:
         if not self.last_preview_path:
-            QMessageBox.information(self, APP_NAME, "No preview has been rendered yet.")
+            QMessageBox.information(self, APP_NAME, self.tr("dialog.no_preview"))
             return
         preview_path = Path(self.last_preview_path).expanduser()
         if not preview_path.exists():
-            QMessageBox.warning(self, APP_NAME, f"Preview file does not exist:\n{preview_path}")
+            QMessageBox.warning(self, APP_NAME, self.tr("dialog.preview_file_missing", path=preview_path))
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(preview_path)))
 
@@ -3676,6 +3832,7 @@ class MainWindow(QMainWindow):
         return {
             "app": APP_NAME,
             "schema_version": 3,
+            "ui_language": self.ui_language,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
             "audio_path": self.audio_path.text().strip(),
@@ -3734,6 +3891,8 @@ class MainWindow(QMainWindow):
         }
 
     def _apply_project_state(self, data: dict) -> None:
+        language = str(data.get("ui_language", self.ui_language or "system"))
+        self.ui_language = language if language in {code for code, _name in SUPPORTED_LANGUAGES} else "system"
         self.video_path.setText(str(data.get("video_path", "")))
         self.audio_path.setText(str(data.get("audio_path", "")))
         self.output_path.setText(str(data.get("output_path", "")))
@@ -3782,7 +3941,7 @@ class MainWindow(QMainWindow):
         self.random_percent.setValue(int(data.get("random_percent", 10)))
         self.random_seed = int(data.get("random_seed", self.random_seed))
         self.weird_seed = int(data.get("weird_seed", self.weird_seed))
-        self.weird_seed_label.setText(f"Weird seed: {self.weird_seed}")
+        self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         self._set_combo_text(self.fit_mode, str(data.get("framing_fit_mode", "Fill/Crop")))
         self._set_combo_text(self.anchor_mode, str(data.get("framing_anchor", "Center")))
         self.framing_x_slider.setValue(int(data.get("framing_offset_x", 0)))
@@ -3830,6 +3989,7 @@ class MainWindow(QMainWindow):
         self._update_preset_description()
         self._update_coverage_controls()
         self._update_coverage_summary()
+        self._apply_translations()
 
     def _state_timeline_items(self, data: dict) -> list[dict[str, object]]:
         raw_items = data.get("timeline_items", [])
@@ -3921,7 +4081,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 APP_NAME,
-                "A render is still running. Wait for it to finish before quitting.",
+                self.tr("dialog.render_running"),
             )
             event.ignore()
             return

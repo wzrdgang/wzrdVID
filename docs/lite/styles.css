@@ -22,7 +22,7 @@ body {
     url("../assets/ui/jazz_backdrop_field.png"),
     linear-gradient(135deg, #f5a7d0, #fff1da 62%, #a9f4cb);
   background-size: auto, auto, 720px 420px, auto;
-  font-family: Arial Black, Impact, Helvetica Neue, Arial, sans-serif;
+  font-family: Arial Black, Impact, Helvetica Neue, Segoe UI, Noto Sans, Noto Sans CJK SC, Noto Sans Arabic, Noto Sans Devanagari, Arial, sans-serif;
   letter-spacing: 0;
 }
 
@@ -62,6 +62,43 @@ body::after {
   z-index: 1;
   width: min(1420px, calc(100% - 24px));
   margin: 12px auto 22px;
+}
+
+.language-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: rgba(255, 241, 218, 0.82);
+  box-shadow: 4px 4px 0 var(--ink);
+  font: 900 12px/1.2 ui-monospace, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.language-control select {
+  max-width: min(52vw, 280px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+  font: 900 13px/1.2 Segoe UI, Noto Sans, Arial, sans-serif;
+}
+
+.language-note {
+  max-width: 420px;
+  font: 900 12px/1.25 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--soft-ink);
 }
 .panel-frame {
   position: relative;
@@ -135,6 +172,7 @@ h1 {
   font: 900 16px/1.2 ui-monospace, Menlo, Consolas, monospace;
   box-shadow: 5px 5px 0 rgba(255, 90, 168, 0.82);
   text-align: center;
+  white-space: pre-line;
 }
 .black-strip {
   margin-top: 16px;
@@ -224,9 +262,12 @@ a.btn {
   color: var(--ink);
   text-decoration: none;
   text-transform: uppercase;
-  font: 950 16px/1 Arial Black, Impact, sans-serif;
+  font: 950 16px/1.1 Arial Black, Impact, sans-serif;
   background-image: url("../assets/ui/button_print_tile.png");
   cursor: pointer;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .btn-primary { background-color: var(--pink-hot); }
 .btn-secondary { background-color: var(--mint); }
@@ -274,6 +315,29 @@ output { float: right; font-family: ui-monospace, Menlo, Consolas, monospace; }
   padding: 8px 0;
   border-bottom: 2px dashed rgba(8, 7, 6, 0.36);
   overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+p,
+label,
+small,
+.deck-label,
+.drop-zone,
+.black-strip,
+.ticker-line,
+.site-footer {
+  overflow-wrap: anywhere;
+}
+
+html[dir="rtl"] .deck-label {
+  left: auto;
+  right: 22px;
+}
+
+html[dir="rtl"] .language-bar,
+html[dir="rtl"] .site-footer {
+  direction: rtl;
 }
 
 canvas {

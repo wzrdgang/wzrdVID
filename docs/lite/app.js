@@ -51,6 +51,10 @@
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
+  function t(key, values = {}) {
+    return window.WZRD_I18N ? window.WZRD_I18N.t(key, values) : key;
+  }
+
   function log(message) {
     const line = `[${new Date().toLocaleTimeString()}] ${message}`;
     elements.log.textContent += `\n${line}`;
@@ -102,16 +106,16 @@
       if (kind === 'audio') await setAudioFile(file);
     }
     if (!accepted.length) {
-      log('No timeline media found in that drop.');
+      log(t('lite.log_no_timeline'));
       return;
     }
     for (const item of accepted) {
       try {
         const prepared = await prepareTimelineItem(item.file, item.kind);
         state.media.push(prepared);
-        log(`loaded ${item.kind}: ${item.file.name}`);
+        log(t('lite.log_loaded', { kind: t(`lite.kind.${item.kind}`), name: item.file.name }));
       } catch (error) {
-        log(`could not decode ${item.file.name}: ${error.message || error}. Desktop supports more formats. Lite depends on your browser.`);
+        log(t('lite.log_decode_failed', { name: item.file.name, error: error.message || error }));
       }
     }
     updateFileList();
@@ -121,7 +125,7 @@
   async function setAudioFile(file) {
     const kind = fileKind(file);
     if (kind !== 'audio' && kind !== 'video') {
-      log(`ignored audio drop: ${file.name}`);
+      log(t('lite.log_audio_ignored', { name: file.name }));
       return;
     }
     if (state.audio?.url) URL.revokeObjectURL(state.audio.url);
@@ -129,7 +133,7 @@
     const audio = new Audio(url);
     audio.preload = 'metadata';
     state.audio = { file, url, audio };
-    log(`audio armed: ${file.name}`);
+    log(t('lite.log_audio_armed', { name: file.name }));
     updateFileList();
   }
 
@@ -198,11 +202,11 @@
   function updateFileList() {
     const lines = [];
     state.media.forEach((item, index) => {
-      const duration = item.kind === 'video' ? `${(item.duration || 0).toFixed(1)}s` : '1-3s hold';
-      lines.push(`<li>${index + 1}. ${escapeHtml(item.file.name)} <span>// ${item.kind} // ${duration}</span></li>`);
+      const duration = item.kind === 'video' ? `${(item.duration || 0).toFixed(1)}s` : t('lite.file_duration_hold');
+      lines.push(`<li>${index + 1}. ${escapeHtml(item.file.name)} <span>// ${escapeHtml(t(`lite.kind.${item.kind}`))} // ${escapeHtml(duration)}</span></li>`);
     });
-    if (state.audio) lines.push(`<li>AUDIO. ${escapeHtml(state.audio.file.name)} <span>// local audio bus</span></li>`);
-    elements.fileList.innerHTML = lines.join('') || '<li>No media loaded yet.</li>';
+    if (state.audio) lines.push(`<li>${escapeHtml(t('lite.kind.audio').toUpperCase())}. ${escapeHtml(state.audio.file.name)} <span>// ${escapeHtml(t('lite.file_audio_bus'))}</span></li>`);
+    elements.fileList.innerHTML = lines.join('') || `<li>${escapeHtml(t('lite.no_media'))}</li>`;
   }
 
   function escapeHtml(value) {
@@ -215,7 +219,22 @@
   }
 
   function updateRenderButtonCopy() {
-    elements.renderButton.textContent = `MAKE ${selectedDuration()} SEC CLIP`;
+    elements.renderButton.textContent = t('lite.make_clip', { seconds: selectedDuration() });
+  }
+
+  function updateLocalizedRuntimeText() {
+    document.querySelectorAll('#durationSelect option').forEach((option) => {
+      option.textContent = t('lite.sec', { seconds: option.value });
+    });
+    updateRenderButtonCopy();
+    if (!state.renderedUrl) {
+      elements.downloadButton.textContent = t('lite.download_clip');
+    }
+    if (!state.media.length) {
+      setStatus(t('lite.status_idle'));
+    }
+    updateFileList();
+    drawIdleFrame();
   }
 
   function makeTimeline(duration) {
@@ -336,10 +355,10 @@
     ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = '#a9f4cb';
     ctx.font = `900 ${Math.max(24, width / 28)}px ui-monospace, monospace`;
-    ctx.fillText('//wzrdVID Lite', width * 0.06, height * 0.42);
+    ctx.fillText(t('lite.canvas_title'), width * 0.06, height * 0.42);
     ctx.fillStyle = '#f4a6cf';
     ctx.font = `800 ${Math.max(14, width / 54)}px ui-monospace, monospace`;
-    ctx.fillText('local browser render // no upload', width * 0.06, height * 0.52);
+    ctx.fillText(t('lite.canvas_subtitle'), width * 0.06, height * 0.52);
     drawScanlines(0.24);
   }
 
@@ -354,11 +373,11 @@
 
   async function renderClip() {
     if (!state.media.length) {
-      log('add at least one video or image before rendering');
+      log(t('lite.log_add_before_render'));
       return;
     }
     if (!window.MediaRecorder || !elements.canvas.captureStream) {
-      log('MediaRecorder or canvas capture is not available in this browser.');
+      log(t('lite.log_mediarecorder_missing'));
       return;
     }
 
@@ -403,10 +422,10 @@
       }
     };
 
-    log(`render armed: ${duration.toFixed(0)} sec // ANSI coverage ${ansiPercent}% // ${quality.width}x${quality.height} // ${fps} fps`);
-    log(`timeline segments: ${timeline.length} // ANSI intervals: ${ansiIntervals.length} // seed ${ansiSeed}`);
-    log(mimeType.includes('mp4') ? 'browser MP4 recorder available' : 'browser MP4 recorder unavailable; using WebM prototype fallback');
-    setStatus(`rendering ${duration} sec local clip // no upload`);
+    log(t('lite.log_render_armed', { seconds: duration.toFixed(0), ansi: ansiPercent, width: quality.width, height: quality.height, fps }));
+    log(t('lite.log_timeline', { segments: timeline.length, intervals: ansiIntervals.length, seed: ansiSeed }));
+    log(mimeType.includes('mp4') ? t('lite.log_mp4') : t('lite.log_webm'));
+    setStatus(t('lite.status_rendering', { seconds: duration }));
     setProgress(0);
     const startedAt = performance.now();
     const deadline = startedAt + duration * 1000;
@@ -441,11 +460,17 @@
     const extension = type.includes('mp4') ? 'mp4' : 'webm';
     elements.downloadButton.href = state.renderedUrl;
     elements.downloadButton.download = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
-    elements.downloadButton.textContent = `DOWNLOAD ${extension.toUpperCase()}`;
+    elements.downloadButton.textContent = t('lite.download_type', { type: extension.toUpperCase() });
     elements.downloadButton.className = 'btn btn-primary';
     elements.downloadButton.removeAttribute('aria-disabled');
-    setStatus(`render complete // ${duration} sec target // ${extension.toUpperCase()} ready`);
-    log(`render complete: target ${duration}s // frames ${frameCount}/${expectedFrames} // ${(blob.size / 1024 / 1024).toFixed(2)} MB // ${extension}`);
+    setStatus(t('lite.status_complete', { seconds: duration, type: extension.toUpperCase() }));
+    log(t('lite.log_render_complete', {
+      seconds: duration,
+      frames: frameCount,
+      expected: expectedFrames,
+      size: (blob.size / 1024 / 1024).toFixed(2),
+      type: extension
+    }));
   }
 
   async function prepareAudioStream(duration) {
@@ -453,7 +478,7 @@
     const audio = state.audio.audio;
     const captureStream = audio.captureStream || audio.mozCaptureStream;
     if (!captureStream) {
-      log('audio capture unavailable in this browser; rendering video only');
+      log(t('lite.log_audio_capture_missing'));
       return null;
     }
     audio.pause();
@@ -463,7 +488,7 @@
     const stream = captureStream.call(audio);
     const track = stream.getAudioTracks()[0];
     if (!track) {
-      log('no capturable audio track found; rendering video only');
+      log(t('lite.log_no_audio_track'));
       return null;
     }
     let fadeTimer = 0;
@@ -471,7 +496,7 @@
     return {
       track,
       start: async () => {
-        await audio.play().catch(() => log('audio playback blocked; continuing video render'));
+        await audio.play().catch(() => log(t('lite.log_audio_blocked')));
         fadeTimer = window.setTimeout(() => {
           const started = performance.now();
           fadeInterval = window.setInterval(() => {
@@ -735,6 +760,7 @@
   elements.duration.addEventListener('change', updateRenderButtonCopy);
   elements.quality.addEventListener('change', drawIdleFrame);
   elements.renderButton.addEventListener('click', renderClip);
+  document.addEventListener('wzrdvid:i18n', updateLocalizedRuntimeText);
 
   window.addEventListener('beforeunload', () => {
     revokeRenderedUrl();
@@ -742,7 +768,7 @@
     if (state.audio?.url) URL.revokeObjectURL(state.audio.url);
   });
 
-  updateRenderButtonCopy();
+  updateLocalizedRuntimeText();
   drawIdleFrame();
-  log('Lite is armed. Files stay local in this browser.');
+  log(t('lite.log_armed'));
 })();

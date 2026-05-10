@@ -22,6 +22,7 @@ Product boundaries:
 ## 2. Tech Stack
 
 - Desktop GUI: Python 3, PySide6 QWidget UI.
+- Desktop localization: lightweight dictionary-based UI strings in `app_i18n.py`, with fallback to English.
 - Rendering: OpenCV, Pillow, numpy, ffmpeg/ffprobe helpers.
 - Packaging: PyInstaller, macOS `.app`, ad-hoc codesign in `build_app.sh`.
 - Public site: static HTML/CSS/JS under `docs/`.
@@ -33,6 +34,7 @@ Product boundaries:
 ## 3. Repo Structure
 
 - `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling, render worker threads, drag/drop and file picker wiring.
+- `app_i18n.py`: lightweight desktop UI localization resources and language fallback helpers.
 - `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, optimization handoff.
 - `ffmpeg_utils.py`: ffmpeg/ffprobe discovery, probing, encoding, muxing, source audio building, audio mixing, optimization/transcode helpers.
 - `presets.py`: ANSI/chunky style presets and descriptions.
@@ -43,6 +45,8 @@ Product boundaries:
 - `scripts/generate_branding.py`, `scripts/generate_icon.py`, `scripts/generate_logo.py`, `scripts/generate_ui_textures.py`: generated branding/icon/texture asset scripts.
 - `assets/`: desktop app assets, generated branding/icon/UI textures, public demo screenshots and demo video.
 - `docs/`: GitHub Pages static site and project documentation. `docs/index.html` is the landing page; `docs/lite/` is the Lite app.
+- `docs/i18n.js`: static UI localization resources shared by the landing page and Lite.
+- `docs/I18N.md`: UI localization notes, fallback behavior, and language-addition workflow.
 - `docs/assets/`: Pages copies of selected public assets.
 - `examples/`: placeholder docs for safe example media.
 - `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`: generated/local outputs; do not edit or commit.

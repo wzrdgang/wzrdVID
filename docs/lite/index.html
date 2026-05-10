@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-i18n-title="lite.meta.title" data-i18n-description="lite.meta.description">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,108 +10,117 @@
 </head>
 <body>
   <div class="page-shell">
+    <div class="language-bar" aria-label="Language" data-i18n-aria-label="language.label">
+      <label class="language-control">
+        <span data-i18n="language.label">Language</span>
+        <select data-i18n-language-select aria-label="Language" data-i18n-aria-label="language.label"></select>
+      </label>
+      <span class="language-note" data-i18n="language.note">Draft UI translations. Files stay local.</span>
+    </div>
     <header class="lite-header panel-frame">
-      <a class="back-link" href="../">&lt;&lt; full deck</a>
-      <div class="ticker-line">LITE FEED //// LOCAL BROWSER RENDER //// NO UPLOAD //// MAX 60 SEC</div>
+      <a class="back-link" href="../" data-i18n="lite.back">&lt;&lt; full deck</a>
+      <div class="ticker-line" data-i18n="lite.ticker">LITE FEED //// LOCAL BROWSER RENDER //// NO UPLOAD //// MAX 60 SEC</div>
       <div class="hero-grid">
         <div>
-          <p class="kicker">//wzrdVID Lite</p>
-          <h1>60-second browser chaos cut</h1>
-          <p class="subtitle">local files // no upload // cursed little clips</p>
+          <p class="kicker" data-i18n="lite.kicker">//wzrdVID Lite</p>
+          <h1 data-i18n="lite.title">60-second browser chaos cut</h1>
+          <p class="subtitle" data-i18n="lite.subtitle">local files // no upload // cursed little clips</p>
         </div>
-        <div class="signal-bug">BROWSER ONLY<br>TXT FEED</div>
+        <div class="signal-bug" data-i18n="lite.signal_bug">BROWSER ONLY
+TXT FEED</div>
       </div>
-      <div class="black-strip">&gt;&gt; local browser render // no upload // media never leaves this page _ <span>░▒▓</span></div>
+      <div class="black-strip"><span data-i18n="lite.black_strip">&gt;&gt; local browser render // no upload // media never leaves this page _</span> <span>░▒▓</span></div>
     </header>
 
     <main class="lite-grid">
       <section class="control-deck panel-frame">
-        <div class="deck-label">//// INPUT BUS</div>
+        <div class="deck-label" data-i18n="lite.input_label">//// INPUT BUS</div>
         <div id="mediaDrop" class="drop-zone" tabindex="0">
-          <strong>Add Media</strong>
-          <span>drag videos/photos here</span>
-          <small>desktop supports more formats // Lite depends on your browser</small>
+          <strong data-i18n="lite.add_media">Add Media</strong>
+          <span data-i18n="lite.add_media_hint">drag videos/photos here</span>
+          <small data-i18n="lite.add_media_small">desktop supports more formats // Lite depends on your browser</small>
           <input id="mediaInput" type="file" multiple accept="video/*,image/*,.mp4,.mov,.m4v,.mts,.m2ts,.mkv,.avi,.webm,.png,.jpg,.jpeg,.webp,.avif,.gif,.bmp,.tif,.tiff,.heic,.heif">
         </div>
-        <button id="mediaButton" class="btn btn-secondary" type="button">ADD MEDIA</button>
+        <button id="mediaButton" class="btn btn-secondary" type="button" data-i18n="lite.add_media">ADD MEDIA</button>
 
         <div id="audioDrop" class="drop-zone audio-zone" tabindex="0">
-          <strong>Add Audio</strong>
-          <span>drag audio here</span>
-          <small>mp3 wav m4a flac ogg opus or video with audio</small>
+          <strong data-i18n="lite.add_audio">Add Audio</strong>
+          <span data-i18n="lite.add_audio_hint">drag audio here</span>
+          <small data-i18n="lite.add_audio_small">mp3 wav m4a flac ogg opus or video with audio</small>
           <input id="audioInput" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.aif,.aiff,.mp4,.mov,.m4v,.mts,.m2ts,.avi,.mkv,.webm">
         </div>
-        <button id="audioButton" class="btn btn-secondary" type="button">ADD AUDIO</button>
+        <button id="audioButton" class="btn btn-secondary" type="button" data-i18n="lite.add_audio">ADD AUDIO</button>
 
         <div class="file-list-wrap">
-          <h2>Loaded Files</h2>
-          <ul id="fileList" class="file-list"><li>No media loaded yet.</li></ul>
+          <h2 data-i18n="lite.loaded_files">Loaded Files</h2>
+          <ul id="fileList" class="file-list"><li data-i18n="lite.no_media">No media loaded yet.</li></ul>
         </div>
       </section>
 
       <section class="control-deck panel-frame settings-deck">
-        <div class="deck-label">//// CHAOS SETTINGS</div>
+        <div class="deck-label" data-i18n="lite.settings_label">//// CHAOS SETTINGS</div>
         <label>
-          <span>Preset</span>
+          <span data-i18n="lite.preset">Preset</span>
           <select id="presetSelect">
-            <option>Chunkcore Chaos</option>
-            <option>Classic ANSI Lite</option>
-            <option>VHS Damage Lite</option>
-            <option>Dial-Up Glitch</option>
-            <option>PUBLIC ACCESS</option>
+            <option value="Chunkcore Chaos" data-i18n="lite.preset.chunkcore">Chunkcore Chaos</option>
+            <option value="Classic ANSI Lite" data-i18n="lite.preset.classic">Classic ANSI Lite</option>
+            <option value="VHS Damage Lite" data-i18n="lite.preset.vhs">VHS Damage Lite</option>
+            <option value="Dial-Up Glitch" data-i18n="lite.preset.dialup">Dial-Up Glitch</option>
+            <option value="PUBLIC ACCESS" data-i18n="lite.preset.public">PUBLIC ACCESS</option>
           </select>
         </label>
 
         <label>
-          <span>ANSI Coverage <output id="ansiValue">70%</output></span>
+          <span><span data-i18n="lite.ansi_coverage">ANSI Coverage</span> <output id="ansiValue">70%</output></span>
           <input id="ansiAmount" type="range" min="0" max="100" value="70">
-          <small>Random portions of the final clip become ANSI/text-art. 0% = normal, 100% = full ANSI.</small>
+          <small data-i18n="lite.ansi_help">Random portions of the final clip become ANSI/text-art. 0% = normal, 100% = full ANSI.</small>
         </label>
 
         <label>
-          <span>Clip Length</span>
+          <span data-i18n="lite.clip_length">Clip Length</span>
           <select id="durationSelect">
-            <option value="15">15 sec</option>
-            <option value="30" selected>30 sec</option>
-            <option value="60">60 sec</option>
+            <option value="15" data-i18n="lite.sec">15 sec</option>
+            <option value="30" selected data-i18n="lite.sec">30 sec</option>
+            <option value="60" data-i18n="lite.sec">60 sec</option>
           </select>
         </label>
 
         <label>
-          <span>Quality</span>
+          <span data-i18n="lite.quality">Quality</span>
           <select id="qualitySelect">
-            <option value="fast">Fast 480p</option>
-            <option value="better">Better 720p</option>
+            <option value="fast" data-i18n="lite.fast">Fast 480p</option>
+            <option value="better" data-i18n="lite.better">Better 720p</option>
           </select>
         </label>
 
         <button id="renderButton" class="btn btn-primary" type="button">MAKE 30 SEC CLIP</button>
-        <a id="downloadButton" class="btn btn-disabled" aria-disabled="true">DOWNLOAD CLIP</a>
-        <p class="small-note">Prototype note: Lite records with the browser's built-in MediaRecorder. It saves MP4 when the browser supports MP4 recording, otherwise it falls back to WebM. Desktop supports more formats. Lite depends on your browser.</p>
+        <a id="downloadButton" class="btn btn-disabled" aria-disabled="true" data-i18n="lite.download_clip">DOWNLOAD CLIP</a>
+        <p class="small-note" data-i18n="lite.prototype_note">Prototype note: Lite records with the browser's built-in MediaRecorder. It saves MP4 when the browser supports MP4 recording, otherwise it falls back to WebM. Desktop supports more formats. Lite depends on your browser.</p>
       </section>
 
       <section class="preview-deck panel-frame">
-        <div class="deck-label">//// PREVIEW OUTPUT</div>
+        <div class="deck-label" data-i18n="lite.preview_label">//// PREVIEW OUTPUT</div>
         <canvas id="previewCanvas" width="854" height="480"></canvas>
         <div class="progress-wrap">
           <div id="progressBar" class="progress-bar"><span></span></div>
-          <p id="statusLine">Drop local media to arm the deck.</p>
+          <p id="statusLine" data-i18n="lite.status_idle">Drop local media to arm the deck.</p>
         </div>
       </section>
 
       <section class="log-deck panel-frame">
-        <div class="deck-label">//// LOG</div>
-        <pre id="logOutput">local browser render // no upload
+        <div class="deck-label" data-i18n="lite.log_label">//// LOG</div>
+        <pre id="logOutput" data-i18n="lite.log_initial">local browser render // no upload
 waiting for files _</pre>
       </section>
     </main>
 
     <footer class="site-footer panel-frame">
       <span>//// WZRD.VID LITE ////</span>
-      <span>LOCAL FILES | NO UPLOAD | 60 SEC MAX</span>
+      <span data-i18n="lite.footer_mid">LOCAL FILES | NO UPLOAD | 60 SEC MAX</span>
       <span>worky.mode / wzrdgang</span>
     </footer>
   </div>
+  <script src="../i18n.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
