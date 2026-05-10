@@ -17,6 +17,32 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite real-device checklist blocked by signing
+
+- Agent/task: Codex / rerun the Apple Lite real-device checklist after Developer Mode was enabled on the connected iPhone.
+- Intent: Re-attempt physical-device build/install, update the device-test log and native bridge decision, and avoid code changes unless a confirmed import/export blocker appears.
+- Files changed this pass: `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No. Documentation/logging only; Apple Lite code, desktop renderer/performance, Lite browser behavior, packaging, publishing, pushing, and tagging were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; `xcrun xcdevice list --timeout 10`; `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30`; `xcrun devicectl list devices --timeout 30`; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `security find-identity -v -p codesigning`; physical-device `xcodebuild` with `DEVELOPMENT_TEAM=3367V5767A`; `find ~/Library/MobileDevice/Provisioning Profiles ...`; `xcrun devicectl device info details --device E3AA485E-F6D0-51A3-848F-9143BA1FC07E`; checked for existing installed WZRD.VID Lite app on the device.
+- Checks passed: The connected `iPhone14` is now a usable physical destination in Xcode destination discovery. CoreDevice reports Developer Mode enabled, DDI services available, wired tunnel connected, install and launch capabilities, and UDID `00008110-001C4D410C85401E`. The local Apple Development signing identity `Apple Development: samchasehowell@gmail.com (3367V5767A)` exists.
+- Checks failed/blocked: The physical-device build failed before install because Xcode has no configured account/provisioning profile for Team `3367V5767A` and bundle ID `com.samhowell.wzrdvid.lite`: `No Account for Team "3367V5767A"` and `No profiles for 'com.samhowell.wzrdvid.lite' were found`. No provisioning profiles were present under `~/Library/MobileDevice/Provisioning Profiles`, and no existing WZRD.VID Lite app was installed on the device.
+- Decisions made: Do not add a native import/share bridge yet. The pass is blocked by local signing/provisioning before app launch, so there is still no confirmed WKWebView import/export failure to fix.
+- Known gaps: Physical-device Lite launch, offline load, language switching, Photos/Files import, random clip rendering, and export/share behavior remain unverified until Xcode account/provisioning is configured.
+- Next recommended prompt: Configure Xcode signing for WZRD.VID Lite on the connected iPhone, then rerun the Apple Lite real-device checklist and update the native bridge decision.
+
+## 2026-05-10 - Apple Lite real-device checklist blocked by Developer Mode
+
+- Agent/task: Codex / continue the Apple Lite real-device checklist after the user connected an unlocked trusted iPhone with Developer Mode reportedly enabled.
+- Intent: Attempt the physical-device WZRD.VID Lite checklist and update the device-test log, without changing Apple Lite, desktop, renderer, Lite browser behavior, packaging, publishing, pushing, or tagging.
+- Files changed this pass: `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No. Documentation/logging only; no native import/share bridge was implemented because no app-level import/export blocker was reached.
+- Commands run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; `xcrun devicectl list devices --timeout 30`; `xcrun xctrace list devices`; `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30`; `system_profiler SPUSBDataType` with iPhone/iPad grep; `xcrun devicectl device info details --device 47F38D01-B5D9-5F4F-8976-808134B26783`; `xcrun devicectl manage pair --device 47F38D01-B5D9-5F4F-8976-808134B26783 --timeout 30`; `ioreg -p IOUSB -l -w0` with iPhone/iPad grep; `xcrun xcdevice list --timeout 10`; physical-device `xcodebuild` attempt for UDID `00008110-001C4D410C85401E`.
+- Checks passed: `ioreg` showed a physical USB `iPhone`, and `xcrun xcdevice list --timeout 10` showed USB device `iPhone14` on iOS `26.4.2` as available with UDID `00008110-001C4D410C85401E`.
+- Checks failed/blocked: The stale CoreDevice record for `rivers' iPhone` remained `unavailable`/offline. `devicectl device info details` reported `developerModeStatus: disabled`, `ddiServicesAvailable: false`, and `tunnelState: unavailable`; `devicectl manage pair` failed with CoreDevice error `4000`. The direct physical-device `xcodebuild` attempt for the available USB UDID failed before build/install with `Developer Mode disabled To use iPhone14 for development, enable Developer Mode in Settings -> Privacy & Security.`
+- Decisions made: Do not add a native import/share bridge yet. The real-device checklist remains blocked before app launch, so there is no confirmed WKWebView import/export failure to fix.
+- Known gaps: Physical-device Lite launch, offline load, language switching, local Photos/Files import, random clip rendering, and export/share behavior remain unverified.
+- Next recommended prompt: Re-enable Developer Mode on the connected iPhone, reboot/reconnect until Xcode lists it as an available run destination, then rerun the Apple Lite real-device checklist and update the native bridge decision.
+
 ## 2026-05-10 - Apple Lite real-device manual test guide
 
 - Agent/task: Codex / manually test WZRD.VID Lite on a real iPhone/iPad with local videos/photos, then decide whether a native import/share bridge is needed before TestFlight setup.
