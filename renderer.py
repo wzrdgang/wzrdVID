@@ -7,6 +7,7 @@ import math
 import random
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -40,6 +41,8 @@ MATCH_TRIM = "Trim timeline to music"
 MATCH_LOOP = "Loop timeline to music"
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
+LONG_MEDIA_WARNING_SECONDS = 30 * 60
+VERY_LONG_MEDIA_WARNING_SECONDS = 60 * 60
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Menlo.ttc",
@@ -217,16 +220,19 @@ def render_project(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     _emit(log, "Probing selected media.")
+    probe_started = time.perf_counter()
     timeline_segments, timeline_duration = _build_timeline(settings)
     audio_mode = _audio_mode(settings)
     external_audio = _uses_external_audio(settings)
 
     audio_start = settings.audio_start
     audio_end = settings.audio_end
+    external_audio_duration: float | None = None
     selected_audio_duration: float | None = None
     selected_audio_clip_duration: float | None = None
     if external_audio:
         audio_duration = ffmpeg_utils.get_audio_duration(settings.audio_path)
+        external_audio_duration = audio_duration
         audio_start, audio_end = ffmpeg_utils.validate_time_range(
             audio_start,
             audio_end,
@@ -261,7 +267,16 @@ def render_project(
             speed_factor=1.0,
             loop_timeline=False,
         )
+    _emit_elapsed(log, "Probe/planning stage", probe_started)
     render_duration = playback.output_duration
+    _emit_long_media_warnings(
+        timeline_segments,
+        playback,
+        external_audio_duration=external_audio_duration,
+        selected_audio_clip_duration=selected_audio_clip_duration,
+        settings=settings,
+        log=log,
+    )
     source_count = len({segment.path for segment in timeline_segments})
     _emit(
         log,
@@ -365,6 +380,7 @@ def render_project(
         frames_dir.mkdir()
         silent_video = temp_root_path / "silent.mp4"
 
+        frame_stage_started = time.perf_counter()
         _render_frames(
             settings=settings,
             preset=preset,
@@ -377,9 +393,11 @@ def render_project(
             progress=progress,
             log=log,
         )
+        _emit_elapsed(log, "Frame render stage", frame_stage_started)
 
         _emit(log, "Encoding rendered frames to MP4.")
         _emit_progress(progress, 90)
+        encode_started = time.perf_counter()
         ffmpeg_utils.encode_frames_to_mp4(
             frames_dir / "frame_%06d.png",
             settings.fps,
@@ -388,10 +406,12 @@ def render_project(
             crf=settings.video_crf,
             video_bitrate=target_bitrate,
         )
+        _emit_elapsed(log, "Frame encode stage", encode_started)
 
         source_audio_path: Path | None = None
         if source_audio:
             _emit(log, "Building selected source timeline audio.")
+            source_audio_started = time.perf_counter()
             try:
                 source_audio_path = ffmpeg_utils.build_timeline_audio(
                     timeline_segments,
@@ -403,6 +423,7 @@ def render_project(
                     fade_out_duration=_audio_fade_duration(settings, render_duration),
                     log=log,
                 )
+                _emit_elapsed(log, "Source audio stage", source_audio_started)
             except Exception as exc:  # noqa: BLE001 - random slices must fail soft for source audio.
                 if not settings.random_clip_assembly:
                     raise
@@ -413,6 +434,7 @@ def render_project(
         if external_audio and source_audio_path is not None and audio_mode == AUDIO_MIX and not settings.match_timeline_to_audio:
             _emit(log, "Mixing external audio with selected source audio.")
             _emit_progress(progress, 95)
+            audio_mix_started = time.perf_counter()
             mixed_audio = ffmpeg_utils.mix_external_and_source_audio(
                 settings.audio_path,
                 source_audio_path,
@@ -426,6 +448,8 @@ def render_project(
                 external_output_end=settings.audio_timeline_end,
                 log=log,
             )
+            _emit_elapsed(log, "External/source audio mix stage", audio_mix_started)
+            audio_mux_started = time.perf_counter()
             ffmpeg_utils.mux_audio(
                 silent_video,
                 mixed_audio,
@@ -437,9 +461,11 @@ def render_project(
                 fade_out_duration=0.0,
                 log=log,
             )
+            _emit_elapsed(log, "Audio mux stage", audio_mux_started)
         elif external_audio:
             _emit(log, "Muxing selected external audio into final MP4.")
             _emit_progress(progress, 95)
+            audio_mux_started = time.perf_counter()
             ffmpeg_utils.mux_audio(
                 silent_video,
                 settings.audio_path,
@@ -454,9 +480,11 @@ def render_project(
                 worky_music_mode=settings.worky_music_mode,
                 log=log,
             )
+            _emit_elapsed(log, "External audio mux stage", audio_mux_started)
         elif source_audio_path is not None:
             _emit(log, "Muxing selected source timeline audio into final MP4.")
             _emit_progress(progress, 95)
+            audio_mux_started = time.perf_counter()
             ffmpeg_utils.mux_audio(
                 silent_video,
                 source_audio_path,
@@ -468,13 +496,16 @@ def render_project(
                 fade_out_duration=0.0,
                 log=log,
             )
+            _emit_elapsed(log, "Source audio mux stage", audio_mux_started)
         else:
             if source_audio:
                 _emit(log, "No selected source audio found. Writing silent MP4.")
             else:
                 _emit(log, "Writing silent MP4.")
             _emit_progress(progress, 95)
+            silent_mux_started = time.perf_counter()
             ffmpeg_utils.write_silent_output(silent_video, output_path, log=log)
+            _emit_elapsed(log, "Silent output stage", silent_mux_started)
 
         final_output_path = output_path
         if settings.optimize_enabled:
@@ -482,6 +513,7 @@ def render_project(
             _emit(log, f"Optimizing final video to <= {settings.optimize_target_mb:.1f} MB.")
             _emit(log, f"Keeping unoptimized intermediate: {output_path}")
             _emit_progress(progress, 97)
+            optimize_started = time.perf_counter()
             result = ffmpeg_utils.optimize_mp4_to_target(
                 output_path,
                 optimized_path,
@@ -489,6 +521,7 @@ def render_project(
                 settings.audio_bitrate,
                 log=log,
             )
+            _emit_elapsed(log, "Optimization stage", optimize_started)
             final_output_path = Path(str(result["output_path"]))
             _emit(
                 log,
@@ -502,6 +535,66 @@ def render_project(
     _emit_progress(progress, 100)
     _emit(log, f"Done: {final_output_path}")
     return str(final_output_path)
+
+
+def _emit_elapsed(log: LogCallback, label: str, started_at: float) -> None:
+    elapsed = max(0.0, time.perf_counter() - started_at)
+    _emit(log, f"{label} completed in {elapsed:.2f}s.")
+
+
+def _emit_long_media_warnings(
+    timeline_segments: list[TimelineSegment],
+    playback: PlaybackPlan,
+    *,
+    external_audio_duration: float | None,
+    selected_audio_clip_duration: float | None,
+    settings: RenderSettings,
+    log: LogCallback,
+) -> None:
+    warned_video = False
+    seen_paths: set[str] = set()
+    for segment in timeline_segments:
+        if segment.kind != "video" or segment.path in seen_paths:
+            continue
+        seen_paths.add(segment.path)
+        try:
+            source_duration = ffmpeg_utils.get_duration(segment.path)
+        except Exception:  # noqa: BLE001 - warning-only path should never block render.
+            continue
+        if source_duration < LONG_MEDIA_WARNING_SECONDS:
+            continue
+        warned_video = True
+        threshold = "over 1 hour" if source_duration >= VERY_LONG_MEDIA_WARNING_SECONDS else "over 30 minutes"
+        _emit(
+            log,
+            "Long source warning: "
+            f"{Path(segment.path).name} is {ffmpeg_utils.format_duration(source_duration)} ({threshold}). "
+            "WZRD.VID samples the requested output frames, but long files can still make seeking and source-audio extraction slower.",
+        )
+
+    if warned_video and settings.random_clip_assembly:
+        _emit(
+            log,
+            "Random clip assembly warning: random segments from long videos can trigger many seeks. "
+            "If this render is slow, lower Max video length, FPS, or source count.",
+        )
+
+    if external_audio_duration is not None and external_audio_duration >= LONG_MEDIA_WARNING_SECONDS:
+        selected = ffmpeg_utils.format_duration(selected_audio_clip_duration)
+        threshold = "over 1 hour" if external_audio_duration >= VERY_LONG_MEDIA_WARNING_SECONDS else "over 30 minutes"
+        _emit(
+            log,
+            "Long audio warning: "
+            f"external audio is {ffmpeg_utils.format_duration(external_audio_duration)} ({threshold}); "
+            f"selected audio clip is {selected}. WZRD.VID trims only the active output span before muxing/worky processing, "
+            "but long containers can still add probe and seek time.",
+        )
+
+    if playback.source_duration >= LONG_MEDIA_WARNING_SECONDS and settings.max_video_length is not None:
+        _emit(
+            log,
+            "Long timeline note: Max video length caps the output duration, not the cost of every source seek or selected source-audio extraction.",
+        )
 
 
 def _validate_settings(settings: RenderSettings) -> None:

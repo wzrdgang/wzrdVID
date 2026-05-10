@@ -18,7 +18,7 @@ This map describes the current repository so future agents can edit with context
 - Purpose: Builds a virtual media timeline from videos/photos, samples frames, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output.
 - Inbound dependencies: `app.py` render settings, timeline items, user selected output path, source media files.
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
-- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, and audio duration expectations. Run focused smoke tests after edits.
+- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, and audio duration expectations. Run focused smoke tests after edits.
 
 ### ffmpeg and Media Utilities
 
@@ -26,7 +26,7 @@ This map describes the current repository so future agents can edit with context
 - Purpose: ffmpeg/ffprobe discovery, duration/stream probing, timecode parsing, video encoding, audio trim/mux/mix, source timeline audio construction, H.264/AAC optimization, and file-size targeting.
 - Inbound dependencies: `app.py`, `renderer.py`, user-selected video/audio files, render duration and output-size settings.
 - Outbound dependencies: system `ffmpeg`/`ffprobe`, subprocess calls, temp files, MP4/AAC outputs.
-- High-risk notes: Path quoting, spaces, video-container audio, audio offsets, source audio mixing, and two-pass optimization depend on this file. Avoid `shell=True` unless absolutely necessary.
+- High-risk notes: Path quoting, spaces, video-container audio, audio offsets, source audio mixing, probe cache correctness, and two-pass optimization depend on this file. `probe_media()` caches ffprobe metadata in-process by resolved path, mtime, and size; preserve helper signatures and avoid mutating returned probe dictionaries in place. Avoid `shell=True` unless absolutely necessary.
 
 ### Launchers and Source-Run Support
 
@@ -203,6 +203,7 @@ This map describes the current repository so future agents can edit with context
 - Static assets safe to edit with care: `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/demos/`, `assets/screenshots/`, `docs/assets/`.
 - Generated/build outputs: `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`, `WZRD.VID.spec`, `tmp/`, `temp/`, local release zips.
 - Media handling rules: Do not commit random copyrighted media or large local renders. Release-safe demo/screenshot assets under `assets/` and `docs/assets/` are intentionally allowed by `.gitignore` negation rules.
+- Performance/release planning notes: `docs/PERFORMANCE_NOTES.md` records long-media audit/stress findings; `docs/APPLE_LITE_APP_RESEARCH.md` records Apple Lite app groundwork research only.
 
 ## 6. Dependency Map
 

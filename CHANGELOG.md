@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.0 — Unreleased
+
+- Started v0.2.0 performance hardening with in-process ffprobe metadata caching for repeated duration and stream helper calls.
+- Added render-stage timing logs and long-media warnings for 30+ minute source video/audio inputs.
+- Ran synthetic long-media stress smokes covering max length, random clip assembly, source/external audio, worky mode, match-to-music rejection, and preview-like renders.
+- Documented WZRD.VID Lite Apple app groundwork as research only while Apple Developer/D-U-N-S setup is pending.
+
 ## v0.1.9 — 2026-05-10
 
 - Added UI localization architecture for the desktop app, wzrdvid.com, and WZRD.VID Lite with English fallback and draft translations for the initial target language set.

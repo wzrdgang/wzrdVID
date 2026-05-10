@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import platform
@@ -18,6 +19,8 @@ MACOS_HOMEBREW_DIRS = [
     Path("/usr/local/bin"),
 ]
 UNIX_FALLBACK_DIRS = [Path("/usr/bin"), Path("/bin")]
+_PROBE_CACHE_MAX = 256
+_PROBE_CACHE: dict[tuple[str, int, int], dict] = {}
 
 
 class FFmpegError(RuntimeError):
@@ -152,9 +155,14 @@ def format_duration(seconds: float | None) -> str:
 
 def probe_media(path: str | Path) -> dict:
     ffprobe_path = require_binary("ffprobe")
-    media_path = str(path)
-    if not Path(media_path).exists():
+    media = Path(path).expanduser()
+    media_path = str(media)
+    if not media.exists():
         raise FileNotFoundError(f"File does not exist: {media_path}")
+    cache_key = _probe_cache_key(media)
+    cached = _PROBE_CACHE.get(cache_key)
+    if cached is not None:
+        return copy.deepcopy(cached)
 
     args = [
         ffprobe_path,
@@ -171,7 +179,23 @@ def probe_media(path: str | Path) -> dict:
         data = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
         raise FFmpegError(f"ffprobe returned invalid JSON for {media_path}") from exc
-    return data
+    _remember_probe(cache_key, data)
+    return copy.deepcopy(data)
+
+
+def _probe_cache_key(media_path: Path) -> tuple[str, int, int]:
+    stat = media_path.stat()
+    return (
+        str(media_path.resolve(strict=False)),
+        int(stat.st_mtime_ns),
+        int(stat.st_size),
+    )
+
+
+def _remember_probe(cache_key: tuple[str, int, int], data: dict) -> None:
+    if len(_PROBE_CACHE) >= _PROBE_CACHE_MAX:
+        _PROBE_CACHE.pop(next(iter(_PROBE_CACHE)))
+    _PROBE_CACHE[cache_key] = copy.deepcopy(data)
 
 
 def first_stream(path: str | Path, codec_type: str) -> dict | None:

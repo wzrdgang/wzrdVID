@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - v0.2.0 performance hardening and Apple Lite groundwork
+
+- Agent/task: Codex / v0.2.0 performance audit, conservative optimization pass, long-media stress smoke, and Apple Lite app groundwork research.
+- Intent: Treat v0.2.0 as performance hardening plus Apple/Lite rollout preparation by auditing long-media risks first, then making only low-risk measured changes and documenting Apple app options without publishing, pushing, tagging, packaging, or adding UI/effects features.
+- Files changed this pass: `ffmpeg_utils.py`, `renderer.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, performance/logging only. ffprobe metadata is cached in-process by resolved path, mtime, and size; render logs now include stage timing; 30+ minute source video/audio inputs emit long-media warnings. Visual output, recipe schema, Lite behavior, deployment config, packaging, publishing, pushing, and tagging were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; performance audit greps/reads across `app.py`, `renderer.py`, `ffmpeg_utils.py`, README, changelog, and prior logs; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; synthetic media generation and render stress smokes with ffmpeg/ffprobe using the repo `.venv`; probe-cache smoke; official Apple Developer docs research for enrollment, App Review, privacy, App Store Connect, SDK submission requirements, and WKWebView local-file loading; `git diff --check`.
+- Checks passed: Python and JavaScript syntax checks passed before stress. Probe cache smoke showed repeated duration/audio/video helper calls for the same file issued 1 ffprobe call total. Synthetic stress smokes passed for baseline short render, long source to 10s, long source to 90s, long source plus random/photo, source-audio only, long external audio only, long external audio with worky mode, external plus selected source audio, random plus source audio, random plus match-to-music rejection, and 5s/10s preview-like renders. Outputs were verified with ffprobe for duration/audio presence where applicable.
+- Checks failed: The first stress attempt used system Python and failed because `cv2` was not installed there; reran with the repo `.venv` and passed.
+- Decisions made: Added conservative runtime probe caching and observability instead of rewriting frame seeking, changing ffmpeg command structure, changing the worky profile, changing recipe schema, or touching Lite. Apple app work remains research-only until Developer/D-U-N-S setup is complete.
+- Known gaps: Real 4K/60fps, variable-frame-rate, long-GOP, and difficult phone footage still need beta testing. OpenCV timestamp seeking remains the likely long-video/random-mode bottleneck. PNG frame staging can still grow with long/high-FPS outputs. Source-audio random assembly can still get expensive with many short segments. Apple Lite app implementation is intentionally not scaffolded yet.
+- Next recommended prompt: Run a v0.2.0 beta media pass with real long phone footage, then start WZRD.VID Lite Apple app packaging only after no desktop performance blockers remain.
+
 ## 2026-05-10 - Final v0.1.9 rebuild and package validation
 
 - Agent/task: Codex / final v0.1.9 rebuild/package after full desktop/site/Lite localization coverage.
