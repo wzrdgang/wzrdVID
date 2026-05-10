@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Final v0.1.9 rebuild and package validation
+
+- Agent/task: Codex / final v0.1.9 rebuild/package after full desktop/site/Lite localization coverage.
+- Intent: Re-run final validation, rebuild the packaged macOS app, package the release ZIP, verify version/size/checksum, and hand off for manual review without publishing, pushing, tagging, or creating a GitHub Release.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No. Validation and packaging only; no source UI, layout, copy, renderer/media, Lite render behavior, deployment config, version metadata, or release publication changes were made.
+- Commands run: `git status --short --branch`; `git log --oneline -15`; required repo docs reads; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`; local Pages server with `curl` checks for `/`, `/lite/`, and `/i18n.js`; source/offscreen desktop smoke for header placement and Spanish/Russian/Japanese/Arabic localization; `./build_app.sh`; `scripts/package_release.sh`; Info.plist version check; ZIP size check; SHA256 check; final `git status --short --branch`.
+- Checks passed: Current HEAD includes the v0.1.9 release-prep commit, Phase A/B commits, README wording fix, header placement fix, desktop localization coverage commit, and site/Lite localization coverage commit. Python and JavaScript syntax checks passed. Lite forbidden-network grep returned no forbidden APIs. Static Pages root, Lite, and `i18n.js` loaded. Source/offscreen desktop smoke confirmed the header utility row is below the mint bus strip, language selector and update controls exist there, Download Update remains hidden/disabled initially, Spanish/Russian/Japanese/Arabic primary UI strings update, and max video length/random clip assembly controls exist. `dist/WZRD.VID.app` rebuilt and `WZRD.VID-macOS.zip` was packaged. Bundle plist reports `CFBundleShortVersionString` and `CFBundleVersion` as `0.1.9`.
+- Checks failed: Initial offscreen smoke attempted to compare coordinates for the hidden Download Update button and failed because hidden Qt widgets report unreliable geometry; rerun validated its header parentage plus hidden/disabled state and passed. System Python lacks PySide6, so the desktop smoke used the repo `.venv`.
+- Release artifact: `WZRD.VID-macOS.zip`, 76M, SHA256 `3e11371e25abe8620b698605b95ced490483ac2c558e70d9dee0c9857e4bde54`.
+- Decisions made: Generated build outputs under `build/` and `dist/` and the release ZIP were kept as local release artifacts and were not committed.
+- Known gaps: Manual review of the final packaged app and Lite remains before publication. Non-English translations remain draft/non-native-reviewed, and Arabic RTL support remains structural only.
+- Next recommended prompt: Manually review the final packaged v0.1.9 app and Lite, then publish v0.1.9 on GitHub Releases with the final rebuilt ZIP and SHA256.
+
 ## 2026-05-10 - Full site and Lite localization key coverage
 
 - Agent/task: Codex / normalize public site and WZRD.VID Lite localization coverage across all supported languages before v0.1.9 publication.
