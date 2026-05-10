@@ -20,6 +20,8 @@
     media: [],
     audio: null,
     renderedUrl: null,
+    renderedBlob: null,
+    renderedFilename: '',
     renderedType: '',
     renderAbort: false
   };
@@ -96,8 +98,52 @@
   function revokeRenderedUrl() {
     if (state.renderedUrl) URL.revokeObjectURL(state.renderedUrl);
     state.renderedUrl = null;
+    state.renderedBlob = null;
+    state.renderedFilename = '';
     state.renderedType = '';
   }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('blob read failed'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function shareRenderedClipWithNative() {
+    const bridge = window.webkit?.messageHandlers?.wzrdvidExport;
+    if (!bridge || !state.renderedBlob) return false;
+
+    const dataUrl = await blobToDataUrl(state.renderedBlob);
+    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const id = `export-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const chunkSize = 256 * 1024;
+    const chunkCount = Math.max(1, Math.ceil(base64.length / chunkSize));
+    bridge.postMessage({
+      action: 'start',
+      id,
+      filename: state.renderedFilename || 'wzrdvid-lite.mp4',
+      mimeType: state.renderedBlob.type || state.renderedType || 'video/mp4',
+      chunkCount
+    });
+    for (let index = 0; index < chunkCount; index += 1) {
+      bridge.postMessage({
+        action: 'chunk',
+        id,
+        index,
+        data: base64.slice(index * chunkSize, (index + 1) * chunkSize)
+      });
+    }
+    bridge.postMessage({ action: 'finish', id });
+    return true;
+  }
+
+  window.WZRDVID_LITE_EXPORT = {
+    hasRenderedClip: () => Boolean(state.renderedBlob && state.renderedFilename),
+    shareRenderedClip: shareRenderedClipWithNative
+  };
 
   async function addMediaFiles(files) {
     const accepted = [];
@@ -493,10 +539,12 @@
     const type = recorder.mimeType || mimeType || 'video/webm';
     const blob = new Blob(chunks, { type });
     state.renderedType = type;
+    state.renderedBlob = blob;
     state.renderedUrl = URL.createObjectURL(blob);
     const extension = type.includes('mp4') ? 'mp4' : 'webm';
+    state.renderedFilename = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
     elements.downloadButton.href = state.renderedUrl;
-    elements.downloadButton.download = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
+    elements.downloadButton.download = state.renderedFilename;
     elements.downloadButton.textContent = t('lite.download_type', { type: extension.toUpperCase() });
     elements.downloadButton.className = 'btn btn-primary';
     elements.downloadButton.removeAttribute('aria-disabled');

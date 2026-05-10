@@ -61,7 +61,7 @@ Do not try to ship the desktop renderer, bundled ffmpeg, or full desktop feature
 - `apple-lite/scripts/run_simulator_smoke.py` builds the project, installs the app on an available iPhone simulator, and launches a debug-only WKWebView smoke harness for bundled Lite load, local import surface, language switching, random clip rendering, and download-link readiness.
 - `apple-lite/README.md` documents the Xcode project, target setup, local-only boundaries, and required simulator/device smokes.
 - `docs/APPLE_LITE_DEVICE_TEST_LOG.md` tracks the guided real-device manual test and native import/share bridge decision.
-- No signing state, Team ID, App Store Connect app record, TestFlight build, or native export bridge has been added yet.
+- A first native export/share bridge has been added after real-device testing confirmed the WKWebView blob download handoff opened rendered clips for playback instead of giving a reliable save/share path. No production signing state, App Store Connect app record, or TestFlight build has been added yet.
 
 ## Product Boundaries
 

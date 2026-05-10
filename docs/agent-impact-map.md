@@ -144,7 +144,7 @@ This map describes the current repository so future agents can edit with context
 
 - Entry point: `docs/lite/index.html`, Add Media, Add Audio, drag/drop, MAKE CLIP.
 - UI/component path: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`.
-- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, optional random clip assembly state, ANSI intervals, Canvas state, MediaRecorder blobs. UI language preference may be stored in localStorage only.
+- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, optional random clip assembly state, ANSI intervals, Canvas state, MediaRecorder blobs, and the latest rendered Blob for native Apple Lite export handoff. UI language preference may be stored in localStorage only.
 - Asset/media path: local user files only; browser object URLs; no upload/server path.
 - Success behavior: Browser renders a max 15/30/60-second local chaos cut, optionally assembling random local sections up to the selected duration, and exposes a download button.
 - Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback.
@@ -156,8 +156,8 @@ This map describes the current repository so future agents can edit with context
 - UI/component path: `ContentView.swift` embeds `LiteWebView.swift`, which loads bundled local Lite web files into `WKWebView`.
 - Data/state path: same Lite browser runtime model: local file picker/object URLs/Canvas/Web Audio/MediaRecorder, plus local UI language preference from the existing Lite JavaScript.
 - Asset/media path: `apple-lite/scripts/prepare_lite_web_bundle.py` copies `docs/lite/`, `docs/i18n.js`, and referenced `docs/assets/{branding,logo,ui}/` into ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
-- Success behavior: The native shell loads bundled Lite files locally and cancels non-local navigation. Debug simulator builds can run `apple-lite/scripts/run_simulator_smoke.py`, which launches the app with a debug-only WKWebView smoke harness for local import surface, language switching, random clip rendering, and blob download readiness.
-- Failure/empty behavior: Missing generated `LiteWeb/` shows a native-shell HTML error. WKWebView blob download/export may require a future native share/export bridge.
+- Success behavior: The native shell loads bundled Lite files locally and cancels non-local navigation. Rendered Lite blobs can be handed to Swift through a `WKScriptMessageHandler`, written to a temporary local file, and presented through the iOS share sheet. Debug simulator builds can run `apple-lite/scripts/run_simulator_smoke.py`, which launches the app with a debug-only WKWebView smoke harness for local import surface, language switching, random clip rendering, native export surface, and blob download readiness.
+- Failure/empty behavior: Missing generated `LiteWeb/` shows a native-shell HTML error. Real-device testing found WKWebView blob downloads opened the clip for playback without a reliable save/share path, so export now uses the native bridge. Apple Lite audio from added audio/source clips remains unresolved and needs separate real-device investigation.
 - Files likely involved in changes: `apple-lite/WZRDVIDLite.xcodeproj`, `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/WZRDVIDLite/App/Info.plist`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `apple-lite/scripts/run_simulator_smoke.py`, `docs/lite/*`.
 
 ### GitHub Pages Deployment
@@ -179,7 +179,7 @@ This map describes the current repository so future agents can edit with context
 - GitHub Pages local preview: serve `docs/` with a simple static server such as `python3 -m http.server` from the `docs` directory.
 - GitHub Pages deployment: GitHub repo settings should deploy branch `main`, folder `/docs`, custom domain `wzrdvid.com` via `docs/CNAME`.
 - Apple Lite local bundle prep: `python3 apple-lite/scripts/prepare_lite_web_bundle.py` generates ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/` for Xcode folder-reference inclusion.
-- Apple Lite simulator smoke: `python3 apple-lite/scripts/run_simulator_smoke.py` builds `apple-lite/WZRDVIDLite.xcodeproj`, installs the app on an available iPhone simulator, and runs the debug-only WKWebView smoke harness.
+- Apple Lite simulator smoke: `python3 apple-lite/scripts/run_simulator_smoke.py` builds `apple-lite/WZRDVIDLite.xcodeproj`, installs the app on an available iPhone simulator, and runs the debug-only WKWebView smoke harness, including native export bridge surface checks.
 - GitHub Actions workflow: Not present in repo.
 - Output directories: `dist/`, `build/`, `.pyinstaller-cache/`, `.venv/`, caches, temp folders, and release zip are generated/local outputs unless explicitly being packaged outside source control.
 - Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
@@ -202,7 +202,7 @@ This map describes the current repository so future agents can edit with context
 | `docs/index.html` | Public landing/download page | Website, download guidance, Lite link | Preserve relative paths and brand/license copy | local static preview; link/path checks |
 | `docs/i18n.js` | Static landing/Lite localization resources | Public site and Lite visible copy, language preference, RTL document direction | Keep static/no-network behavior; use stable keys and English fallback | `node --check docs/i18n.js`; local static preview; grep Lite network APIs |
 | `docs/lite/app.js` | Browser-only Lite logic/privacy/timing | Lite render/download behavior | Keep no-upload rule; avoid network APIs | `node --check`; local browser smoke; grep network APIs |
-| `apple-lite/` | Future WZRD.VID Lite Apple wrapper | iOS/iPadOS local bundled Lite shell | Keep desktop renderer/ffmpeg/backend out; use bundled local assets; block remote navigation | bundle prep script; plist lint; Swift parse with iPhone Simulator SDK if available |
+| `apple-lite/` | Future WZRD.VID Lite Apple wrapper | iOS/iPadOS local bundled Lite shell | Keep desktop renderer/ffmpeg/backend out; use bundled local assets; block remote navigation; keep export bridge limited to local rendered blobs and iOS share sheet | bundle prep script; plist lint; Swift parse/build with iPhone Simulator SDK if available; simulator smoke |
 | `assets/` and `docs/assets/` | Branding/demo/UI assets | Desktop app, README, Pages | Avoid deleting intentional assets; check file size/licensing | `git status`; asset path checks; preview/readme/site checks |
 | `LICENSE`, `NOTICE.md`, `README.md` | Public rights, brand, and user instructions | GitHub readers, release users, contributors | Keep source-available wording consistent | targeted `rg` for stale license/branding terms |
 

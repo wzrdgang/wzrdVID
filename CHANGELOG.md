@@ -8,6 +8,7 @@
 - Documented WZRD.VID Lite Apple app groundwork as research only while Apple Developer/D-U-N-S setup is pending.
 - Started WZRD.VID Lite Apple packaging groundwork with SwiftUI/WKWebView shell sources and a local Lite web-bundle prep script.
 - Added a simulator-ready WZRD.VID Lite Xcode project plus a debug simulator smoke harness for bundled Lite load, local import surface, language switching, random clips, and export/download readiness.
+- Added a narrow WZRD.VID Lite Apple native export/share bridge after real-device testing showed WKWebView blob downloads opened rendered clips for playback instead of giving a reliable save/share handoff.
 
 ## v0.1.9 — 2026-05-10
 

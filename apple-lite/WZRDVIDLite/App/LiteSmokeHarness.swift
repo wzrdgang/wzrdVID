@@ -80,7 +80,9 @@ enum LiteSmokeHarness {
         result.capabilities.mediaRecorder = typeof MediaRecorder === 'function';
         result.capabilities.captureStream = typeof canvas?.captureStream === 'function';
         result.capabilities.navigatorShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+        result.capabilities.nativeExportBridge = Boolean(window.webkit?.messageHandlers?.wzrdvidExport);
         check('exportBlobSurface', Boolean(result.capabilities.blob && result.capabilities.objectURL && downloadButton && 'download' in downloadButton));
+        check('nativeExportBridgeSurface', Boolean(result.capabilities.nativeExportBridge && window.WZRDVID_LITE_EXPORT?.shareRenderedClip), 'native export bridge unavailable');
 
         localStorage.setItem('wzrdvid.uiLanguage', 'es');
         window.WZRD_I18N?.apply(document);
@@ -121,9 +123,11 @@ enum LiteSmokeHarness {
           }
           check('randomRenderCompleted', (downloadButton.getAttribute('href') || '').startsWith('blob:'), text('#statusLine'));
           check('exportDownloadReady', Boolean(downloadButton.download && downloadButton.download.includes('wzrdvid-lite-15s')), downloadButton.download || '');
+          check('nativeRenderedClipReady', Boolean(window.WZRDVID_LITE_EXPORT?.hasRenderedClip?.()), 'native rendered clip payload unavailable');
         } else {
           check('randomRenderCompleted', false, 'MediaRecorder/canvas capture unavailable or local import failed');
           check('exportDownloadReady', false, 'Render did not produce a download link');
+          check('nativeRenderedClipReady', false, 'Render did not produce a native export payload');
         }
 
         const required = [
@@ -135,7 +139,9 @@ enum LiteSmokeHarness {
           'randomCheckbox',
           'localFileImportSynthetic',
           'randomRenderCompleted',
-          'exportDownloadReady'
+          'exportDownloadReady',
+          'nativeExportBridgeSurface',
+          'nativeRenderedClipReady'
         ];
         result.passed = required.every((name) => result.checks[name] === true);
       } catch (error) {

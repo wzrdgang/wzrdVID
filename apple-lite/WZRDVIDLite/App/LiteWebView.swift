@@ -1,7 +1,10 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 struct LiteWebView: UIViewRepresentable {
+    private static let nativeExportHandlerName = "wzrdvidExport"
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -14,8 +17,10 @@ struct LiteWebView: UIViewRepresentable {
         let webpagePreferences = WKWebpagePreferences()
         webpagePreferences.allowsContentJavaScript = true
         configuration.defaultWebpagePreferences = webpagePreferences
+        configuration.userContentController.add(context.coordinator, name: Self.nativeExportHandlerName)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        context.coordinator.attach(webView)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.isOpaque = false
@@ -27,6 +32,10 @@ struct LiteWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {}
+
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: nativeExportHandlerName)
+    }
 
     private func loadBundledLite(in webView: WKWebView) {
         guard
@@ -51,10 +60,46 @@ struct LiteWebView: UIViewRepresentable {
     </html>
     """
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+        private struct ExportBuffer {
+            var filename: String
+            var mimeType: String
+            var chunks: [String?]
+        }
+
+        private weak var webView: WKWebView?
+        private var exportBuffers: [String: ExportBuffer] = [:]
+
+        func attach(_ webView: WKWebView) {
+            self.webView = webView
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             injectNativeShellCSS(into: webView)
+            injectNativeExportBridge(into: webView)
             LiteSmokeHarness.runIfNeeded(in: webView)
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == LiteWebView.nativeExportHandlerName,
+                  let body = message.body as? [String: Any],
+                  let action = body["action"] as? String
+            else {
+                return
+            }
+
+            switch action {
+            case "start":
+                startExport(body)
+            case "chunk":
+                appendExportChunk(body)
+            case "finish":
+                finishExport(body)
+            case "error":
+                print("WZRDVID_LITE_EXPORT_ERROR=\(body["message"] as? String ?? "unknown")")
+            default:
+                print("WZRDVID_LITE_EXPORT_ERROR=unknown action \(action)")
+            }
         }
 
         func webView(
@@ -100,6 +145,138 @@ struct LiteWebView: UIViewRepresentable {
             })();
             """
             webView.evaluateJavaScript(script)
+        }
+
+        private func injectNativeExportBridge(into webView: WKWebView) {
+            let script = """
+            (() => {
+              if (window.__wzrdvidNativeExportBridgeInstalled) return;
+              window.__wzrdvidNativeExportBridgeInstalled = true;
+              document.addEventListener('click', async (event) => {
+                const button = event.target && event.target.closest ? event.target.closest('#downloadButton') : null;
+                if (!button || button.getAttribute('aria-disabled') === 'true') return;
+                const exportApi = window.WZRDVID_LITE_EXPORT;
+                const bridge = window.webkit?.messageHandlers?.wzrdvidExport;
+                if (!bridge || !exportApi || typeof exportApi.shareRenderedClip !== 'function') return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                try {
+                  const sent = await exportApi.shareRenderedClip();
+                  if (!sent) bridge.postMessage({ action: 'error', message: 'No rendered clip is ready for native export.' });
+                } catch (error) {
+                  bridge.postMessage({ action: 'error', message: error?.message || String(error) });
+                }
+              }, true);
+            })();
+            """
+            webView.evaluateJavaScript(script)
+        }
+
+        private func startExport(_ body: [String: Any]) {
+            guard let id = body["id"] as? String else {
+                print("WZRDVID_LITE_EXPORT_ERROR=start missing id")
+                return
+            }
+            let filename = sanitizedFilename(body["filename"] as? String)
+            let mimeType = (body["mimeType"] as? String) ?? "video/mp4"
+            let chunkCount = max(1, min((body["chunkCount"] as? Int) ?? 0, 4096))
+            exportBuffers[id] = ExportBuffer(
+                filename: filename,
+                mimeType: mimeType,
+                chunks: Array(repeating: nil, count: chunkCount)
+            )
+        }
+
+        private func appendExportChunk(_ body: [String: Any]) {
+            guard let id = body["id"] as? String,
+                  let index = body["index"] as? Int,
+                  let data = body["data"] as? String,
+                  var buffer = exportBuffers[id],
+                  buffer.chunks.indices.contains(index)
+            else {
+                print("WZRDVID_LITE_EXPORT_ERROR=invalid export chunk")
+                return
+            }
+            buffer.chunks[index] = data
+            exportBuffers[id] = buffer
+        }
+
+        private func finishExport(_ body: [String: Any]) {
+            guard let id = body["id"] as? String,
+                  let buffer = exportBuffers.removeValue(forKey: id)
+            else {
+                print("WZRDVID_LITE_EXPORT_ERROR=finish missing buffer")
+                return
+            }
+            guard buffer.chunks.allSatisfy({ $0 != nil }) else {
+                print("WZRDVID_LITE_EXPORT_ERROR=missing export chunks")
+                return
+            }
+            let encoded = buffer.chunks.compactMap { $0 }.joined()
+            guard let data = Data(base64Encoded: encoded, options: [.ignoreUnknownCharacters]) else {
+                print("WZRDVID_LITE_EXPORT_ERROR=base64 decode failed")
+                return
+            }
+
+            do {
+                let folder = FileManager.default.temporaryDirectory.appendingPathComponent("wzrdvid-lite-export", isDirectory: true)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let fileURL = folder.appendingPathComponent(buffer.filename)
+                try data.write(to: fileURL, options: [.atomic])
+                print("WZRDVID_LITE_EXPORT_READY=\(buffer.filename) \(buffer.mimeType) \(data.count)")
+                presentShareSheet(for: fileURL)
+            } catch {
+                print("WZRDVID_LITE_EXPORT_ERROR=\(error.localizedDescription)")
+            }
+        }
+
+        private func sanitizedFilename(_ value: String?) -> String {
+            let fallback = "wzrdvid-lite-export.mp4"
+            guard let value, !value.isEmpty else {
+                return fallback
+            }
+            let sanitized = value.replacingOccurrences(
+                of: "[^A-Za-z0-9._-]+",
+                with: "-",
+                options: .regularExpression
+            )
+            let trimmed = sanitized.trimmingCharacters(in: CharacterSet(charactersIn: ".-"))
+            if trimmed.isEmpty {
+                return fallback
+            }
+            return String(trimmed.prefix(120))
+        }
+
+        private func presentShareSheet(for fileURL: URL) {
+            DispatchQueue.main.async { [weak self] in
+                guard let webView = self?.webView,
+                      let presenter = Self.topViewController(from: webView.window?.rootViewController)
+                else {
+                    print("WZRDVID_LITE_EXPORT_ERROR=no presenter for share sheet")
+                    return
+                }
+
+                let controller = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+                if let popover = controller.popoverPresentationController {
+                    popover.sourceView = webView
+                    popover.sourceRect = CGRect(x: webView.bounds.midX, y: webView.bounds.midY, width: 0, height: 0)
+                    popover.permittedArrowDirections = []
+                }
+                presenter.present(controller, animated: true)
+            }
+        }
+
+        private static func topViewController(from root: UIViewController?) -> UIViewController? {
+            if let navigation = root as? UINavigationController {
+                return topViewController(from: navigation.visibleViewController)
+            }
+            if let tab = root as? UITabBarController {
+                return topViewController(from: tab.selectedViewController)
+            }
+            if let presented = root?.presentedViewController {
+                return topViewController(from: presented)
+            }
+            return root
         }
     }
 }

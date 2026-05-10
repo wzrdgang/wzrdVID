@@ -1,7 +1,7 @@
 # WZRD.VID Lite Real-Device Test Log
 
 Date: 2026-05-10
-Status: automated physical-device smoke passed; manual picker/export checks pending
+Status: manual import/preview passed; native export bridge implemented; iOS audio capture still unresolved
 
 This is the guided manual test log for WZRD.VID Lite on a physical iPhone or iPad. It is intentionally manual because the simulator smoke can verify the bundled WKWebView surface, but it cannot prove the real iOS document/photo picker and user-facing export/share behavior.
 
@@ -53,7 +53,7 @@ Physical-device launch/smoke result:
 - Smoke checks passed: bundled Lite load, file input surface, export blob surface, Spanish language switching, 15-second duration control, Random clip assembly checkbox, synthetic local file import, random render completion, and generated `wzrdvid-lite-15s` download link readiness.
 - A normal non-smoke `devicectl` launch of `com.samhowell.wzrdvid.lite` also succeeded.
 
-Current blocker: none for build/install/launch or automated WKWebView smoke. Manual Photos/Files picker import and user-visible export/share behavior still need hand testing on the device before TestFlight.
+Current blocker: iOS audio capture is still unresolved. The manual device test confirmed real Photos/Files import and visual preview worked, but rendered/previewed clips did not include sound from either added audio or source clips. The manual device test also confirmed the browser blob download handoff failed because tapping download opened the clip for playback instead of giving a reliable save/share path.
 
 Manual interaction attempt:
 
@@ -61,7 +61,23 @@ Manual interaction attempt:
 - Xcode Devices `Take Screenshot` captured the running WZRD.VID Lite UI on the physical iPhone, confirming the native shell was open to bundled Lite rather than a remote website.
 - CoreDevice/Xcode tooling available in this session supports launch, install, process inspection, app listing, display info, and screenshots, but it did not expose remote tap/gesture control for the physical iPhone.
 - Because the remaining checks require interacting with the iOS Photos/Files picker and tapping the rendered blob download/export link, they still require hand testing on the unlocked iPhone.
-- No native import/share bridge was added because no real Photos/Files import failure or export/share failure has been confirmed.
+- At that point, no native import/share bridge was added because no real Photos/Files import failure or export/share failure had been confirmed.
+
+Manual user results after this handoff:
+
+- Real Photos/Files import worked on the installed iPhone app.
+- Visual preview worked with real media.
+- Audio did not come through from either added audio or clip audio.
+- Tapping Download opened the rendered clip for playback instead of providing a save/share/export handoff, so export failed.
+- Decision update: implement a narrow native export/share bridge for rendered blobs. Treat the no-audio result as a separate Apple Lite audio-capture blocker, not as part of the export bridge.
+
+Native export bridge implementation result:
+
+- `docs/lite/app.js` now keeps the latest rendered Blob in memory and exposes a native-only `window.WZRDVID_LITE_EXPORT` handoff.
+- `LiteWebView.swift` now installs a local `WKScriptMessageHandler`, intercepts the rendered clip button inside the native shell, writes a temporary local file, and opens the iOS share sheet.
+- Simulator smoke passed with `nativeExportBridge: true` and `nativeRenderedClipReady: true`.
+- Physical iPhone Debug build, install, and smoke passed with `nativeExportBridge: true` and `nativeRenderedClipReady: true`; the updated app was launched normally after install.
+- Manual tapping of the post-bridge share sheet still needs a direct iPhone retest.
 
 ## Boundaries
 
@@ -121,10 +137,10 @@ Record each item as `pass`, `fail`, or `blocked`.
 | Language | Switch to Spanish; main labels update | pass | Automated device smoke switched to Spanish and verified translated text. |
 | Language | Switch to Japanese; main labels update and layout remains usable | pending | Needs hand test on device. |
 | Language | Switch to Arabic; document direction is structurally RTL | pending | Needs hand test on device. |
-| Import | Add Media opens iOS local picker | pending | Synthetic file-input path passed; actual iOS picker still needs hand test. |
-| Import | Import one video from Photos | pending | Needs hand test with local Photos media. |
-| Import | Import one image from Photos | pending | Needs hand test with local Photos media. |
-| Import | Import one media file from Files | pending | Needs hand test with Files media. |
+| Import | Add Media opens iOS local picker | pass | Manual user test confirmed real Photos/Files import works. |
+| Import | Import one video from Photos | pass | Manual user test confirmed real Photos/Files import works; exact media split was not independently observed by Codex. |
+| Import | Import one image from Photos | pass | Manual user test confirmed real Photos/Files import works; exact media split was not independently observed by Codex. |
+| Import | Import one media file from Files | pass | Manual user test confirmed real Photos/Files import works. |
 | Duration | 15 second duration changes render button/status copy | pass | Automated device smoke verified 15-second control. |
 | Duration | 30 second duration remains usable | pending | Needs hand test on device. |
 | Duration | 60 second duration remains usable | pending | Needs hand test on device. |
@@ -134,11 +150,11 @@ Record each item as `pass`, `fail`, or `blocked`.
 | Render | 15 second video render completes | pending | Needs hand test with real local video. |
 | Render | 15 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
 | Render | Optional 30 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
-| Audio | Optional local audio import arms audio bus | pending | Needs hand test with local audio file. |
-| Audio | Optional audio render completes or fails clearly | pending | Needs hand test with local audio file. |
+| Audio | Optional local audio import arms audio bus | fail | Manual user test found no sound from added audio or source clips. Needs a separate iOS audio-capture investigation. |
+| Audio | Optional audio render completes or fails clearly | fail | Visual preview/render path worked, but audio was silent. |
 | Export | Download/export control appears after render | pass | Automated device smoke verified a generated blob download link. |
-| Export | Tapping export/download produces a user-accessible file, share sheet, Files save, or another clear handoff | pending | Needs hand test; this is the main remaining bridge-decision item. |
-| Export | Exported file can be opened or shared outside the app | pending | Needs hand test. |
+| Export | Tapping export/download produces a user-accessible file, share sheet, Files save, or another clear handoff | pending | Failed before bridge: manual user test found the blob download only opened the clip for playback. Native export/share bridge is now installed and needs a hand retest. |
+| Export | Exported file can be opened or shared outside the app | pending | Failed before bridge: no reliable save/share handoff from the browser download link. Retest after native bridge install. |
 | Privacy | No sign-in, upload, remote config, analytics, or network prompt appears | pass | Automated smoke completed without sign-in/upload/network prompt; static no-network boundary unchanged. |
 | Stability | No crash during import/render/export loop | pass | Automated smoke exited cleanly after import/render/download-link readiness. |
 
@@ -166,6 +182,6 @@ Prefer the narrowest bridge:
 
 ## Decision
 
-Current decision: no native bridge yet; export/share decision still pending manual verification.
+Current decision: native export/share bridge is needed and has been implemented for rendered blobs. Native import bridge is not needed based on this manual test.
 
-Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, and generated download-link readiness now pass on the physical iPhone. No native import/share blocker has been confirmed. The remaining question is whether tapping the rendered blob download link gives a user-accessible save/share/open handoff with real media; if that fails, prefer a narrow native export/share bridge.
+Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, generated download-link readiness, real Photos/Files import, and the native export bridge smoke now pass on the physical iPhone. The browser blob download handoff failed on real-device manual testing by opening the clip for playback instead of providing a reliable save/share path, so the narrow bridge now intercepts the rendered blob and presents an iOS share sheet from the native wrapper. The post-bridge share sheet still needs a direct hand retest. The separate no-audio result remains unresolved and should be investigated before TestFlight.

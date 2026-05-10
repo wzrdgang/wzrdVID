@@ -66,6 +66,7 @@ The smoke builds the app, installs it on an available iPhone simulator, launches
 - 15-second duration control
 - Random clip assembly checkbox
 - browser render/export surface and generated download link
+- native export bridge surface for the bundled app shell
 
 The smoke harness is compiled into Debug builds only and stays dormant unless `WZRDVID_LITE_SMOKE=1` or `--lite-smoke` is supplied.
 
@@ -80,12 +81,14 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 - Confirm 15/30/60 duration controls work.
 - Confirm Random clip assembly appears and can be toggled.
 - Attempt a short render with local media.
-- Verify the output download/share path. This is the most likely place a native bridge may be needed because WKWebView blob downloads can behave differently than Safari.
+- Verify the output download/share path. The native shell now intercepts rendered Lite blobs and presents an iOS share sheet because WKWebView blob downloads opened the clip for playback on a real device.
+- Verify audio separately. Real-device manual testing found visual import/preview worked, but audio from added audio/source clips did not come through yet.
 - Confirm no external navigation is allowed from inside the wrapper.
 
 ## Known Gaps
 
 - Final Apple Developer Team ID, production Bundle ID, App Store Connect record, and signing/export settings are not configured yet.
-- No native export/share bridge yet. If the browser download link does not work reliably in WKWebView, add a narrow JavaScript-to-native export bridge instead of changing Lite into a remote or backend app.
+- Native export/share bridge has a first implementation for rendered Lite blobs. It keeps the browser renderer local, sends the rendered blob to Swift through `WKScriptMessageHandler`, writes a temporary local file, and opens the iOS share sheet.
+- Apple Lite audio is not resolved yet. Real-device manual testing found no sound from added audio or source clips, so the iOS audio-capture path needs a separate focused pass before TestFlight.
 - No TestFlight/App Store metadata yet.
 - No App Store submission, notarization, signing automation, or release packaging is included here.
