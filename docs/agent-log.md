@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite real-device manual test guide
+
+- Agent/task: Codex / manually test WZRD.VID Lite on a real iPhone/iPad with local videos/photos, then decide whether a native import/share bridge is needed before TestFlight setup.
+- Intent: Keep this as guided manual-test and results logging only, without code changes, unless a specific real-device blocker is found.
+- Files changed this pass: `apple-lite/README.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No. Documentation/logging only; desktop renderer/performance, Lite browser behavior, Apple wrapper code, signing, packaging, publishing, pushing, and tagging were not changed.
+- Commands run: `git status --short --branch`; required repo docs reads; `xcrun devicectl list devices`; `xcrun xctrace list devices`; `xcrun devicectl device install app --help`; `xcrun devicectl device process launch --help`; `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite`; targeted docs grep; `git diff --check`; final `git status --short --branch`.
+- Checks passed: Xcode project destinations are available for simulators and the generic iOS device placeholder. The device/install/launch command help confirms the current local Xcode CLI path for later real-device install and launch when signing/device availability is ready. Added a guided real-device checklist and bridge decision rubric.
+- Checks failed/blocked: A real iPhone was visible but not testable: `xcrun devicectl list devices` showed `rivers' iPhone` as `unavailable`, and `xcrun xctrace list devices` listed `rivers' iPhone (26.3)` under `Devices Offline`. No physical-device manual test was executed.
+- Decisions made: Do not add a native import/share bridge yet. The need for a bridge remains pending until the real device checklist proves WKWebView file input or blob export/download fails with user media.
+- Known gaps: Real iPhone/iPad import from Photos/Files, local video/photo renders, random clips, and export/share behavior remain unverified on physical hardware.
+- Next recommended prompt: Run the Apple Lite real-device checklist on an unlocked iPhone/iPad, fill `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, and implement only the narrow native bridge needed for any confirmed import/export blocker.
+
 ## 2026-05-10 - Apple Lite Xcode project and simulator smoke
 
 - Agent/task: Codex / create the WZRD.VID Lite Xcode project from the Apple wrapper groundwork, then run simulator smoke tests for local file import, language switching, random clips, and export/share behavior.

@@ -71,6 +71,8 @@ The smoke harness is compiled into Debug builds only and stays dormant unless `W
 
 ## Required Manual Smokes
 
+Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist and bridge decision log.
+
 - Launch with network disabled or blocked.
 - Confirm the Lite UI loads from bundled files.
 - Confirm language switching works.
