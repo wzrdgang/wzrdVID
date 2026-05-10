@@ -4,6 +4,8 @@ Browser-only 15/30/60-second chaos-cut prototype for the GitHub Pages site.
 
 Privacy rule: user files stay local in the browser. The prototype uses File objects, object URLs, Canvas, Web Audio, and MediaRecorder. It does not upload files or call a server.
 
+Rights note: WZRD.VID Lite is part of the WZRD.VID source-available project. It is currently free for personal, noncommercial use. Do not rehost, repackage, submit app-store copies, or use the WZRD.VID name/branding for another product without permission.
+
 Current export behavior:
 
 - Uses MediaRecorder with MP4 when the browser supports MP4 recording.

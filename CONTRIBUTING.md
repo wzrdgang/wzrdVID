@@ -29,7 +29,7 @@ If you touch packaging, also run:
 
 By submitting a pull request or other contribution, you agree that Sam Howell and the official WZRD.VID project may use, modify, reproduce, distribute, and incorporate your contribution into WZRD.VID and related official project materials.
 
-Contributions are welcome, but contributing does not grant extra rights to redistribute, repackage, sell, host, or ship modified builds outside the project license.
+Contributions are welcome, but contributing does not grant extra rights to redistribute, repackage, sell, host, submit app-store copies, or ship modified builds outside the project license.
 
 ## Branding
 

@@ -297,9 +297,9 @@ python3 scripts/generate_icon.py
 
 ## Rights / Branding
 
-WZRD.VID is source-available and free for personal, noncommercial use. You may inspect the code, run it locally, modify it for yourself, and submit contributions back to the official project.
+WZRD.VID is source-available, not permissive open-source software. It is currently free for personal, noncommercial use. You may inspect the code, run it locally, modify it privately for yourself, and submit contributions back to the official project.
 
-You may not redistribute modified or unmodified builds, sell or repackage the app, use it commercially, host it as a service, or use it as the basis for a competing product without prior written permission.
+You may not redistribute modified or unmodified builds, sell or repackage the app, submit copies or derivative versions to app stores, use it commercially, host it as a service, or use it as the basis for a competing product without prior written permission.
 
 //wzrdVID branding, logos, icons, artwork, and visual identity are reserved by Sam Howell. You may use the name only to refer to the official project in a truthful and non-misleading way. You may not use the official branding for another product, modified build, paid redistribution, hosted service, or anything implying endorsement without permission.
 
@@ -335,7 +335,7 @@ See `SECURITY.md` for vulnerability reporting.
 
 ## License
 
-Project license: source-available, free for personal noncommercial use. See `LICENSE`.
+Project license: source-available, not permissive open source, currently free for personal noncommercial use. See `LICENSE`.
 
 Branding/trademarks: reserved. See `NOTICE.md`.
 

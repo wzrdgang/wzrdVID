@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Source-available use terms clarification
+
+- Agent/task: Codex / narrow licensing and redistribution language pass before v0.2.0 Apple/Lite rollout work.
+- Intent: Clarify public-facing rights language so the repo consistently says WZRD.VID is source-available, currently free for personal/noncommercial use, not permissive open source, and does not permit redistribution, app-store copies, hosted services, competing products, commercial use, or brand use without permission.
+- Files changed this pass: `LICENSE`, `NOTICE.md`, `README.md`, `docs/LICENSE_FAQ.md`, `CONTRIBUTING.md`, `docs/lite/README.md`, `docs/agent-log.md`.
+- Behavior changed: No. Documentation/legal-language only; app behavior, renderer behavior, Lite behavior, versioning, packaging, publishing, pushing, and tagging were not changed.
+- Commands run: `git status --short --branch`; required repo docs reads; rights-language grep across README, license, notice, contributing docs, public docs, homepage, and Lite docs; `git diff --check`; final `git status --short --branch`.
+- Checks passed: Targeted grep confirms source-available/noncommercial/commercial/redistribution/repackaging/hosted-service/branding/output/app-store language is present in the relevant public docs. Diff whitespace check passed.
+- Checks failed: None.
+- Decisions made: Kept the homepage rights note short to avoid turning the landing page into a legal wall; strengthened the canonical license/notice/README/FAQ/contributing/Lite docs instead.
+- Known gaps: This was a practical clarity pass, not external legal review. Future App Store or commercial-license work should get proper legal review before submission or negotiation.
+- Next recommended prompt: Run a v0.2.0 beta media pass with real long phone footage, then decide whether more desktop performance fixes are needed before Apple Lite app packaging.
+
 ## 2026-05-10 - v0.2.0 performance hardening and Apple Lite groundwork
 
 - Agent/task: Codex / v0.2.0 performance audit, conservative optimization pass, long-media stress smoke, and Apple Lite app groundwork research.

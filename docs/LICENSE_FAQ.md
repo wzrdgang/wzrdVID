@@ -4,7 +4,11 @@ This is a plain-language summary of the WZRD.VID license direction. The `LICENSE
 
 ## Can I use WZRD.VID for free?
 
-Yes. You can use WZRD.VID for personal, noncommercial work.
+Yes. WZRD.VID is currently free for personal, noncommercial work.
+
+## Is WZRD.VID open source?
+
+No. WZRD.VID is source-available, not permissive open-source software. You can inspect the code, run it locally, modify it privately for personal noncommercial use, and contribute improvements back to the official project, but redistribution and commercial use are reserved.
 
 ## Can I make videos with it and share them?
 
@@ -33,6 +37,14 @@ Not without prior written permission, except by linking people to the official W
 ## Can I sell it or bundle it in a paid product?
 
 Not without prior written permission. Commercial use, resale, paid redistribution, hosted services, paid integrations, and competing products based on this code require an arrangement with Sam Howell.
+
+## Can I submit WZRD.VID or a modified copy to an app store?
+
+Not without prior written permission. App Store, Mac App Store, Windows Store, mobile app store, marketplace, package manager, and similar redistribution copies are not permitted unless Sam Howell approves them in writing.
+
+## Can I host WZRD.VID as a service?
+
+Not without prior written permission. Hosted, SaaS, remote-render, API, or browser-service versions based on this code are commercial/redistribution uses reserved by the license.
 
 ## Can I contribute improvements?
 
