@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Header update/language relocation
+
+- Agent/task: Codex / Phase A desktop header UI relocation before v0.1.9 publication.
+- Intent: Move the existing update status/check/download controls and UI language selector into one compact header utility row without changing update behavior, language persistence, renderer/media behavior, website/Lite behavior, or release publication state.
+- Files changed this pass: `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, desktop UI placement only. The update cluster and language selector now live in the top header, and the old Output-tab rows were removed to avoid duplicate controls.
+- Commands run: `git status --short --branch`; `git log --oneline -5`; required repo docs reads; header/update/language audit grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; offscreen source GUI smoke; `git diff --check`.
+- Checks passed: Python and JavaScript syntax checks passed, diff whitespace check passed, offscreen source GUI opened, the update status/check/download controls and language selector are parented under the header, the old Output panel no longer contains those widgets, Spanish language switching still updated primary UI, and `download_update_button` remained hidden/disabled at initial state.
+- Checks failed: None.
+- Decisions made: Reused the existing widgets/signals/state rules instead of creating duplicate controls. No `theme.py` or localization resource change was needed for this relocation.
+- Known gaps: Visual crowding should still get a normal manual GUI glance before release publication.
+- Next recommended prompt: Implement desktop max length plus desktop and Lite random clip assembly as the next scoped v0.1.9 feature pass.
+
 ## 2026-05-10 - v0.1.9 localization release prep
 
 - Agent/task: Codex / version, commit, package, and prepare the localization-focused v0.1.9 release.

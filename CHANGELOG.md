@@ -7,6 +7,7 @@
 - Improved Unicode/global readability support with system font fallbacks, wrapping hardening, and structural Arabic `dir` support on the static site and Lite.
 - Removed the top homepage Mac install notice block while preserving the remaining release ZIP guidance.
 - Tightened high-visibility desktop localization coverage for common tooltips, table type labels, warning/dialog copy, status labels, and header/session-log text.
+- Moved the update and language controls into the desktop header for easier access.
 - Documented localization resource locations, fallback behavior, and draft/native-review limits.
 - Bumped app/release metadata to v0.1.9.
 
