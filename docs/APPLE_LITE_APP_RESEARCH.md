@@ -2,7 +2,7 @@
 
 Date: 2026-05-10
 
-This is a research memo for post-D-U-N-S work. It does not scaffold an Apple app, change release packaging, or change WZRD.VID Lite behavior.
+This began as a research memo for post-D-U-N-S work. The repo now also includes first-pass Apple Lite packaging groundwork under `apple-lite/`. It does not create an App Store submission, change release packaging, or change WZRD.VID Lite browser behavior.
 
 ## Recommendation
 
@@ -52,6 +52,13 @@ Do not try to ship the desktop renderer, bundled ffmpeg, or full desktop feature
 8. Prepare privacy policy text that accurately describes local-only processing and any file permissions.
 9. Fill App Store Connect metadata, privacy details, age rating, screenshots, and accessibility support.
 10. Submit an internal TestFlight build before public review.
+
+## Groundwork Added
+
+- `apple-lite/WZRDVIDLite/App/` contains starter SwiftUI/WKWebView shell sources.
+- `apple-lite/scripts/prepare_lite_web_bundle.py` prepares an ignored `LiteWeb/` bundle from `docs/lite/`, `docs/i18n.js`, and referenced static assets.
+- `apple-lite/README.md` documents manual Xcode project creation, target setup, local-only boundaries, and required simulator/device smokes.
+- No `.xcodeproj`, signing state, Team ID, App Store Connect app record, TestFlight build, or native export bridge has been added yet.
 
 ## Product Boundaries
 

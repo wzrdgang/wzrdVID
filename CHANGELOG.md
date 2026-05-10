@@ -6,6 +6,7 @@
 - Added render-stage timing logs and long-media warnings for 30+ minute source video/audio inputs.
 - Ran synthetic long-media stress smokes covering max length, random clip assembly, source/external audio, worky mode, match-to-music rejection, and preview-like renders.
 - Documented WZRD.VID Lite Apple app groundwork as research only while Apple Developer/D-U-N-S setup is pending.
+- Started WZRD.VID Lite Apple packaging groundwork with SwiftUI/WKWebView shell sources and a local Lite web-bundle prep script.
 
 ## v0.1.9 — 2026-05-10
 

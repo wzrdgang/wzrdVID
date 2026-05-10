@@ -1,0 +1,6 @@
+DerivedData/
+build/
+__pycache__/
+*.xcuserdata/
+*.xcuserstate
+WZRDVIDLite/Resources/LiteWeb/

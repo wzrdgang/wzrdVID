@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite packaging groundwork
+
+- Agent/task: Codex / start WZRD.VID Lite Apple app packaging groundwork while keeping desktop v0.2.0 performance fixes frozen.
+- Intent: Add a minimal native-shell groundwork path for WZRD.VID Lite that bundles the existing static Lite app locally in WKWebView, without adding desktop renderer parity, ffmpeg, backend services, analytics, accounts, remote config, packaging, publishing, pushing, or tagging.
+- Files changed this pass: `apple-lite/.gitignore`, `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/ContentView.swift`, `apple-lite/WZRDVIDLite/App/Info.plist`, `apple-lite/WZRDVIDLite/App/LiteWebView.swift`, `apple-lite/WZRDVIDLite/App/WZRDVIDLiteApp.swift`, `apple-lite/WZRDVIDLite/Resources/.gitkeep`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `AGENTS.md`, `CHANGELOG.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/agent-change-playbook.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: No shipped app behavior changed. This adds Apple Lite wrapper source/docs only; desktop renderer/performance code, Lite browser behavior, website deployment config, release packaging, version files, and `docs/CNAME` were not changed.
+- Commands run: `git status --short --branch`; required repo docs reads; Lite path/asset audits; local Xcode/Swift SDK inspection; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; generated-bundle static server with `curl` checks for `/lite/`, `/i18n.js`, and referenced assets; `python3 -m py_compile ... apple-lite/scripts/prepare_lite_web_bundle.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse with the iPhone Simulator SDK; Lite forbidden-network grep; `git diff --check`; final `git status --short --branch`.
+- Checks passed: Xcode 26.3 and iPhone Simulator SDK were available. The bundle prep script generated 18 local web files from existing Lite/site assets, and local static smoke loaded the generated Lite page, `i18n.js`, and required UI/logo assets. SwiftUI/WKWebView source parsed cleanly against the iPhone Simulator SDK. Info.plist lint passed. Python and JavaScript syntax checks passed. Forbidden-network grep returned no matches. Generated `LiteWeb/` and Python cache outputs were removed and are ignored.
+- Checks failed: None.
+- Decisions made: Added source-only SwiftUI/WKWebView wrapper groundwork and a bundle prep script instead of committing an `.xcodeproj` before the final Team ID/Bundle ID are known. The wrapper blocks non-local navigation and hides the public-site back link in the native shell.
+- Known gaps: No committed Xcode project, signing config, Team ID, App Store Connect record, TestFlight build, native export/share bridge, or device smoke yet. WKWebView file input, MediaRecorder, and blob download/export behavior still need simulator and real-device testing.
+- Next recommended prompt: Create the WZRD.VID Lite Xcode project from the Apple wrapper groundwork, then run simulator smoke tests for local file import, language switching, random clips, and export/share behavior.
+
 ## 2026-05-10 - Real long-media beta pass
 
 - Agent/task: Codex / v0.2.0 real long-media beta pass before Apple Lite app packaging.

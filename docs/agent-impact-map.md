@@ -150,6 +150,16 @@ This map describes the current repository so future agents can edit with context
 - Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback.
 - Files likely involved in changes: `docs/lite/app.js`, `docs/lite/index.html`, `docs/lite/styles.css`, `docs/i18n.js`, `docs/lite/README.md`.
 
+### WZRD.VID Lite Apple Wrapper Groundwork
+
+- Entry point: future Xcode iOS app target using SwiftUI sources under `apple-lite/WZRDVIDLite/App/`.
+- UI/component path: `ContentView.swift` embeds `LiteWebView.swift`, which loads bundled local Lite web files into `WKWebView`.
+- Data/state path: same Lite browser runtime model: local file picker/object URLs/Canvas/Web Audio/MediaRecorder, plus local UI language preference from the existing Lite JavaScript.
+- Asset/media path: `apple-lite/scripts/prepare_lite_web_bundle.py` copies `docs/lite/`, `docs/i18n.js`, and referenced `docs/assets/{branding,logo,ui}/` into ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
+- Success behavior: The native shell loads bundled Lite files locally and cancels non-local navigation.
+- Failure/empty behavior: Missing generated `LiteWeb/` shows a native-shell HTML error. WKWebView blob download/export may require a future native share/export bridge.
+- Files likely involved in changes: `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/WZRDVIDLite/App/Info.plist`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/*`.
+
 ### GitHub Pages Deployment
 
 - Entry point: push to `main` with GitHub Pages configured to deploy `/docs`.
@@ -168,6 +178,7 @@ This map describes the current repository so future agents can edit with context
 - Desktop release zip: `scripts/package_release.sh` creates `WZRD.VID-macOS.zip` with `ditto`.
 - GitHub Pages local preview: serve `docs/` with a simple static server such as `python3 -m http.server` from the `docs` directory.
 - GitHub Pages deployment: GitHub repo settings should deploy branch `main`, folder `/docs`, custom domain `wzrdvid.com` via `docs/CNAME`.
+- Apple Lite local bundle prep: `python3 apple-lite/scripts/prepare_lite_web_bundle.py` generates ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/` for Xcode folder-reference inclusion.
 - GitHub Actions workflow: Not present in repo.
 - Output directories: `dist/`, `build/`, `.pyinstaller-cache/`, `.venv/`, caches, temp folders, and release zip are generated/local outputs unless explicitly being packaged outside source control.
 - Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
@@ -190,6 +201,7 @@ This map describes the current repository so future agents can edit with context
 | `docs/index.html` | Public landing/download page | Website, download guidance, Lite link | Preserve relative paths and brand/license copy | local static preview; link/path checks |
 | `docs/i18n.js` | Static landing/Lite localization resources | Public site and Lite visible copy, language preference, RTL document direction | Keep static/no-network behavior; use stable keys and English fallback | `node --check docs/i18n.js`; local static preview; grep Lite network APIs |
 | `docs/lite/app.js` | Browser-only Lite logic/privacy/timing | Lite render/download behavior | Keep no-upload rule; avoid network APIs | `node --check`; local browser smoke; grep network APIs |
+| `apple-lite/` | Future WZRD.VID Lite Apple wrapper | iOS/iPadOS local bundled Lite shell | Keep desktop renderer/ffmpeg/backend out; use bundled local assets; block remote navigation | bundle prep script; plist lint; Swift parse with iPhone Simulator SDK if available |
 | `assets/` and `docs/assets/` | Branding/demo/UI assets | Desktop app, README, Pages | Avoid deleting intentional assets; check file size/licensing | `git status`; asset path checks; preview/readme/site checks |
 | `LICENSE`, `NOTICE.md`, `README.md` | Public rights, brand, and user instructions | GitHub readers, release users, contributors | Keep source-available wording consistent | targeted `rg` for stale license/branding terms |
 
@@ -200,6 +212,7 @@ This map describes the current repository so future agents can edit with context
 - User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
 - Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.
+- Apple Lite generated web bundle: ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`, regenerated from `docs/lite/` and selected `docs/assets/` by `apple-lite/scripts/prepare_lite_web_bundle.py`.
 - Static assets safe to edit with care: `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/demos/`, `assets/screenshots/`, `docs/assets/`.
 - Generated/build outputs: `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`, `WZRD.VID.spec`, `tmp/`, `temp/`, local release zips.
 - Media handling rules: Do not commit random copyrighted media or large local renders. Release-safe demo/screenshot assets under `assets/` and `docs/assets/` are intentionally allowed by `.gitignore` negation rules.
@@ -216,6 +229,7 @@ This map describes the current repository so future agents can edit with context
 | ffmpeg / ffprobe | Media probing, encode/mux/mix/optimize | `ffmpeg_utils.py`, README/docs | External install required; path detection must stay cross-platform tolerant |
 | PyInstaller | macOS app bundle | `build_app.sh`, generated spec | Excludes/pruning can break Finder app launch |
 | Browser Canvas/Web Audio/MediaRecorder | WZRD.VID Lite local render | `docs/lite/app.js` | Browser codec support varies; must remain no-upload |
+| SwiftUI / WKWebView | WZRD.VID Lite Apple wrapper shell | `apple-lite/WZRDVIDLite/App/*.swift` | Keep bundled/local-only; test file input and blob export on real devices |
 | GitHub Pages | Static site hosting | `docs/`, `docs/CNAME` | Relative paths/custom domain settings can break public site |
 
 ## 7. Agent-Safe Edit Protocol
