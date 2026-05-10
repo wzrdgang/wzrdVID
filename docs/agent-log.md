@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Header utility row placement correction
+
+- Agent/task: Codex / small desktop header layout correction before v0.1.9 publication.
+- Intent: Move the existing update/language utility row so it sits directly below the mint-green `worky.mode / wzrdgang` bus strip instead of competing with the strip higher in the header.
+- Files changed this pass: `app.py`, `docs/agent-log.md`.
+- Behavior changed: No. Layout only; update behavior, language persistence, localization, renderer/media/random/max-length behavior, Lite, website, versioning, and packaging were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; header audit grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`; offscreen source GUI smoke; normal source GUI visual smoke with Computer Use.
+- Checks passed: Python and JavaScript syntax checks passed, diff whitespace check passed, offscreen source GUI confirmed the visible language/update controls are below the bus strip, the hidden download update button stayed parented in the header and hidden/disabled at initial state, Spanish language switching still updated primary UI, no duplicate update/language controls were found in the Output panel, max length/random controls remained present, and normal GUI visual smoke showed the row under the mint bus strip.
+- Checks failed: Initial offscreen geometry check could not position the hidden `download_update_button` because it starts hidden by design; rerun validated its parentage and preserved hidden/disabled state instead.
+- Decisions made: Moved the existing row in `_build_header` without new styling or `theme.py` changes.
+- Known gaps: Packaged app was not rebuilt after this source layout correction; rebuild/package remains a manual-review decision before publication.
+- Next recommended prompt: Review the v0.1.9 app and Lite manually, then rebuild/package if this header correction changed the packaged app.
+
 ## 2026-05-10 - Max length and random clip assembly
 
 - Agent/task: Codex / Phase B desktop max video length plus desktop and Lite random clip assembly before v0.1.9 publication.

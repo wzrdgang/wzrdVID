@@ -1329,20 +1329,6 @@ class MainWindow(QMainWindow):
         top_row.addWidget(badge)
         layout.addLayout(top_row)
 
-        utility_row = QHBoxLayout()
-        utility_row.setSpacing(8)
-        language_label = self._label("language.label")
-        language_label.setObjectName("muted")
-        utility_row.addWidget(language_label)
-        self.language_combo.setMinimumWidth(168)
-        utility_row.addWidget(self.language_combo)
-        utility_row.addStretch(1)
-        self.update_status_label.setMinimumWidth(260)
-        utility_row.addWidget(self.update_status_label, stretch=1)
-        utility_row.addWidget(self.check_update_button)
-        utility_row.addWidget(self.download_update_button)
-        layout.addLayout(utility_row)
-
         header_wear = QHBoxLayout()
         header_wear.setContentsMargins(0, 0, 0, 0)
         header_wear.addStretch(1)
@@ -1366,6 +1352,20 @@ class MainWindow(QMainWindow):
         brand_blocks = QLabel("▓▓ // worky.mode / wzrdgang ▒▒ copy-of-copy deck ░░ lo-fi mp4 bus >> █░█░▒▓")
         brand_blocks.setObjectName("brandBlocks")
         layout.addWidget(brand_blocks)
+
+        utility_row = QHBoxLayout()
+        utility_row.setSpacing(8)
+        language_label = self._label("language.label")
+        language_label.setObjectName("muted")
+        utility_row.addWidget(language_label)
+        self.language_combo.setMinimumWidth(168)
+        utility_row.addWidget(self.language_combo)
+        utility_row.addStretch(1)
+        self.update_status_label.setMinimumWidth(260)
+        utility_row.addWidget(self.update_status_label, stretch=1)
+        utility_row.addWidget(self.check_update_button)
+        utility_row.addWidget(self.download_update_button)
+        layout.addLayout(utility_row)
         return header
 
     def _build_file_group(self) -> QGroupBox:
