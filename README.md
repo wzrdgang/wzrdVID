@@ -15,9 +15,9 @@ It is inspired by ANSI graphics, late-night cable TV, old internet media tools, 
 The output is a normal `.mp4`. It visually looks like terminal/video-art output, but it is not a terminal playback file.
 
 
-## Download the Mac App
+## Download the Mac App (Apple Silicon)
 
-For most people on macOS, this is the normal install path:
+For most people on Apple Silicon macOS, this is the normal install path:
 
 1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
 2. Download the release asset named `WZRD.VID-macOS.zip`.
@@ -32,6 +32,8 @@ brew install ffmpeg
 ```
 
 Important: do **not** download GitHub's **Source code (zip)** or use the green **Code -> Download ZIP** button unless you want to run/build from source. Those ZIPs do not include the packaged Mac app.
+
+Current Mac ZIP note: packaged releases are tested primarily on Apple Silicon Macs. Intel Mac users should run from source for now; universal or Intel-native packaging is planned later.
 
 Short install guide: see [`docs/INSTALL_MAC.md`](docs/INSTALL_MAC.md).
 
@@ -48,9 +50,13 @@ For now:
 5. Unzip it.
 6. Replace your old `WZRD.VID.app` with the new one.
 
+The update checker only notifies and opens the release page. It never auto-downloads, replaces, or installs app builds.
+
 ## Platform Support
 
-WZRD.VID is currently tested primarily on macOS.
+WZRD.VID is currently tested primarily on Apple Silicon macOS.
+
+The current packaged Mac ZIP is Apple Silicon-focused. Intel Mac users should run from source until universal or Intel-native packaging exists.
 
 Linux and Windows users can usually run from source with Python + ffmpeg. Cross-platform source runs are best-effort/experimental, and packaged Windows/Linux builds are not currently provided.
 
@@ -309,9 +315,11 @@ You are responsible for the rights to any video, photo, or audio you import, ren
 ## Troubleshooting
 
 - If the app will not open, right-click `WZRD.VID.app` and choose **Open**. This is common for unsigned or unnotarized local builds.
+- If you are on an Intel Mac and the packaged app will not launch or behaves oddly, use the source-run path for now. The current Mac ZIP is tested primarily on Apple Silicon.
 - If `ffmpeg` or `ffprobe` is missing, install ffmpeg for your platform. macOS: `brew install ffmpeg`; Debian/Ubuntu: `sudo apt install ffmpeg`; Fedora: `sudo dnf install ffmpeg`; Arch: `sudo pacman -S ffmpeg`; Windows: install ffmpeg and add `ffmpeg.exe`/`ffprobe.exe` to PATH.
 - If you are running from source, install requirements first and launch with `python run.py`. macOS/Linux users can also use `./run.sh`; Windows users can use `run_windows.bat`.
 - If you downloaded the GitHub source ZIP and expected an app bundle, use the GitHub Releases download instead. The source ZIP does not include `dist/WZRD.VID.app`.
+- If WZRD.VID says an update is available, download the latest `WZRD.VID-macOS.zip`, unzip it, and manually replace the old app. Automatic updates are not active yet.
 
 ## Contributing
 

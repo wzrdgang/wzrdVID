@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.8 — 2026-05-09
+
+- Clarified that current packaged Mac ZIPs are tested primarily on Apple Silicon Macs, with Intel Mac users directed to the source-run path for now.
+- Verified PUBLIC ACCESS 0%, mixed, and 100% ANSI Coverage behavior after the v0.1.7 renderer release.
+- Improved download, install, first-run, and manual update guidance.
+- Bumped app/release metadata to v0.1.8.
+
 ## v0.1.7 — 2026-05-09
 
 - Added the real PUBLIC ACCESS renderer path for public-access/VHS source treatment before ANSI coverage is applied.

@@ -38,6 +38,7 @@ python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run
 - [ ] Upload `WZRD.VID-macOS.zip` to GitHub Releases.
 - [ ] Tag release with the current version, for example `v0.1.1`.
 - [ ] Release title matches the tag, for example `WZRD.VID v0.1.1`.
+- [ ] Release notes mention that the current packaged Mac ZIP is tested primarily on Apple Silicon Macs, and Intel Mac users should run from source for now.
 - [ ] Release notes include:
 
 ```text

@@ -1,8 +1,10 @@
 # Cross-Platform Source Runs
 
-WZRD.VID is developed and packaged primarily on macOS. Windows and Linux source runs are supported on a best-effort, experimental basis so people can try the app without waiting for native packages.
+WZRD.VID is developed and packaged primarily on Apple Silicon macOS. Windows and Linux source runs are supported on a best-effort, experimental basis so people can try the app without waiting for native packages.
 
-Packaged Windows and Linux builds are not currently official. The macOS release app remains the primary downloadable build.
+The current packaged Mac release ZIP is tested primarily on Apple Silicon Macs. Intel Mac users should run from source until universal or Intel-native packaging exists.
+
+Packaged Windows and Linux builds are not currently official. The Apple Silicon macOS release app remains the primary downloadable build.
 
 ## Requirements
 
@@ -82,7 +84,8 @@ run_windows.bat
 
 ## Known Caveats
 
-- macOS is the only platform with an official packaged app today.
+- Apple Silicon macOS is the only platform with an official packaged app today.
+- Intel Macs should run from source for now; universal or Intel-native packaging is planned later.
 - Windows/Linux source runs depend on the local Python, PySide6, OpenCV, and ffmpeg installations.
 - HEIC/HEIF photo support depends on installed imaging libraries and may not be available everywhere.
 - Some fonts differ across systems. The UI falls back to common Windows/Linux monospace fonts.

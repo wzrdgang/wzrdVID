@@ -2,7 +2,7 @@
 
 WZRD.VID has two different GitHub downloads. Normal users want the release asset, not the source-code archive.
 
-## For Normal Mac Users
+## For Normal Apple Silicon Mac Users
 
 Use this path:
 
@@ -18,6 +18,8 @@ Use this path:
 brew install ffmpeg
 ```
 
+Current packaged ZIP note: `WZRD.VID-macOS.zip` is tested primarily on Apple Silicon Macs. Intel Mac users should run from source until universal or Intel-native packaging exists.
+
 ## Wrong ZIP Warning
 
 Do **not** use these unless you intentionally want source code:
@@ -27,6 +29,8 @@ Do **not** use these unless you intentionally want source code:
 - Release entries named **Source code (tar.gz)**
 
 Those downloads are the project source files only. They do not include the packaged `WZRD.VID.app`.
+
+If you wanted the double-click app, go back to the latest release and choose the asset named exactly `WZRD.VID-macOS.zip`.
 
 ## Updating WZRD.VID
 
@@ -40,6 +44,15 @@ There is no automatic updater yet.
 6. Replace your old `WZRD.VID.app` with the new one.
 
 Signed/notarized builds and real auto-update support are planned after Apple Developer approval.
+
+The desktop update checker is a notifier only. It can open the release page, but it does not auto-download, auto-install, or replace your current app.
+
+## Common First-Run Issues
+
+- **Wrong ZIP:** The Source code ZIP is for running/building from source. Normal app users need `WZRD.VID-macOS.zip`.
+- **Unsigned app warning:** Right-click `WZRD.VID.app`, choose **Open**, then confirm.
+- **Missing ffmpeg/ffprobe:** Install with `brew install ffmpeg` on macOS.
+- **Intel Mac:** Run from source for now. The packaged Mac release is currently Apple Silicon-focused.
 
 ## Why `dist/` Is Ignored
 

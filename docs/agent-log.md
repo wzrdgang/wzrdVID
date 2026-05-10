@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - v0.1.8 maintenance prep
+
+- Agent/task: Codex / tightly scoped v0.1.8 maintenance release prep.
+- Intent: Clarify current packaged Mac ZIP support boundaries for Apple Silicon vs Intel Macs, improve install/update troubleshooting, verify PUBLIC ACCESS stability after v0.1.7, bump/package v0.1.8, and prepare but not publish the release.
+- Files changed: `VERSION`, `app.py`, `README.md`, `docs/index.html`, `docs/INSTALL_MAC.md`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/CROSS_PLATFORM.md`, `docs/RELEASE_CHECKLIST.md`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: No renderer/workflow behavior changed. App-visible version metadata changed to v0.1.8, and public install/update documentation now states that the packaged Mac ZIP is Apple Silicon-focused while Intel Mac users should run from source for now.
+- Commands run: `git status --short --branch`; targeted `rg`/`sed`; `node --check docs/lite/app.js`; forbidden Lite network API grep; `python3 -m py_compile`; synthetic ffmpeg media generation; desktop render smokes for PUBLIC ACCESS 0%/50%/100% ANSI and 5s/10s paths with worky music mode; local Pages server and `curl`; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; plist/version/size/checksum checks; packaged app launch smoke with Output tab/update checker inspection.
+- Checks passed: Python and Lite syntax checks, no forbidden Lite network APIs, static Pages checks, desktop PUBLIC ACCESS render smokes, H.264/yuv420p output verification, worky music mode AAC output verification, diff check, macOS app build, release ZIP package, plist version 0.1.8, packaged app launch, and non-blocking update checker smoke passed.
+- Checks failed: System Python render smoke failed before using the project virtualenv because `cv2` was not installed globally; rerunning through `.venv/bin/python` passed.
+- Decisions made: No PUBLIC ACCESS code changes were needed. The maintenance release keeps universal/Intel packaging as a future packaging task and directs Intel users to source runs for now.
+- Known gaps: GitHub release publication remains intentionally deferred. Intel/universal packaged builds are not created yet.
+- Next recommended prompt: Publish v0.1.8 with the generated `WZRD.VID-macOS.zip` and SHA256 after reviewing the final release command.
+
 ## 2026-05-09 - v0.1.7 PUBLIC ACCESS renderer prep
 
 - Agent/task: Codex / v0.1.7 real PUBLIC ACCESS renderer and Lite parity release prep.
