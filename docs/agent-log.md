@@ -17,6 +17,32 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Full desktop localization key coverage
+
+- Agent/task: Codex / normalize desktop localization coverage across all supported desktop languages before v0.1.9 publication.
+- Intent: Extend the prior Russian-only coverage pass so every supported desktop language has values for the current English `app_i18n.py` key set while keeping translations draft and preserving English fallback.
+- Files changed this pass: `app_i18n.py`, `docs/I18N.md`, `docs/agent-log.md`.
+- Behavior changed: No. Desktop UI resource strings and localization docs only; layout, renderer/media behavior, max-length/random behavior, Lite behavior, website behavior, versioning, packaging, pushing, tagging, and release publication were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -10`; required repo docs reads; desktop key coverage audit; per-language coverage audits; `python3 -m py_compile app_i18n.py`; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; offscreen source GUI localization smoke for Spanish, Russian, Japanese, and Arabic; `git diff --check`; `git status --short --branch`.
+- Checks passed: Coverage audit reports `missing=0 extra=0` for English, Spanish, Brazilian Portuguese, French, German, Russian, Ukrainian, Japanese, Korean, Simplified Chinese, Traditional Chinese, Filipino/Tagalog, Hindi, and Arabic. Source GUI smoke confirmed Spanish/Russian/Japanese/Arabic table headers, source controls, preview empty state, timeline help/status, update controls/status, max-length/random controls, language switching, and header utility row placement.
+- Checks failed: None.
+- Decisions made: Added draft desktop key coverage in `app_i18n.py` instead of changing widget extraction, layout, render code, Lite, or site behavior. Brand and technical terms such as WZRD.VID, worky, worky.mode, ANSI, MP4, H.264, AAC, CRF, and Seed remain stable where appropriate.
+- Known gaps: All supported desktop languages now have complete key coverage, but translations remain draft and need fluent/native review. Site/Lite non-English strings remain separately managed in `docs/i18n.js` and were not expanded in this pass.
+- Next recommended prompt: Rebuild/package v0.1.9 after the full desktop localization coverage pass, then manually review the app and Lite before publishing.
+
+## 2026-05-10 - Russian desktop localization coverage pass
+
+- Agent/task: Codex / focused desktop localization coverage pass from manual Russian review before v0.1.9 publication.
+- Intent: Reduce high-visibility English fallback in the desktop app after switching to Russian, especially table headers, timeline/source buttons, preview empty states, timeline help text, status labels, update controls, and common dialogs/tooltips.
+- Files changed this pass: `app_i18n.py`, `docs/agent-log.md`.
+- Behavior changed: No. UI strings only; renderer/media behavior, random/max-length behavior, Lite, website, versioning, packaging, pushing, tagging, and release publication were not changed.
+- Commands run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; desktop i18n/widget audit greps; Russian missing-key audit; `python3 -m py_compile app_i18n.py`; offscreen source GUI Russian language smoke; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`; `git status --short --branch`.
+- Checks passed: Russian now has desktop translations for all current `app_i18n.py` English keys, the offscreen GUI smoke confirmed Russian table headers, source controls, timeline help, preview empty state, timeline status, and update controls update without restart, Python and JavaScript syntax checks passed, and diff whitespace check passed.
+- Checks failed: None.
+- Decisions made: Added a focused Russian high-visibility draft pack in `app_i18n.py` instead of changing widget extraction or render code. Existing stable English internals such as preset/effect option names, raw technical errors, and media filenames remain outside this pass unless already represented by UI keys.
+- Known gaps: Russian strings remain draft and need fluent review. Other non-English languages still have partial desktop coverage and English fallback for many less-reviewed strings.
+- Next recommended prompt: Review the v0.1.9 desktop app manually in Russian, then rebuild/package if this localization coverage pass is accepted.
+
 ## 2026-05-10 - Header utility row placement correction
 
 - Agent/task: Codex / small desktop header layout correction before v0.1.9 publication.
