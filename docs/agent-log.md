@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Apple Lite manual import/export handoff pending
+
+- Agent/task: Codex / manually test real Photos/Files import and rendered clip export/share on the installed WZRD.VID Lite iPhone app, then implement a narrow native export/share bridge only if the blob download handoff fails.
+- Intent: Push the real-device checklist as far as available local tooling allows without changing Lite/browser behavior, desktop behavior, publishing, pushing, tagging, or release packaging.
+- Files changed this pass: `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No. Documentation/logging only; no native import/share bridge was implemented because no real Photos/Files import failure or export/share failure was confirmed.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; `rg` audit of the device log and agent log; `xcrun devicectl --help` and device subcommand help; `xcrun devicectl device info displays`; `xcrun devicectl device info lockState`; `xcrun devicectl device info processes`; normal non-smoke `xcrun devicectl device process launch`; Xcode Devices and Simulators UI via Computer Use; Xcode device screenshot; local screenshot view.
+- Checks passed: The connected iPhone was unlocked, the installed `com.samhowell.wzrdvid.lite` app launched normally again, Xcode Devices listed `WZRD.VID Lite` as installed, and an Xcode device screenshot confirmed the native shell was open to the bundled WZRD.VID Lite UI with the `ADD MEDIA` area visible.
+- Checks failed/blocked: CoreDevice/Xcode exposed launch, install, process inspection, app listing, display info, logs, and screenshots, but no remote tap/gesture control for the physical iPhone in this session. Real Photos picker import, Files picker import, real local media render, and tapping the generated blob download/export link remain pending direct hand testing on the phone.
+- Decisions made: Do not add a native import/share bridge yet. The current evidence still shows no confirmed import/export blocker; if hand testing proves the rendered blob download cannot produce a user-accessible save/share/open handoff, prefer a narrow native export/share bridge.
+- Known gaps: Direct iPhone testing is still needed for Photos/Files picker import and user-visible export/share behavior before TestFlight.
+- Next recommended prompt: I manually tested WZRD.VID Lite on the iPhone with real Photos/Files media. Import worked/failed and export/share worked/failed: [results]. Update the bridge decision and implement the narrow bridge only if needed.
+
 ## 2026-05-10 - Apple Lite physical-device smoke passed
 
 - Agent/task: Codex / continue after Xcode signing was configured and rerun the Apple Lite real-device checklist/native bridge decision.

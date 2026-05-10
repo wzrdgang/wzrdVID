@@ -55,6 +55,14 @@ Physical-device launch/smoke result:
 
 Current blocker: none for build/install/launch or automated WKWebView smoke. Manual Photos/Files picker import and user-visible export/share behavior still need hand testing on the device before TestFlight.
 
+Manual interaction attempt:
+
+- A normal non-smoke launch of `com.samhowell.wzrdvid.lite` succeeded again for this pass.
+- Xcode Devices `Take Screenshot` captured the running WZRD.VID Lite UI on the physical iPhone, confirming the native shell was open to bundled Lite rather than a remote website.
+- CoreDevice/Xcode tooling available in this session supports launch, install, process inspection, app listing, display info, and screenshots, but it did not expose remote tap/gesture control for the physical iPhone.
+- Because the remaining checks require interacting with the iOS Photos/Files picker and tapping the rendered blob download/export link, they still require hand testing on the unlocked iPhone.
+- No native import/share bridge was added because no real Photos/Files import failure or export/share failure has been confirmed.
+
 ## Boundaries
 
 - Do not change desktop renderer/performance behavior during this pass.
