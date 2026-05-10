@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Real long-media beta pass
+
+- Agent/task: Codex / v0.2.0 real long-media beta pass before Apple Lite app packaging.
+- Intent: Run the v0.2.0 desktop performance-smoke matrix against the user-supplied long local AVI, decide whether more desktop performance fixes are needed before Apple Lite packaging, and avoid committing private media or generated outputs.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: No. Validation/docs only; app behavior, renderer/media behavior, Lite behavior, versioning, packaging, publishing, pushing, and tagging were not changed.
+- Commands run: `git status --short --branch`; required repo docs reads; `ffprobe` metadata inspection; source render matrix with the repo `.venv`; output duration/audio checks with `ffprobe`; `git diff --check`; final `git status --short --branch`.
+- Checks passed: Supplied media is a 700.26 MB AVI, 1:52:10.01 duration, MPEG-4 video at 608x272/23.976 fps with MP3 audio. Probe cache smoke again issued 1 ffprobe call total for repeated helper calls. Real-media render smokes passed for long source to 10s, long source to 90s, random video plus photo 30s, source audio only, external audio from the same AVI, worky external audio, external plus selected source audio, random plus source audio, random plus match-to-music rejection, and 5s/10s mid-file preview-like renders. Output durations and audio presence matched expectations.
+- Checks failed: None.
+- Decisions made: The supplied long AVI did not reveal a v0.2.0 desktop performance blocker. No additional desktop performance fix is required before starting Apple Lite app packaging groundwork for this tested media class.
+- Known gaps: This was not a 4K/60fps, HEVC, variable-frame-rate, rotated phone video, or high-bitrate long-GOP phone export. Those media classes remain worth beta testing if available.
+- Next recommended prompt: Start WZRD.VID Lite Apple app packaging groundwork while keeping desktop v0.2.0 performance fixes frozen unless a blocker appears.
+
 ## 2026-05-10 - Source-available use terms clarification
 
 - Agent/task: Codex / narrow licensing and redistribution language pass before v0.2.0 Apple/Lite rollout work.

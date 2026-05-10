@@ -52,3 +52,37 @@
 - PNG frame staging is simple and reliable, but very long outputs can still create large temp directories.
 - Source-audio random assembly can still become expensive if many short segments are selected from long videos.
 - The synthetic stress media is intentionally small and low-resolution; real 4K/60fps or variable-frame-rate footage still needs manual beta testing before a broader v0.2.0 push.
+
+## 2026-05-10 - v0.2.0 real long-media beta pass
+
+### Test media
+
+- Source: local AVI file outside the repo, not committed.
+- Container/codecs: AVI, MPEG-4 video, MP3 audio.
+- Duration: 1:52:10.01.
+- Size: 700.26 MB.
+- Video: 608x272 at 23.976 fps.
+- Audio: present, 1:52:10.01.
+- Probe cache smoke: `get_duration`, `has_audio_stream`, `get_video_info`, and `get_audio_duration` on the same file issued 1 ffprobe call total after caching.
+
+### Results
+
+| Case | Result | Render time | Output duration | Audio | Main stage evidence |
+| --- | ---: | ---: | ---: | --- | --- |
+| Long source to 10s | pass | 1.02s | 10.000s | no | frame render 0.94s |
+| Long source to 90s max | pass | 10.43s | 90.000s | no | frame render 10.04s |
+| Long random video + photo 30s | pass | 2.84s | 30.000s | no | frame render 2.70s |
+| Source audio only 6s | pass | 0.83s | 6.000s | yes | source audio 0.19s |
+| External audio from same AVI 6s | pass | 0.71s | 6.000s | yes | external mux 0.15s |
+| worky external audio from same AVI 6s | pass | 0.63s | 6.000s | yes | external mux 0.06s |
+| External + selected source audio 6s | pass | 0.98s | 6.000s | yes | source audio 0.19s, mix 0.15s |
+| Random + source audio 6s | pass | 1.09s | 6.000s | yes | source audio 0.34s |
+| Random + match-to-music | pass | 0.00s | n/a | n/a | rejected before render |
+| Preview-like 5s mid-file | pass | 0.58s | 5.000s | no | frame render 0.52s |
+| Preview-like 10s mid-file | pass | 1.08s | 10.000s | no | frame render 0.99s |
+
+### Decision
+
+The supplied long AVI did not reveal a v0.2.0 desktop performance blocker. No additional desktop performance fix is required before starting WZRD.VID Lite Apple app packaging groundwork for this tested media class.
+
+Keep the previous caution in place: this does not prove difficult high-resolution phone footage is solved. 4K/60fps, HEVC, variable-frame-rate, rotated phone video, and long-GOP exports still deserve beta coverage if available.
