@@ -814,6 +814,11 @@ class MainWindow(QMainWindow):
         self._register_tooltip(self.audio_timeline_end, "tooltip.audio_timeline_end")
         for field in (self.video_start, self.video_end, self.audio_start, self.audio_end, self.audio_timeline_start, self.audio_timeline_end):
             field.setPlaceholderText("0:00, 1:40, 100, 12.5, or auto")
+        self.max_video_length = QLineEdit()
+        self.max_video_length.setMinimumWidth(112)
+        self._register_tooltip(self.max_video_length, "tooltip.max_video_length")
+        self.random_clip_assembly = self._checkbox("check.random_clip_assembly")
+        self._register_tooltip(self.random_clip_assembly, "tooltip.random_clip_assembly")
 
         self.preset = QComboBox()
         self.preset.addItems(preset_names())
@@ -1440,6 +1445,10 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.audio_mode, 3, 1)
         grid.addWidget(self.match_timeline_to_audio, 3, 2)
         grid.addWidget(self.match_timeline_mode, 3, 3)
+
+        grid.addWidget(self._label("label.max_video_length"), 4, 0)
+        grid.addWidget(self.max_video_length, 4, 1)
+        grid.addWidget(self.random_clip_assembly, 4, 2, 1, 2)
         return group
 
     def _build_style_group(self) -> QGroupBox:
@@ -1827,6 +1836,14 @@ class MainWindow(QMainWindow):
         self.audio_timeline_end.textChanged.connect(self._update_coverage_summary)
         self.audio_timeline_start.textChanged.connect(lambda _text: self._save_settings())
         self.audio_timeline_end.textChanged.connect(lambda _text: self._save_settings())
+        self.max_video_length.textChanged.connect(self._update_coverage_summary)
+        self.max_video_length.textChanged.connect(self._update_output_size_estimate)
+        self.max_video_length.textChanged.connect(self._update_optimize_estimate)
+        self.max_video_length.textChanged.connect(lambda _text: self._save_settings())
+        self.random_clip_assembly.toggled.connect(lambda _checked: self._update_coverage_summary())
+        self.random_clip_assembly.toggled.connect(lambda _checked: self._update_output_size_estimate())
+        self.random_clip_assembly.toggled.connect(lambda _checked: self._update_optimize_estimate())
+        self.random_clip_assembly.toggled.connect(lambda _checked: self._save_settings())
         self.video_start.textChanged.connect(self._update_optimize_estimate)
         self.video_end.textChanged.connect(self._update_optimize_estimate)
         self.audio_path.textChanged.connect(self._update_optimize_estimate)
@@ -2676,6 +2693,22 @@ class MainWindow(QMainWindow):
                 raise
             return None
 
+    def _selected_max_video_length(self, strict: bool) -> float | None:
+        raw = self.max_video_length.text().strip()
+        if not raw:
+            return None
+        try:
+            seconds = ffmpeg_utils.parse_timecode(raw)
+            if seconds is None or seconds <= 0:
+                raise ValueError(self.tr("dialog.max_video_length_invalid"))
+            return seconds
+        except Exception as exc:  # noqa: BLE001
+            if strict:
+                if isinstance(exc, ValueError) and str(exc) == self.tr("dialog.max_video_length_invalid"):
+                    raise
+                raise ValueError(self.tr("dialog.max_video_length_invalid")) from exc
+            return None
+
     def _update_coverage_controls(self) -> None:
         mode = self.bypass_mode.currentText()
         random_enabled = "Random" in mode
@@ -3161,6 +3194,12 @@ class MainWindow(QMainWindow):
             raise ValueError("Music start in video cannot be negative.")
         if audio_timeline_end is not None and audio_timeline_end <= audio_timeline_start:
             raise ValueError("Music end in video must be after music start in video.")
+        max_video_length = self._selected_max_video_length(strict=True)
+        random_clip_assembly = self.random_clip_assembly.isChecked()
+        if random_clip_assembly and max_video_length is None:
+            raise ValueError(self.tr("dialog.random_requires_max"))
+        if random_clip_assembly and self.match_timeline_to_audio.isChecked():
+            raise ValueError(self.tr("dialog.random_conflicts_match_music"))
         output_values = self._output_size_values()
         optimize_values = self._optimize_values()
         output_size = self._output_dimensions(int(output_values["max_width"]))
@@ -3181,6 +3220,8 @@ class MainWindow(QMainWindow):
             audio_bitrate=f"{int(output_values['audio_kbps'])}k",
             audio_timeline_start=audio_timeline_start,
             audio_timeline_end=audio_timeline_end,
+            max_video_length=max_video_length,
+            random_clip_assembly=random_clip_assembly,
             audio_mode=audio_mode,
             worky_music_mode=self.worky_music_mode.isChecked(),
             match_timeline_to_audio=self.match_timeline_to_audio.isChecked(),
@@ -3308,6 +3349,7 @@ class MainWindow(QMainWindow):
             audio_end=audio_end,
             audio_timeline_start=audio_timeline_start,
             audio_timeline_end=audio_timeline_end,
+            max_video_length=preview_length,
             target_size_mb=None,
             optimize_enabled=False,
             bypass_mode=BYPASS_MANUAL if shifted_blocks else BYPASS_FULL_ANSI,
@@ -3395,8 +3437,14 @@ class MainWindow(QMainWindow):
                 audio_duration = self._selected_audio_duration(strict=strict)
                 if audio_duration and audio_duration > 0:
                     if self.match_timeline_mode.currentText() == MATCH_TRIM:
-                        return min(timeline_duration, audio_duration)
-                    return audio_duration
+                        timeline_duration = min(timeline_duration, audio_duration)
+                    else:
+                        timeline_duration = audio_duration
+            max_video_length = self._selected_max_video_length(strict=strict)
+            if max_video_length is not None:
+                if self.random_clip_assembly.isChecked():
+                    return max_video_length
+                return min(timeline_duration, max_video_length)
             return timeline_duration
         except Exception as exc:  # noqa: BLE001
             if strict:
@@ -3597,12 +3645,18 @@ class MainWindow(QMainWindow):
             (self.audio_end.text(), "auto"),
             (self.audio_timeline_start.text(), "0:00"),
             (self.audio_timeline_end.text(), "auto"),
+            (self.max_video_length.text(), ""),
         )
         if any(value.strip() != default for value, default in text_defaults):
             return True
         if self.last_output_path or self.last_preview_path or self.last_render_error:
             return True
-        if self.audio_mode.currentText() != AUDIO_SILENT or self.match_timeline_to_audio.isChecked() or self.worky_music_mode.isChecked():
+        if (
+            self.audio_mode.currentText() != AUDIO_SILENT
+            or self.match_timeline_to_audio.isChecked()
+            or self.worky_music_mode.isChecked()
+            or self.random_clip_assembly.isChecked()
+        ):
             return True
         if self.match_timeline_mode.currentText() != MATCH_SPEED:
             return True
@@ -3674,9 +3728,11 @@ class MainWindow(QMainWindow):
         self.audio_end.setText("auto")
         self.audio_timeline_start.setText("0:00")
         self.audio_timeline_end.setText("auto")
+        self.max_video_length.clear()
         self._set_combo_text(self.audio_mode, AUDIO_SILENT)
         self.worky_music_mode.setChecked(False)
         self.match_timeline_to_audio.setChecked(False)
+        self.random_clip_assembly.setChecked(False)
         self._set_combo_text(self.match_timeline_mode, MATCH_SPEED)
 
         self._set_combo_text(self.preset, "Classic ANSI")
@@ -3830,7 +3886,7 @@ class MainWindow(QMainWindow):
         output_values = self._output_size_values()
         return {
             "app": APP_NAME,
-            "schema_version": 3,
+            "schema_version": 4,
             "ui_language": self.ui_language,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
@@ -3842,6 +3898,8 @@ class MainWindow(QMainWindow):
             "audio_end": self.audio_end.text().strip(),
             "audio_timeline_start": self.audio_timeline_start.text().strip(),
             "audio_timeline_end": self.audio_timeline_end.text().strip(),
+            "max_video_length": self.max_video_length.text().strip(),
+            "random_clip_assembly": self.random_clip_assembly.isChecked(),
             "audio_mode": self.audio_mode.currentText(),
             "worky_music_mode": self.worky_music_mode.isChecked(),
             "match_timeline_to_audio": self.match_timeline_to_audio.isChecked(),
@@ -3903,6 +3961,8 @@ class MainWindow(QMainWindow):
         self.audio_end.setText(str(data.get("audio_end", "auto")))
         self.audio_timeline_start.setText(str(data.get("audio_timeline_start", "0:00")))
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
+        self.max_video_length.setText(str(data.get("max_video_length", "")))
+        self.random_clip_assembly.setChecked(bool(data.get("random_clip_assembly", False)))
         loaded_audio_mode = self._canonical_audio_mode(
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
         )

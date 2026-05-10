@@ -18,7 +18,7 @@ This map describes the current repository so future agents can edit with context
 - Purpose: Builds a virtual media timeline from videos/photos, samples frames, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output.
 - Inbound dependencies: `app.py` render settings, timeline items, user selected output path, source media files.
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
-- High-risk notes: Rendering touches timing, frame counts, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, and audio duration expectations. Run focused smoke tests after edits.
+- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, and audio duration expectations. Run focused smoke tests after edits.
 
 ### ffmpeg and Media Utilities
 
@@ -113,19 +113,19 @@ This map describes the current repository so future agents can edit with context
 
 - Entry point: Preview 5 Seconds, MAKE VIDEO, MAKE BATCH.
 - UI/component path: `app.py` collects render settings and starts `RenderThread` or `BatchRenderThread`; progress/log signals update GUI.
-- Data/state path: `RenderSettings`, `PlaybackPlan`, bypass intervals, random seeds, style/output/optimization/framing/effect settings.
+- Data/state path: `RenderSettings`, `PlaybackPlan`, optional `max_video_length`, optional `random_clip_assembly`, bypass intervals, random seeds, style/output/optimization/framing/effect settings.
 - Asset/media path: source media, temp frame directories, preview folder under app settings parent, user-selected output path, optional optimized output path.
-- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available.
-- Failure/empty behavior: Exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up.
+- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available.
+- Failure/empty behavior: Random clip assembly without max length or with match-to-music should reject before render; exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `theme.py`.
 
 ### Export/Import Recipes
 
 - Entry point: Export Recipe, Import Recipe.
 - UI/component path: `app.py` project controls.
-- Data/state path: user-selected recipe JSON files; app settings store recent/default values.
+- Data/state path: user-selected recipe JSON files; app settings store recent/default values. Schema version 4 adds `max_video_length` as entered text and `random_clip_assembly` as a boolean; missing fields must load as blank/false.
 - Asset/media path: recipe JSON references user media paths but does not copy media.
-- Success behavior: Timeline, audio, style/effects, framing, bypass, output, batch, seeds, and optimization controls restore.
+- Success behavior: Timeline, audio, max-length/random assembly controls, style/effects, framing, bypass, output, batch, seeds, and optimization controls restore.
 - Failure/empty behavior: Missing referenced media, invalid recipe JSON, or older project preset JSON should be reported through GUI/log.
 - Files likely involved in changes: `app.py`, docs.
 
@@ -144,9 +144,9 @@ This map describes the current repository so future agents can edit with context
 
 - Entry point: `docs/lite/index.html`, Add Media, Add Audio, drag/drop, MAKE CLIP.
 - UI/component path: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`.
-- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, ANSI intervals, Canvas state, MediaRecorder blobs. UI language preference may be stored in localStorage only.
+- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, optional random clip assembly state, ANSI intervals, Canvas state, MediaRecorder blobs. UI language preference may be stored in localStorage only.
 - Asset/media path: local user files only; browser object URLs; no upload/server path.
-- Success behavior: Browser renders a max 15/30/60-second local chaos cut and exposes a download button.
+- Success behavior: Browser renders a max 15/30/60-second local chaos cut, optionally assembling random local sections up to the selected duration, and exposes a download button.
 - Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback.
 - Files likely involved in changes: `docs/lite/app.js`, `docs/lite/index.html`, `docs/lite/styles.css`, `docs/i18n.js`, `docs/lite/README.md`.
 

@@ -172,6 +172,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Audio modes: Silent, External only, Source audio only, External + selected source audio.
 - Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
 - Match visual timeline length to selected music by retiming, trimming, or looping.
+- Optional **Max video length** cap and deterministic **Random clip assembly** for building short exports from timeline media.
 - ANSI/text-art rendering with color sampled from source frames.
 - **PUBLIC ACCESS** renderer for camcorder-dub public-access texture while keeping ANSI Coverage fully adjustable.
 - Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, and mosaic collapse.
@@ -182,6 +183,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Output-size presets, including 29 MB Text Limit and 32 MB Sweet Spot workflows.
 - Auto-optimize final video size with H.264 `yuv420p`, AAC, and `+faststart`.
 - 5-second and 10-second preview renders before committing to a full export.
+- WZRD.VID Lite includes a browser-safe Random clip assembly checkbox using its 15/30/60-second duration choices.
 - PyInstaller macOS app build support.
 
 ## Screenshots / Demos
@@ -222,14 +224,16 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 2. Set video trim points or photo hold durations.
 3. Select or drag in optional external music/audio. Video containers such as `.mp4` or `.mov` can be used as audio sources when they contain an audio track.
 4. Choose Audio Mix mode and per-video **Include Audio** rows.
-5. Set timeline/music trim, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
+5. Set timeline/music trim, optional max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
 7. Choose ANSI Coverage if you want some sections to stay normal video.
 8. Pick Output Size and optional Optimize Output target.
 9. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
 10. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
 
-Recipes save timeline items, media paths, trims, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
+Recipes save timeline items, media paths, trims, max video length/random assembly settings, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
+
+Advanced per-clip include-section selection remains future work.
 
 New projects default to **CRT Flash** transitions and **Fade Out** endings so exports feel less abrupt. Recipes preserve their saved transition and ending choices.
 

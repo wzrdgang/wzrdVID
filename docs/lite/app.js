@@ -36,6 +36,7 @@
     ansi: document.getElementById('ansiAmount'),
     ansiValue: document.getElementById('ansiValue'),
     duration: document.getElementById('durationSelect'),
+    randomClip: document.getElementById('randomClipAssembly'),
     quality: document.getElementById('qualitySelect'),
     renderButton: document.getElementById('renderButton'),
     downloadButton: document.getElementById('downloadButton'),
@@ -237,7 +238,7 @@
     drawIdleFrame();
   }
 
-  function makeTimeline(duration) {
+  function makeRandomTimeline(duration) {
     const timeline = [];
     let t = 0;
     let guard = 0;
@@ -264,6 +265,40 @@
       last.duration = Math.max(0, duration - last.start);
     }
     return timeline;
+  }
+
+  function makeSequentialTimeline(duration) {
+    const timeline = [];
+    let t = 0;
+    let index = 0;
+    let guard = 0;
+    while (t < duration - 0.001 && state.media.length && guard < 240) {
+      guard += 1;
+      const source = state.media[index % state.media.length];
+      index += 1;
+      const isVideo = source.kind === 'video';
+      const sourceDuration = Math.max(0.001, source.duration || duration);
+      const segmentDuration = isVideo ? sourceDuration : 2.4;
+      const safeDuration = Math.min(segmentDuration, duration - t);
+      if (safeDuration <= 0.001) break;
+      timeline.push({
+        source,
+        start: t,
+        duration: safeDuration,
+        sourceStart: 0,
+        seed: 0.5
+      });
+      t += safeDuration;
+    }
+    if (timeline.length) {
+      const last = timeline[timeline.length - 1];
+      last.duration = Math.max(0, duration - last.start);
+    }
+    return timeline;
+  }
+
+  function makeTimeline(duration, randomize) {
+    return randomize ? makeRandomTimeline(duration) : makeSequentialTimeline(duration);
   }
 
   function buildAnsiIntervals(duration, percent, minLen = MIN_ANSI_CHUNK, maxLen = MAX_ANSI_CHUNK, seed = Date.now()) {
@@ -395,7 +430,8 @@
     const ansiPercent = Number(elements.ansi.value);
     const ansiSeed = window.crypto?.getRandomValues ? window.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
     resizeCanvas(quality.width, quality.height);
-    const timeline = makeTimeline(duration);
+    const randomizeTimeline = Boolean(elements.randomClip?.checked);
+    const timeline = makeTimeline(duration, randomizeTimeline);
     const ansiIntervals = buildAnsiIntervals(duration, ansiPercent, MIN_ANSI_CHUNK, MAX_ANSI_CHUNK, ansiSeed);
     const expectedFrames = Math.max(1, Math.ceil(duration * fps));
     const mimeType = pickRecorderMimeType();
@@ -423,6 +459,7 @@
     };
 
     log(t('lite.log_render_armed', { seconds: duration.toFixed(0), ansi: ansiPercent, width: quality.width, height: quality.height, fps }));
+    log(t(randomizeTimeline ? 'lite.log_random_enabled' : 'lite.log_random_disabled'));
     log(t('lite.log_timeline', { segments: timeline.length, intervals: ansiIntervals.length, seed: ansiSeed }));
     log(mimeType.includes('mp4') ? t('lite.log_mp4') : t('lite.log_webm'));
     setStatus(t('lite.status_rendering', { seconds: duration }));

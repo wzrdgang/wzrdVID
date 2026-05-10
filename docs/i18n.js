@@ -133,6 +133,8 @@
     'lite.ansi_coverage': 'ANSI Coverage',
     'lite.ansi_help': 'Random portions of the final clip become ANSI/text-art. 0% = normal, 100% = full ANSI.',
     'lite.clip_length': 'Clip Length',
+    'lite.random_clip_assembly': 'Random clip assembly',
+    'lite.random_clip_help': 'Builds the clip from random sections of your selected local media.',
     'lite.sec': '{seconds} sec',
     'lite.quality': 'Quality',
     'lite.fast': 'Fast 480p',
@@ -164,6 +166,8 @@
     'lite.status_rendering': 'rendering {seconds} sec local clip // no upload',
     'lite.status_complete': 'render complete // {seconds} sec target // {type} ready',
     'lite.log_render_armed': 'render armed: {seconds} sec // ANSI coverage {ansi}% // {width}x{height} // {fps} fps',
+    'lite.log_random_enabled': 'random clip assembly enabled // browser-safe local sections',
+    'lite.log_random_disabled': 'random clip assembly off // using selected media in order',
     'lite.log_timeline': 'timeline segments: {segments} // ANSI intervals: {intervals} // seed {seed}',
     'lite.log_mp4': 'browser MP4 recorder available',
     'lite.log_webm': 'browser MP4 recorder unavailable; using WebM prototype fallback',
@@ -223,6 +227,8 @@
       'lite.ansi_coverage': 'Cobertura ANSI',
       'lite.ansi_help': 'Partes aleatorias del clip final se vuelven ANSI/text-art. 0% = normal, 100% = ANSI completo.',
       'lite.clip_length': 'Duración del clip',
+      'lite.random_clip_assembly': 'Montaje aleatorio de clips',
+      'lite.random_clip_help': 'Construye el clip con secciones aleatorias de tus medios locales seleccionados.',
       'lite.quality': 'Calidad',
       'lite.make_clip': 'CREAR CLIP DE {seconds} S',
       'lite.download_clip': 'DESCARGAR CLIP',
@@ -232,6 +238,8 @@
       'lite.log_label': '//// REGISTRO',
       'lite.log_initial': 'render local del navegador // sin subida\nesperando archivos _',
       'lite.footer_mid': 'ARCHIVOS LOCALES | SIN SUBIDA | MÁX 60 S',
+      'lite.log_random_enabled': 'montaje aleatorio activado // secciones locales seguras para navegador',
+      'lite.log_random_disabled': 'montaje aleatorio desactivado // usando medios en orden',
       'lite.log_armed': 'Lite está armado. Los archivos quedan locales en este navegador.'
     },
     'pt-BR': {
@@ -254,9 +262,13 @@
       'lite.add_audio': 'Adicionar áudio',
       'lite.loaded_files': 'Arquivos carregados',
       'lite.no_media': 'Nenhuma mídia carregada ainda.',
+      'lite.random_clip_assembly': 'Montagem aleatória de clipes',
+      'lite.random_clip_help': 'Monta o clipe com trechos aleatórios da mídia local selecionada.',
       'lite.make_clip': 'CRIAR CLIPE DE {seconds} S',
       'lite.download_clip': 'BAIXAR CLIPE',
       'lite.status_idle': 'Solte mídia local para armar o deck.',
+      'lite.log_random_enabled': 'montagem aleatória ativada // trechos locais seguros para navegador',
+      'lite.log_random_disabled': 'montagem aleatória desativada // usando mídia em ordem',
       'lite.log_armed': 'Lite está armado. Os arquivos ficam locais neste navegador.'
     },
     fr: {
@@ -279,9 +291,13 @@
       'lite.add_audio': 'Ajouter audio',
       'lite.loaded_files': 'Fichiers chargés',
       'lite.no_media': 'Aucun média chargé.',
+      'lite.random_clip_assembly': 'Assemblage aléatoire de clips',
+      'lite.random_clip_help': 'Construit le clip à partir de sections aléatoires de vos médias locaux.',
       'lite.make_clip': 'CRÉER CLIP DE {seconds} S',
       'lite.download_clip': 'TÉLÉCHARGER CLIP',
       'lite.status_idle': 'Déposez des médias locaux pour armer le deck.',
+      'lite.log_random_enabled': 'assemblage aléatoire activé // sections locales compatibles navigateur',
+      'lite.log_random_disabled': 'assemblage aléatoire désactivé // médias utilisés dans l’ordre',
       'lite.log_armed': 'Lite est armé. Les fichiers restent locaux dans ce navigateur.'
     },
     de: {
@@ -304,9 +320,13 @@
       'lite.add_audio': 'Audio hinzufügen',
       'lite.loaded_files': 'Geladene Dateien',
       'lite.no_media': 'Noch keine Medien geladen.',
+      'lite.random_clip_assembly': 'Zufällige Clip-Montage',
+      'lite.random_clip_help': 'Baut den Clip aus zufälligen Abschnitten deiner ausgewählten lokalen Medien.',
       'lite.make_clip': '{seconds}-S-CLIP ERSTELLEN',
       'lite.download_clip': 'CLIP HERUNTERLADEN',
       'lite.status_idle': 'Lokale Medien ablegen, um das Deck zu aktivieren.',
+      'lite.log_random_enabled': 'zufällige Clip-Montage aktiv // lokale browser-sichere Abschnitte',
+      'lite.log_random_disabled': 'zufällige Clip-Montage aus // Medien in Reihenfolge',
       'lite.log_armed': 'Lite ist bereit. Dateien bleiben lokal in diesem Browser.'
     },
     ru: {
@@ -329,9 +349,13 @@
       'lite.add_audio': 'Добавить аудио',
       'lite.loaded_files': 'Загруженные файлы',
       'lite.no_media': 'Медиа ещё не загружены.',
+      'lite.random_clip_assembly': 'Случайная сборка клипов',
+      'lite.random_clip_help': 'Собирает клип из случайных участков выбранных локальных медиа.',
       'lite.make_clip': 'СОЗДАТЬ КЛИП {seconds} С',
       'lite.download_clip': 'СКАЧАТЬ КЛИП',
       'lite.status_idle': 'Перетащите локальные медиа, чтобы подготовить deck.',
+      'lite.log_random_enabled': 'случайная сборка включена // локальные безопасные для браузера участки',
+      'lite.log_random_disabled': 'случайная сборка выключена // медиа используются по порядку',
       'lite.log_armed': 'Lite готов. Файлы остаются локально в этом браузере.'
     },
     uk: {
@@ -354,9 +378,13 @@
       'lite.add_audio': 'Додати аудіо',
       'lite.loaded_files': 'Завантажені файли',
       'lite.no_media': 'Медіа ще не завантажено.',
+      'lite.random_clip_assembly': 'Випадкове складання кліпів',
+      'lite.random_clip_help': 'Створює кліп із випадкових ділянок вибраних локальних медіа.',
       'lite.make_clip': 'СТВОРИТИ КЛІП {seconds} С',
       'lite.download_clip': 'ЗАВАНТАЖИТИ КЛІП',
       'lite.status_idle': 'Перетягніть локальні медіа, щоб підготувати deck.',
+      'lite.log_random_enabled': 'випадкове складання увімкнено // локальні безпечні для браузера ділянки',
+      'lite.log_random_disabled': 'випадкове складання вимкнено // медіа використовуються за порядком',
       'lite.log_armed': 'Lite готовий. Файли залишаються локально в цьому браузері.'
     },
     ja: {
@@ -379,9 +407,13 @@
       'lite.add_audio': '音声を追加',
       'lite.loaded_files': '読み込み済みファイル',
       'lite.no_media': 'まだメディアがありません。',
+      'lite.random_clip_assembly': 'ランダムクリップ構成',
+      'lite.random_clip_help': '選択したローカルメディアのランダムな区間からクリップを作ります。',
       'lite.make_clip': '{seconds} 秒クリップを作成',
       'lite.download_clip': 'クリップをダウンロード',
       'lite.status_idle': 'ローカルメディアをドロップして準備します。',
+      'lite.log_random_enabled': 'ランダムクリップ構成オン // ブラウザ内のローカル区間',
+      'lite.log_random_disabled': 'ランダムクリップ構成オフ // メディアを順番に使用',
       'lite.log_armed': 'Lite は準備完了です。ファイルはこのブラウザ内に留まります。'
     },
     ko: {
@@ -404,9 +436,13 @@
       'lite.add_audio': '오디오 추가',
       'lite.loaded_files': '불러온 파일',
       'lite.no_media': '아직 미디어가 없습니다.',
+      'lite.random_clip_assembly': '랜덤 클립 조립',
+      'lite.random_clip_help': '선택한 로컬 미디어의 무작위 구간으로 클립을 만듭니다.',
       'lite.make_clip': '{seconds}초 클립 만들기',
       'lite.download_clip': '클립 다운로드',
       'lite.status_idle': '로컬 미디어를 놓아 deck을 준비하세요.',
+      'lite.log_random_enabled': '랜덤 클립 조립 켜짐 // 브라우저 안전 로컬 구간',
+      'lite.log_random_disabled': '랜덤 클립 조립 꺼짐 // 미디어를 순서대로 사용',
       'lite.log_armed': 'Lite 준비 완료. 파일은 이 브라우저에만 남습니다.'
     },
     'zh-CN': {
@@ -429,9 +465,13 @@
       'lite.add_audio': '添加音频',
       'lite.loaded_files': '已加载文件',
       'lite.no_media': '尚未加载媒体。',
+      'lite.random_clip_assembly': '随机片段组装',
+      'lite.random_clip_help': '从你选择的本地媒体随机片段生成剪辑。',
       'lite.make_clip': '生成 {seconds} 秒片段',
       'lite.download_clip': '下载片段',
       'lite.status_idle': '放入本地媒体以准备 deck。',
+      'lite.log_random_enabled': '随机片段组装已开启 // 浏览器安全的本地片段',
+      'lite.log_random_disabled': '随机片段组装已关闭 // 按顺序使用媒体',
       'lite.log_armed': 'Lite 已准备好。文件只留在此浏览器中。'
     },
     'zh-TW': {
@@ -454,9 +494,13 @@
       'lite.add_audio': '加入音訊',
       'lite.loaded_files': '已載入檔案',
       'lite.no_media': '尚未載入媒體。',
+      'lite.random_clip_assembly': '隨機片段組裝',
+      'lite.random_clip_help': '從你選擇的本機媒體隨機片段製作剪輯。',
       'lite.make_clip': '製作 {seconds} 秒片段',
       'lite.download_clip': '下載片段',
       'lite.status_idle': '放入本機媒體以準備 deck。',
+      'lite.log_random_enabled': '隨機片段組裝已開啟 // 瀏覽器安全的本機片段',
+      'lite.log_random_disabled': '隨機片段組裝已關閉 // 按順序使用媒體',
       'lite.log_armed': 'Lite 已準備好。檔案只會留在此瀏覽器。'
     },
     fil: {
@@ -479,9 +523,13 @@
       'lite.add_audio': 'Magdagdag ng audio',
       'lite.loaded_files': 'Loaded files',
       'lite.no_media': 'Wala pang media.',
+      'lite.random_clip_assembly': 'Random clip assembly',
+      'lite.random_clip_help': 'Gumagawa ng clip mula sa random sections ng piniling local media.',
       'lite.make_clip': 'GUMAWA NG {seconds} SEG CLIP',
       'lite.download_clip': 'I-DOWNLOAD ANG CLIP',
       'lite.status_idle': 'I-drop ang local media para ihanda ang deck.',
+      'lite.log_random_enabled': 'random clip assembly on // local browser-safe sections',
+      'lite.log_random_disabled': 'random clip assembly off // ginagamit ang media sa ayos',
       'lite.log_armed': 'Handa na ang Lite. Lokal lang ang files sa browser na ito.'
     },
     hi: {
@@ -504,9 +552,13 @@
       'lite.add_audio': 'ऑडियो जोड़ें',
       'lite.loaded_files': 'लोड की गई फ़ाइलें',
       'lite.no_media': 'अभी कोई मीडिया लोड नहीं है।',
+      'lite.random_clip_assembly': 'रैंडम क्लिप असेंबली',
+      'lite.random_clip_help': 'चुनी गई स्थानीय मीडिया के रैंडम हिस्सों से क्लिप बनाता है।',
       'lite.make_clip': '{seconds} सेकंड क्लिप बनाएँ',
       'lite.download_clip': 'क्लिप डाउनलोड करें',
       'lite.status_idle': 'deck तैयार करने के लिए स्थानीय मीडिया छोड़ें।',
+      'lite.log_random_enabled': 'रैंडम क्लिप असेंबली चालू // ब्राउज़र-सुरक्षित स्थानीय हिस्से',
+      'lite.log_random_disabled': 'रैंडम क्लिप असेंबली बंद // मीडिया क्रम से इस्तेमाल हो रहा है',
       'lite.log_armed': 'Lite तैयार है। फ़ाइलें इसी ब्राउज़र में स्थानीय रहती हैं।'
     },
     ar: {
@@ -529,9 +581,13 @@
       'lite.add_audio': 'إضافة صوت',
       'lite.loaded_files': 'الملفات المحمّلة',
       'lite.no_media': 'لم يتم تحميل وسائط بعد.',
+      'lite.random_clip_assembly': 'تجميع مقاطع عشوائي',
+      'lite.random_clip_help': 'ينشئ المقطع من أقسام عشوائية من وسائطك المحلية المحددة.',
       'lite.make_clip': 'إنشاء مقطع {seconds} ث',
       'lite.download_clip': 'تنزيل المقطع',
       'lite.status_idle': 'أفلت وسائط محلية لتجهيز اللوحة.',
+      'lite.log_random_enabled': 'تجميع المقاطع العشوائي مفعّل // أقسام محلية آمنة للمتصفح',
+      'lite.log_random_disabled': 'تجميع المقاطع العشوائي متوقف // استخدام الوسائط بالترتيب',
       'lite.log_armed': 'Lite جاهز. تبقى الملفات محلية في هذا المتصفح.'
     }
   };

@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-10 - Max length and random clip assembly
+
+- Agent/task: Codex / Phase B desktop max video length plus desktop and Lite random clip assembly before v0.1.9 publication.
+- Intent: Add release-safe duration capping and random clip assembly while preserving existing desktop/Lite behavior when new controls are off, avoiding advanced per-clip include-section editing, and keeping Lite browser-only/no-upload.
+- Files changed this pass: `app.py`, `app_i18n.py`, `renderer.py`, `docs/lite/index.html`, `docs/lite/app.js`, `docs/lite/styles.css`, `docs/i18n.js`, `README.md`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Desktop can cap final render duration, can build deterministic random source segments when max length is set, saves/loads schema version 4 recipe fields, and rejects random+match-to-music before render. Lite now exposes a localized random clip assembly checkbox using its existing 15/30/60-second duration choices.
+- Commands run: `git status --short --branch`; `git log --oneline -8`; required repo docs reads; Phase B audit grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py`; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; Lite forbidden-network grep; offscreen source GUI/recipe smoke; synthetic ffmpeg render smokes with ffprobe; local Pages server with `curl` checks for `/`, `/lite/`, and `i18n.js`; Lite checkbox static check; `git diff --check`; `./build_app.sh`; `scripts/package_release.sh`; plist, ZIP size, and SHA256 verification.
+- Checks passed: Python and JavaScript syntax checks passed, Lite network grep returned no forbidden APIs, source GUI opened with Phase A header controls intact, max/random controls existed, Spanish language switching still updated primary UI, old recipe JSON loaded blank/false for new fields, schema 4 recipe JSON saved/reloaded both fields, default render worked, max-only render capped output, random video+photo render produced a valid capped MP4, random source-audio render produced a valid MP4 with audio, random+match-to-music rejected before render, local Pages root/Lite/i18n loaded, the release ZIP rebuilt, and bundle plist reports 0.1.9.
+- Checks failed: Browser automation for a live Lite render was not run; validation used JS syntax, static local serving, checkbox presence, and source render smokes.
+- Decisions made: Lite's random checkbox defaults on so the existing random browser timeline behavior remains the default. Desktop source audio is attempted through the existing source-audio builder for randomized segments and falls back with a clear log if that path fails.
+- Known gaps: Advanced per-clip include-section selection remains future work. Lite random mode is non-deterministic and remains browser/MediaRecorder dependent. Non-English strings are still draft and need fluent review.
+- Release artifact: `WZRD.VID-macOS.zip`, 76M, SHA256 `1bd1799544bbcb6c686bae45caf6a3080ead540e1d4f028c74096eaaf2ba16d0`.
+- Next recommended prompt: Review the v0.1.9 app and Lite manually, then publish the updated v0.1.9 release with the rebuilt ZIP and SHA256.
+
 ## 2026-05-10 - Header update/language relocation
 
 - Agent/task: Codex / Phase A desktop header UI relocation before v0.1.9 publication.

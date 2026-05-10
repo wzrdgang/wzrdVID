@@ -8,6 +8,9 @@
 - Removed the top homepage Mac install notice block while preserving the remaining release ZIP guidance.
 - Tightened high-visibility desktop localization coverage for common tooltips, table type labels, warning/dialog copy, status labels, and header/session-log text.
 - Moved the update and language controls into the desktop header for easier access.
+- Added a desktop max video length control for capping final render duration.
+- Added desktop random clip assembly for building capped-duration videos from uploaded timeline media.
+- Added a WZRD.VID Lite random clip assembly checkbox that uses Lite's existing 15/30/60-second duration choices.
 - Documented localization resource locations, fallback behavior, and draft/native-review limits.
 - Bumped app/release metadata to v0.1.9.
 

@@ -299,6 +299,17 @@ select {
   font: 900 15px/1 Arial, sans-serif;
 }
 input[type="range"] { accent-color: var(--pink-hot); }
+input[type="checkbox"] {
+  inline-size: 20px;
+  block-size: 20px;
+  margin: 0 8px 0 0;
+  accent-color: var(--pink-hot);
+}
+.checkbox-field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 output { float: right; font-family: ui-monospace, Menlo, Consolas, monospace; }
 
 .file-list-wrap h2 {
@@ -338,6 +349,10 @@ html[dir="rtl"] .deck-label {
 html[dir="rtl"] .language-bar,
 html[dir="rtl"] .site-footer {
   direction: rtl;
+}
+
+html[dir="rtl"] input[type="checkbox"] {
+  margin: 0 0 0 8px;
 }
 
 canvas {

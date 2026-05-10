@@ -95,6 +95,8 @@ class RenderSettings:
     audio_bitrate: str = "128k"
     audio_timeline_start: float = 0.0
     audio_timeline_end: float | None = None
+    max_video_length: float | None = None
+    random_clip_assembly: bool = False
     audio_mode: str = AUDIO_EXTERNAL
     worky_music_mode: bool = False
     match_timeline_to_audio: bool = False
@@ -243,6 +245,22 @@ def render_project(
         timeline_duration,
         selected_audio_duration=selected_audio_duration,
     )
+    if settings.random_clip_assembly:
+        timeline_segments = _randomized_timeline_segments(
+            timeline_segments,
+            playback,
+            float(settings.max_video_length or 0.0),
+            settings,
+        )
+        timeline_duration = sum(segment.duration for segment in timeline_segments)
+        playback = PlaybackPlan(
+            timeline_start=0.0,
+            timeline_end=timeline_duration,
+            source_duration=timeline_duration,
+            output_duration=timeline_duration,
+            speed_factor=1.0,
+            loop_timeline=False,
+        )
     render_duration = playback.output_duration
     source_count = len({segment.path for segment in timeline_segments})
     _emit(
@@ -250,6 +268,11 @@ def render_project(
         f"Timeline: {len(timeline_segments)} segment(s), {source_count} source file(s), "
         f"{ffmpeg_utils.format_duration(playback.source_duration)} selected.",
     )
+    if settings.max_video_length is not None:
+        if settings.random_clip_assembly:
+            _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(render_duration)}.")
+        else:
+            _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(render_duration)}.")
     source_audio = _uses_source_audio(settings)
     if settings.match_timeline_to_audio and audio_mode == AUDIO_MIX:
         _emit(log, "Source audio mixing is disabled when matching timeline length to music. Using external audio only.")
@@ -369,16 +392,23 @@ def render_project(
         source_audio_path: Path | None = None
         if source_audio:
             _emit(log, "Building selected source timeline audio.")
-            source_audio_path = ffmpeg_utils.build_timeline_audio(
-                timeline_segments,
-                playback.timeline_start,
-                render_duration,
-                temp_root_path / "source_audio.m4a",
-                temp_root_path / "source_audio_parts",
-                audio_bitrate=settings.audio_bitrate,
-                fade_out_duration=_audio_fade_duration(settings, render_duration),
-                log=log,
-            )
+            try:
+                source_audio_path = ffmpeg_utils.build_timeline_audio(
+                    timeline_segments,
+                    playback.timeline_start,
+                    render_duration,
+                    temp_root_path / "source_audio.m4a",
+                    temp_root_path / "source_audio_parts",
+                    audio_bitrate=settings.audio_bitrate,
+                    fade_out_duration=_audio_fade_duration(settings, render_duration),
+                    log=log,
+                )
+            except Exception as exc:  # noqa: BLE001 - random slices must fail soft for source audio.
+                if not settings.random_clip_assembly:
+                    raise
+                _emit(log, f"Random clip assembly: source audio could not be preserved safely ({exc}). Continuing without source audio.")
+                source_audio = False
+                source_audio_path = None
 
         if external_audio and source_audio_path is not None and audio_mode == AUDIO_MIX and not settings.match_timeline_to_audio:
             _emit(log, "Mixing external audio with selected source audio.")
@@ -492,6 +522,12 @@ def _validate_settings(settings: RenderSettings) -> None:
             raise ValueError("Output path must be different from the selected audio file.")
     if settings.match_timeline_to_audio and not _uses_external_audio(settings):
         raise ValueError("Match video length to music requires External only or External + selected source audio mode with a selected audio track.")
+    if settings.max_video_length is not None and settings.max_video_length <= 0:
+        raise ValueError("Max video length must be greater than 0.")
+    if settings.random_clip_assembly and settings.max_video_length is None:
+        raise ValueError("Random clip assembly requires a max video length.")
+    if settings.random_clip_assembly and settings.match_timeline_to_audio:
+        raise ValueError("Random clip assembly cannot be used with Match video length to music.")
     if settings.audio_timeline_start < 0:
         raise ValueError("Music start in video cannot be negative.")
     if settings.audio_timeline_end is not None and settings.audio_timeline_end <= settings.audio_timeline_start:
@@ -570,6 +606,108 @@ def _external_audio_match_duration(settings: RenderSettings, selected_clip_durat
     return start + _external_audio_active_duration(settings, selected_clip_duration)
 
 
+def _randomized_timeline_segments(
+    segments: list[TimelineSegment],
+    playback: PlaybackPlan,
+    target_duration: float,
+    settings: RenderSettings,
+) -> list[TimelineSegment]:
+    candidates = _random_candidates_from_selection(segments, playback.timeline_start, playback.timeline_end)
+    if not candidates:
+        raise ValueError("Random clip assembly needs at least one usable timeline segment.")
+    target_duration = max(0.001, float(target_duration))
+    rng = random.Random(settings.random_seed if settings.random_seed is not None else 0)
+    min_len = max(0.05, float(settings.random_min_len or RANDOM_CHUNK_MIN))
+    max_len = max(min_len, float(settings.random_max_len or RANDOM_CHUNK_MAX))
+    randomized: list[TimelineSegment] = []
+    cursor = 0.0
+    guard = 0
+    while cursor < target_duration - 0.001 and guard < 2000:
+        guard += 1
+        candidate = candidates[rng.randrange(len(candidates))]
+        remaining = target_duration - cursor
+        usable_duration = max(0.001, float(candidate.duration))
+        upper = min(max_len, remaining, usable_duration)
+        if upper <= 0.001:
+            continue
+        lower = min(min_len, upper)
+        chunk_duration = upper if upper <= lower else rng.uniform(lower, upper)
+        chunk_duration = min(chunk_duration, remaining)
+        if candidate.kind == "video":
+            source_end = candidate.source_end if candidate.source_end is not None else candidate.source_start + usable_duration
+            source_span = max(0.001, float(source_end) - candidate.source_start)
+            source_max = max(0.0, source_span - chunk_duration)
+            source_start = candidate.source_start + (rng.random() * source_max if source_max > 0 else 0.0)
+            segment_source_end = min(float(source_end), source_start + chunk_duration)
+        else:
+            source_start = 0.0
+            segment_source_end = chunk_duration
+        randomized.append(
+            TimelineSegment(
+                path=candidate.path,
+                kind=candidate.kind,
+                timeline_start=cursor,
+                duration=chunk_duration,
+                source_start=source_start,
+                source_end=segment_source_end,
+                has_audio=candidate.has_audio,
+                include_audio=candidate.include_audio,
+            )
+        )
+        cursor += chunk_duration
+
+    if not randomized:
+        raise ValueError("Random clip assembly could not build a usable timeline.")
+    final = randomized[-1]
+    final_duration = max(0.001, target_duration - final.timeline_start)
+    if abs(final_duration - final.duration) > 0.001:
+        randomized[-1] = replace(
+            final,
+            duration=final_duration,
+            source_end=(final.source_start + final_duration if final.kind == "video" else final_duration),
+        )
+    return randomized
+
+
+def _random_candidates_from_selection(
+    segments: list[TimelineSegment],
+    timeline_start: float,
+    timeline_end: float,
+) -> list[TimelineSegment]:
+    candidates: list[TimelineSegment] = []
+    for segment in segments:
+        overlap_start = max(float(timeline_start), segment.timeline_start)
+        overlap_end = min(float(timeline_end), segment.timeline_end)
+        duration = overlap_end - overlap_start
+        if duration <= 0.001:
+            continue
+        if segment.kind == "video":
+            local_start = overlap_start - segment.timeline_start
+            source_start = segment.source_start + local_start
+            source_end = source_start + duration
+            if segment.source_end is not None:
+                source_end = min(float(segment.source_end), source_end)
+            duration = source_end - source_start
+            if duration <= 0.001:
+                continue
+        else:
+            source_start = 0.0
+            source_end = duration
+        candidates.append(
+            TimelineSegment(
+                path=segment.path,
+                kind=segment.kind,
+                timeline_start=0.0,
+                duration=duration,
+                source_start=source_start,
+                source_end=source_end,
+                has_audio=segment.has_audio,
+                include_audio=segment.include_audio,
+            )
+        )
+    return candidates
+
+
 def _playback_plan(
     settings: RenderSettings,
     timeline_duration: float,
@@ -605,6 +743,9 @@ def _playback_plan(
         else:
             output_duration = selected_audio_duration
             speed_factor = source_duration / selected_audio_duration
+
+    if settings.max_video_length is not None:
+        output_duration = min(output_duration, max(0.001, float(settings.max_video_length)))
 
     return PlaybackPlan(
         timeline_start=timeline_start,
