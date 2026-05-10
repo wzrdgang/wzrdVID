@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-09 - Website download wording cleanup
+
+- Agent/task: Codex / front-page v0.1.8 website copy cleanup.
+- Intent: Remove defensive Source ZIP warning language from the wzrdvid.com primary CTA area while keeping detailed download warnings in README/install/help docs.
+- Files changed: `docs/index.html`, `docs/agent-log.md`.
+- Behavior changed: No. Website copy only; app code, version metadata, and release ZIP were not changed.
+- Commands run: `git status --short --branch`; targeted `rg`/`sed`; local Pages server and `curl`; `git diff --check`.
+- Checks passed: Front page no longer contains the removed Source ZIP warning, README/install/help docs still retain Source ZIP vs packaged app guidance, local `/` and `/lite/` Pages checks passed, and diff check passed.
+- Checks failed: None.
+- Decisions made: Homepage now uses softer normal-user wording: packaged Mac app as the normal install path, Apple Silicon currently recommended, Intel Macs source-run for now.
+- Known gaps: v0.1.8 GitHub release remains unpublished. App ZIP was not rebuilt because the change is website copy only.
+- Next recommended prompt: Publish v0.1.8 with the existing packaged app ZIP and unchanged SHA256 after reviewing the release command.
+
 ## 2026-05-09 - v0.1.8 maintenance prep
 
 - Agent/task: Codex / tightly scoped v0.1.8 maintenance release prep.
