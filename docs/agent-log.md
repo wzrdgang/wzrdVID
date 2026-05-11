@@ -17,6 +17,17 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-11 - Preview/cache cleanup
+
+- Agent/task: Codex / add v0.2.0 cleanup support for WZRD.VID-managed preview/cache/temp leftovers after the user found large accumulated rendered junk locally.
+- Intent: Keep cleanup limited to app-owned preview/cache/temp paths, do not delete user-selected final exports, source media, recipes, Lite/Apple Lite/site behavior, renderer output, version, packaging, publishing, pushing, or tagging.
+- Files changed this pass: `app.py`, `app_i18n.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. The desktop app now has a localized Clear Preview Cache button in the Output area, confirmation copy with approximate size/counts, and best-effort startup cleanup of WZRD.VID-managed preview/cache/temp files older than 14 days. Cleanup failures log and continue.
+- Safety boundaries: Manual cleanup targets the app-owned Previews directory plus old exact-prefix WZRD temp folders; automatic cleanup uses the 14-day age threshold. User-selected exports, source media, recipes, and arbitrary Desktop/Documents/custom folders are not scanned or deleted.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; preview/cache/temp path audit grep; app localization coverage audit; helper cleanup tests with temp preview/cache/temp roots; offscreen GUI smoke for the cleanup button/confirmation and language switching; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`.
+- Known gaps: No broad filesystem scanning is attempted by design. Real user-space cleanup should be verified cautiously by checking the confirmation size/counts before using the manual button on a machine with old previews.
+- Next recommended prompt: Run the real long render with `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` after cache cleanup lands, then compare output, wall time, temp disk use, and failure behavior.
+
 ## 2026-05-11 - Experimental direct frame-pipe renderer prototype
 
 - Agent/task: Codex / prototype a reversible direct ffmpeg raw-frame pipe path after the v0.2.0 render-speed profiling found PNG staging secondary to ANSI/text drawing.

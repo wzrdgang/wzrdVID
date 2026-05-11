@@ -12,6 +12,7 @@
 - Added a WZRD.VID Lite Web Audio fallback for the explicit Add Audio bus on iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable.
 - Fixed a hue-shift overflow crash that could appear during long desktop renders.
 - Prototyped an experimental direct ffmpeg frame-pipe renderer behind `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`; PNG frame staging remains the default and fallback while validation continues.
+- Added automatic and manual cleanup for WZRD.VID-managed preview/cache files.
 
 ## v0.1.9 — 2026-05-10
 

@@ -7,10 +7,10 @@ This map describes the current repository so future agents can edit with context
 ### Desktop GUI Shell
 
 - Owning files/directories: `app.py`, `app_i18n.py`, `theme.py`, `assets/ui/`, `assets/branding/`, `assets/logo/`.
-- Purpose: PySide6 desktop interface for timeline sources, audio controls, style/effects settings, output controls, preview rendering, recipe import/export, batch render, and logs.
+- Purpose: PySide6 desktop interface for timeline sources, audio controls, style/effects settings, output controls, preview rendering, preview/cache cleanup, recipe import/export, batch render, and logs.
 - Inbound dependencies: `run.py`, `run.sh`, `run_windows.bat`, user file selections, drag/drop events, saved settings JSON, recipe/project preset JSON.
 - Outbound dependencies: `renderer.py`, `ffmpeg_utils.py`, `presets.py`, Qt widgets/styles/assets, local filesystem, temp preview/output folders.
-- High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, thread behavior, table columns, and localization keys can break render, save/load, or audio mix flows.
+- High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, thread behavior, table columns, cache cleanup safety boundaries, and localization keys can break render, save/load, cleanup, or audio mix flows.
 
 ### Render Engine
 
@@ -115,8 +115,8 @@ This map describes the current repository so future agents can edit with context
 - UI/component path: `app.py` collects render settings and starts `RenderThread` or `BatchRenderThread`; progress/log signals update GUI.
 - Data/state path: `RenderSettings`, `PlaybackPlan`, optional `max_video_length`, optional `random_clip_assembly`, bypass intervals, random seeds, style/output/optimization/framing/effect settings.
 - Asset/media path: source media, temp frame directories, preview folder under app settings parent, user-selected output path, optional optimized output path.
-- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available. By default the silent MP4 is encoded from staged PNG frames; the internal `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` path streams rendered RGB frames directly to ffmpeg and falls back to PNG staging on pre-audio pipe failure.
-- Failure/empty behavior: Random clip assembly without max length or with match-to-music should reject before render; exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up.
+- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available. By default the silent MP4 is encoded from staged PNG frames; the internal `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` path streams rendered RGB frames directly to ffmpeg and falls back to PNG staging on pre-audio pipe failure. Preview MP4s under the app-owned Previews folder can be cleared manually, and old app-managed preview/cache/temp files are cleaned best-effort at launch.
+- Failure/empty behavior: Random clip assembly without max length or with match-to-music should reject before render; exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up. Preview/cache cleanup failures should log and continue without deleting user-selected final exports, source media, or recipes.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `theme.py`.
 
 ### Export/Import Recipes

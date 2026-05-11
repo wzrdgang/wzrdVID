@@ -8,14 +8,16 @@ import os
 import platform
 import random
 import re
+import shutil
 import ssl
 import sys
 import tempfile
+import time
 import traceback
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -292,6 +294,14 @@ def _default_app_font() -> QFont:
 
 SETTINGS_PATH = _user_data_dir() / "settings.json"
 PREVIEW_DIR = SETTINGS_PATH.parent / "Previews"
+CACHE_CLEANUP_MAX_AGE_DAYS = 14
+CACHE_CLEANUP_MAX_AGE_SECONDS = CACHE_CLEANUP_MAX_AGE_DAYS * 24 * 60 * 60
+WZRD_TEMP_PREFIXES = (
+    "wzrd_vid_render_",
+    "wzrd_vid_ffmpeg_pass_",
+    "wzrd_heic_decode_",
+    "wzrd_heic_preview_",
+)
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 APP_ICON_PATH = ASSETS_DIR / "wzrd_vid_icon.png"
 LOGO_HEADER_PATH = ASSETS_DIR / "branding" / "wzrdvid_primary.png"
@@ -302,6 +312,157 @@ PREVIEW_DURATION_OPTIONS = {
 }
 AUDIO_MODES = [AUDIO_SILENT, AUDIO_EXTERNAL, AUDIO_SOURCE, AUDIO_MIX]
 MATCH_TIMELINE_MODES = [MATCH_SPEED, MATCH_TRIM, MATCH_LOOP]
+
+
+@dataclass
+class CacheCleanupSummary:
+    files: int = 0
+    dirs: int = 0
+    bytes: int = 0
+    errors: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.errors is None:
+            self.errors = []
+
+    @property
+    def items(self) -> int:
+        return self.files + self.dirs
+
+    def add(self, other: "CacheCleanupSummary") -> None:
+        self.files += other.files
+        self.dirs += other.dirs
+        self.bytes += other.bytes
+        self.errors.extend(other.errors or [])
+
+
+def format_cache_size(byte_count: int) -> str:
+    size = float(max(0, byte_count))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024.0 or unit == "TB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024.0
+    return f"{size:.1f} TB"
+
+
+def preview_cache_usage(
+    *,
+    preview_dir: Path = PREVIEW_DIR,
+    temp_dir: Path | None = None,
+    temp_age_seconds: int = CACHE_CLEANUP_MAX_AGE_SECONDS,
+) -> CacheCleanupSummary:
+    summary = CacheCleanupSummary()
+    for path in _managed_preview_cache_targets(preview_dir, older_than_seconds=None):
+        summary.add(_path_usage(path))
+    for path in _managed_temp_targets(temp_dir=temp_dir, older_than_seconds=temp_age_seconds):
+        summary.add(_path_usage(path))
+    return summary
+
+
+def clear_preview_cache(
+    *,
+    preview_dir: Path = PREVIEW_DIR,
+    temp_dir: Path | None = None,
+    preview_age_seconds: int = 0,
+    temp_age_seconds: int = CACHE_CLEANUP_MAX_AGE_SECONDS,
+    delete_path: Callable[[Path], None] | None = None,
+) -> CacheCleanupSummary:
+    delete_path = delete_path or _delete_cache_path
+    summary = CacheCleanupSummary()
+    targets = list(_managed_preview_cache_targets(preview_dir, older_than_seconds=preview_age_seconds))
+    targets.extend(_managed_temp_targets(temp_dir=temp_dir, older_than_seconds=temp_age_seconds))
+    for path in targets:
+        usage = _path_usage(path)
+        try:
+            delete_path(path)
+        except Exception as exc:  # noqa: BLE001 - cleanup is best-effort.
+            summary.errors.append(f"{path}: {exc}")
+            continue
+        summary.files += usage.files
+        summary.dirs += usage.dirs
+        summary.bytes += usage.bytes
+    return summary
+
+
+def _managed_preview_cache_targets(preview_dir: Path, *, older_than_seconds: int | None) -> list[Path]:
+    root = Path(preview_dir).expanduser()
+    if not root.exists() or not root.is_dir():
+        return []
+    cutoff = _cache_cutoff(older_than_seconds)
+    targets: list[Path] = []
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return []
+    for child in children:
+        if cutoff is not None and not _path_is_older_than(child, cutoff):
+            continue
+        targets.append(child)
+    return targets
+
+
+def _managed_temp_targets(*, temp_dir: Path | None, older_than_seconds: int) -> list[Path]:
+    root = Path(temp_dir) if temp_dir is not None else Path(tempfile.gettempdir())
+    if not root.exists() or not root.is_dir():
+        return []
+    cutoff = _cache_cutoff(older_than_seconds)
+    targets: list[Path] = []
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return []
+    for child in children:
+        if not child.name.startswith(WZRD_TEMP_PREFIXES):
+            continue
+        if cutoff is not None and not _path_is_older_than(child, cutoff):
+            continue
+        targets.append(child)
+    return targets
+
+
+def _cache_cutoff(age_seconds: int | None) -> float | None:
+    if age_seconds is None:
+        return None
+    return time.time() - max(0, int(age_seconds))
+
+
+def _path_is_older_than(path: Path, cutoff: float) -> bool:
+    try:
+        return path.stat().st_mtime < cutoff
+    except OSError:
+        return False
+
+
+def _path_usage(path: Path) -> CacheCleanupSummary:
+    summary = CacheCleanupSummary()
+    try:
+        if path.is_symlink() or path.is_file():
+            summary.files = 1
+            summary.bytes = path.lstat().st_size
+            return summary
+        if path.is_dir():
+            summary.dirs = 1
+            for root, dirs, files in os.walk(path, followlinks=False):
+                summary.dirs += len(dirs)
+                for name in files:
+                    child = Path(root) / name
+                    try:
+                        summary.files += 1
+                        summary.bytes += child.lstat().st_size
+                    except OSError as exc:
+                        summary.errors.append(f"{child}: {exc}")
+            return summary
+    except OSError as exc:
+        summary.errors.append(f"{path}: {exc}")
+    return summary
+
+
+def _delete_cache_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
 
 RESOLUTIONS = [
     ("960 x 540", (960, 540)),
@@ -666,6 +827,30 @@ class UpdateCheckThread(QThread):
             self.update_failed.emit(_sanitize_update_error(exc))
 
 
+class CacheCleanupThread(QThread):
+    cleanup_finished = Signal(object, bool)
+
+    def __init__(
+        self,
+        *,
+        manual: bool,
+        preview_age_seconds: int,
+        temp_age_seconds: int = CACHE_CLEANUP_MAX_AGE_SECONDS,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.manual = manual
+        self.preview_age_seconds = preview_age_seconds
+        self.temp_age_seconds = temp_age_seconds
+
+    def run(self) -> None:
+        summary = clear_preview_cache(
+            preview_age_seconds=self.preview_age_seconds,
+            temp_age_seconds=self.temp_age_seconds,
+        )
+        self.cleanup_finished.emit(summary, self.manual)
+
+
 class ManualBlockRow(QWidget):
     remove_requested = Signal(object)
     changed = Signal()
@@ -715,6 +900,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.worker: RenderThread | BatchRenderThread | None = None
         self.update_worker: UpdateCheckThread | None = None
+        self.cache_cleanup_worker: CacheCleanupThread | None = None
         self.timeline_items: list[dict[str, object]] = []
         self._timeline_table_updating = False
         self.video_duration_seconds: float | None = None
@@ -999,6 +1185,9 @@ class MainWindow(QMainWindow):
         self.open_preview_button.setObjectName("secondaryButton")
         self.open_preview_button.setEnabled(False)
         self.open_preview_button.hide()
+        self.clear_preview_cache_button = self._button("button.clear_preview_cache")
+        self.clear_preview_cache_button.setObjectName("secondaryButton")
+        self._register_tooltip(self.clear_preview_cache_button, "tooltip.clear_preview_cache")
         self.save_project_button = self._button("button.export_recipe")
         self.save_project_button.setObjectName("secondaryButton")
         self._register_tooltip(self.save_project_button, "tooltip.export_recipe")
@@ -1050,6 +1239,7 @@ class MainWindow(QMainWindow):
         self._start_signal_timer()
         QTimer.singleShot(250, self.check_media_tools)
         QTimer.singleShot(1400, lambda: self.check_for_updates(manual=False))
+        QTimer.singleShot(1800, self.start_auto_preview_cache_cleanup)
 
     def active_language(self) -> str:
         return resolve_language(self.ui_language)
@@ -1721,6 +1911,7 @@ class MainWindow(QMainWindow):
         preview_row.addWidget(self.preview_from)
         preview_row.addWidget(self.preview_custom)
         preview_row.addWidget(self.open_preview_button)
+        preview_row.addWidget(self.clear_preview_cache_button)
         preview_row.addStretch(1)
 
         project_row = QHBoxLayout()
@@ -1764,6 +1955,7 @@ class MainWindow(QMainWindow):
         self.preview_duration.currentTextChanged.connect(lambda _text: self._save_settings())
         self.preview_from.currentTextChanged.connect(self._update_preview_controls)
         self.open_preview_button.clicked.connect(self.open_preview)
+        self.clear_preview_cache_button.clicked.connect(self.confirm_clear_preview_cache)
         self.save_project_button.clicked.connect(self.save_project_preset)
         self.load_project_button.clicked.connect(self.load_project_preset)
         self.reset_project_button.clicked.connect(self.reset_project)
@@ -3137,8 +3329,116 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(enabled)
         self.preview_button.setEnabled(enabled)
         self.batch_button.setEnabled(enabled)
+        cleanup_running = bool(self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning())
+        self.clear_preview_cache_button.setEnabled(enabled and not cleanup_running)
         if enabled:
             self.cancel_batch_button.setEnabled(False)
+
+    def _preview_cache_confirmation_text(self, summary: CacheCleanupSummary) -> str:
+        return self.tr(
+            "dialog.clear_preview_cache_confirm",
+            size=format_cache_size(summary.bytes),
+            count=summary.files,
+            dirs=summary.dirs,
+        )
+
+    def confirm_clear_preview_cache(self) -> None:
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(
+                self,
+                APP_NAME,
+                self.tr("dialog.render_running"),
+            )
+            return
+        if self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning():
+            QMessageBox.information(
+                self,
+                APP_NAME,
+                self.tr("dialog.clear_preview_cache_running"),
+            )
+            return
+
+        summary = preview_cache_usage()
+        if summary.items == 0:
+            QMessageBox.information(
+                self,
+                APP_NAME,
+                self.tr("dialog.clear_preview_cache_empty"),
+            )
+            return
+        response = QMessageBox.question(
+            self,
+            APP_NAME,
+            self._preview_cache_confirmation_text(summary),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if response != QMessageBox.StandardButton.Yes:
+            return
+        self._start_preview_cache_cleanup(manual=True, preview_age_seconds=0)
+
+    def start_auto_preview_cache_cleanup(self) -> None:
+        if self.worker and self.worker.isRunning():
+            return
+        if self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning():
+            return
+        self._start_preview_cache_cleanup(
+            manual=False,
+            preview_age_seconds=CACHE_CLEANUP_MAX_AGE_SECONDS,
+        )
+
+    def _start_preview_cache_cleanup(self, *, manual: bool, preview_age_seconds: int) -> None:
+        self.clear_preview_cache_button.setEnabled(False)
+        worker = CacheCleanupThread(
+            manual=manual,
+            preview_age_seconds=preview_age_seconds,
+            parent=self,
+        )
+        self.cache_cleanup_worker = worker
+        worker.cleanup_finished.connect(self._preview_cache_cleanup_finished)
+        worker.finished.connect(self._preview_cache_cleanup_thread_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _preview_cache_cleanup_finished(self, summary: CacheCleanupSummary, manual: bool) -> None:
+        if summary.items:
+            key = "log.preview_cache_cleanup_deleted" if manual else "log.preview_cache_auto_deleted"
+            self.append_log(
+                self.tr(
+                    key,
+                    count=summary.files,
+                    dirs=summary.dirs,
+                    size=format_cache_size(summary.bytes),
+                )
+            )
+        elif manual:
+            self.append_log(self.tr("dialog.clear_preview_cache_empty"))
+
+        if summary.errors:
+            self.append_log(
+                self.tr(
+                    "log.preview_cache_cleanup_errors",
+                    error_count=len(summary.errors),
+                    first_error=summary.errors[0],
+                )
+            )
+
+        if manual:
+            QMessageBox.information(
+                self,
+                APP_NAME,
+                self.tr(
+                    "dialog.clear_preview_cache_complete",
+                    count=summary.files,
+                    dirs=summary.dirs,
+                    size=format_cache_size(summary.bytes),
+                ),
+            )
+
+    def _preview_cache_cleanup_thread_finished(self) -> None:
+        self.cache_cleanup_worker = None
+        render_running = bool(self.worker and self.worker.isRunning())
+        self.clear_preview_cache_button.setEnabled(not render_running)
 
     def _collect_settings(
         self,
@@ -4144,6 +4444,8 @@ class MainWindow(QMainWindow):
             )
             event.ignore()
             return
+        if self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning():
+            self.cache_cleanup_worker.wait(500)
         self._save_settings()
         event.accept()
 
