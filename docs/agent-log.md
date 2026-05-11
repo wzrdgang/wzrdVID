@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-11 - Hue-shift overflow long-render blocker fix
+
+- Agent/task: Codex / fix v0.2.0 blocker where a real v0.1.9 long render failed around frame 78,001/126,624 with `Python integer 65536 out of bounds for uint16` in `renderer._hue_shift_image()`.
+- Intent: Fix the crash without blocking long renders, removing worky music mode, disabling Amber Terminal, changing Lite/Apple Lite, packaging, publishing, pushing, tagging, or doing a broad renderer rewrite.
+- Files changed this pass: `renderer.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Hue-shift color math now uses safe wider integer arithmetic and explicit modulo before casting back to `uint8`, avoiding Python 3.14/newer NumPy unsigned overflow while preserving the intended 0-255 hue wrap behavior.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; renderer/preset overflow audit grep; reproduced the pre-fix `_hue_shift_image(..., 65536)` failure under `.venv/bin/python`; direct hue edge test covering tiny RGB arrays, 0/255 source values, 256/65535 clipped input values, and shift amounts including 65535/65536; synthetic media generation with ffmpeg; Amber Terminal render smokes for tiny render, Buffer Underrun transition plus Buffer Exhausted ending, external audio with worky mode, medium 192-frame color path, and capped 31-minute synthetic `.mov`; ffprobe output duration/codec/audio checks; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`.
+- Checks passed: Direct hue edge test passed with valid `uint8` output range. All five render smokes passed; ffprobe showed valid H.264 video outputs, AAC audio on the worky external-audio case, and expected durations. Python compile, JavaScript syntax checks, and whitespace diff check passed.
+- Checks failed/blocked: System `python3` lacks numpy, so direct hue/repro tests and render smokes used the repo `.venv/bin/python`. The original 126k-frame real render was not rerun in this pass.
+- Decisions made: Do not add any long-render cap or rejection. Existing frame-count and long-media warning logs are sufficient for this crash fix; the root cause was isolated numeric hue math.
+- Known gaps: Rerun the user's failing long `.mov` render after this fix. Full-length renders can still be expensive because they stage one PNG per output frame, and resume/disk-use controls remain future v0.2.0 hardening candidates.
+- Next recommended prompt: Rerun the failing long render after the hue-shift overflow fix, then decide whether v0.2.0 needs stronger long-render progress, disk-use, or resume support.
+
 ## 2026-05-10 - Apple Lite added-audio Web Audio fallback
 
 - Agent/task: Codex / update the Apple Lite device-test result after manual export retest passed but audio remained silent, then implement the narrow added-audio fix.

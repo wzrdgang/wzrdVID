@@ -1,5 +1,13 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-11 - v0.2.0 hue-shift overflow blocker
+
+- A real v0.1.9 packaged long render failed after about 78,001 of 126,624 frames with `OverflowError: Python integer 65536 out of bounds for uint16` in `renderer._hue_shift_image()`.
+- The failure was caused by hue-shift arithmetic during frame rendering, not worky audio or final audio muxing. Newer Python/NumPy behavior rejected adding the Python integer `65536` to a `uint16` hue array instead of silently wrapping it.
+- The fix keeps hue math in a wider signed integer dtype, applies modulo 256 explicitly, and casts back to `uint8` only after the hue channel is in image range.
+- Long renders remain supported. The app should not block long outputs for this issue.
+- Full-length renders can still be expensive because WZRD.VID writes one rendered PNG frame per output frame before ffmpeg encodes the MP4. Very long outputs can still use substantial time and temporary disk even when the source is sampled efficiently.
+
 ## 2026-05-10 - v0.2.0 long-media audit and conservative hardening
 
 ### Audit findings

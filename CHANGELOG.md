@@ -10,6 +10,7 @@
 - Added a simulator-ready WZRD.VID Lite Xcode project plus a debug simulator smoke harness for bundled Lite load, local import surface, language switching, random clips, and export/download readiness.
 - Added a narrow WZRD.VID Lite Apple native export/share bridge after real-device testing showed WKWebView blob downloads opened rendered clips for playback instead of giving a reliable save/share handoff.
 - Added a WZRD.VID Lite Web Audio fallback for the explicit Add Audio bus on iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable.
+- Fixed a hue-shift overflow crash that could appear during long desktop renders.
 
 ## v0.1.9 — 2026-05-10
 

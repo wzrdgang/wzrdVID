@@ -2133,7 +2133,9 @@ def _apply_vhs_wobble(image: Image.Image, frame_index: int, intensity: float) ->
 
 def _hue_shift_image(image: Image.Image, amount: float) -> Image.Image:
     hsv = np.array(image.convert("HSV"), dtype=np.uint8)
-    shifted = (hsv[:, :, 0].astype(np.uint16) + int(amount)) % 256
+    hue = hsv[:, :, 0].astype(np.int32)
+    shift = int(amount) % 256
+    shifted = (hue + shift) % 256
     hsv[:, :, 0] = shifted.astype(np.uint8)
     return Image.fromarray(hsv, mode="HSV").convert("RGB")
 
