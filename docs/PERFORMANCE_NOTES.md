@@ -1,5 +1,16 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-11 - v0.2.0 frame-render speed profiling
+
+- A temporary `/tmp` profiling harness measured the desktop renderer without committing debug instrumentation. Test outputs used 720x406, 24 fps, 64 text columns, Amber Terminal/PUBLIC ACCESS presets, all common visible effects enabled, and synthetic media under `/tmp/wzrdvid-speed`.
+- The dominant cost was ANSI/text rendering, not audio, source duration, PNG staging, or ffmpeg encode. For a 10s Amber Terminal render, total time was 24.41s: frame render 23.48s, `render_text_art_frame()` 16.03s, `ImageDraw.text()` 12.18s, source read/seek 2.05s, PNG writes 1.18s, and ffmpeg PNG-sequence encode 0.84s.
+- The 30s Amber Terminal render scaled linearly: total time 73.95s, frame render 71.57s, text rendering 48.52s, text drawing 36.88s, source read/seek 6.75s, PNG writes 3.58s, and encode 2.32s.
+- PUBLIC ACCESS 10s was similar but slightly heavier at 26.54s total because its public-access source-prep pass added 5.43s before ANSI rendering.
+- Worky external audio stayed bounded: 10s Amber Terminal with worky audio was 24.63s total, with external audio mux taking only 0.06s.
+- A capped 10s render from a synthetic 31-minute source was 23.03s total. Source read/seek was 0.43s on that indexed synthetic file, confirming this class of long-source render remains bounded by output frames.
+- A low-risk trial to skip drawing literal space glyphs was rejected because it did not improve the measured matrix on bright/test-pattern media: Amber 10s was 24.47s, Amber 30s was 74.16s, PUBLIC ACCESS 10s was 26.71s, worky 10s was 25.05s, and long-source capped 10s was 22.73s. No source optimization was kept.
+- Current conclusion: there are no obvious safe v0.2.0 micro-optimizations from this pass. The meaningful speedup remains a future renderer refactor, most likely batching/vectorizing text rendering or piping frames directly to ffmpeg instead of staging PNGs.
+
 ## 2026-05-11 - v0.2.0 hue-shift overflow blocker
 
 - A real v0.1.9 packaged long render failed after about 78,001 of 126,624 frames with `OverflowError: Python integer 65536 out of bounds for uint16` in `renderer._hue_shift_image()`.

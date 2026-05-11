@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-11 - Desktop frame-render speed profiling
+
+- Agent/task: Codex / implement the v0.2.0 desktop render speed measurement-first plan after the hue-shift overflow blocker fix.
+- Intent: Measure render hot paths before optimizing, avoid visual/audio/Lite/Apple Lite/deployment/version/package changes, and keep any commit isolated from the dirty Apple Lite worktree.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: No. A trial renderer micro-optimization was measured and then reverted because it did not produce a real speedup.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; hot-path grep; synthetic media generation with ffmpeg under `/tmp/wzrdvid-speed`; temporary `/tmp` profiling harness with `.venv/bin/python`; baseline and rejected-trial render matrix; ffprobe checks for output duration/streams; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`; hunk-limited staging review.
+- Findings: Frame rendering dominates. On the 64-column 720x406/24fps synthetic matrix, Amber Terminal 10s took 24.41s total with 23.48s in frame render, 16.03s in `render_text_art_frame()`, and 12.18s in `ImageDraw.text()`. Amber Terminal 30s scaled linearly at 73.95s total. PNG writes and ffmpeg encode were secondary, and worky audio mux was about 0.06s.
+- Optimization decision: Skipping literal-space glyph draws was the only tiny low-risk code change found, but the after-run was not faster on the test matrix, so it was reverted and no renderer code change was kept.
+- Known gaps: Major speedup likely needs a v0.3.0 renderer refactor such as direct ffmpeg frame piping and/or batched/vectorized text drawing. The user's real long render should still be rerun after the hue-overflow fix to validate failure behavior and actual wall time.
+- Next recommended prompt: Plan a v0.3.0 direct-frame-pipe renderer refactor for major long-render speedups.
+
 ## 2026-05-11 - Hue-shift overflow long-render blocker fix
 
 - Agent/task: Codex / fix v0.2.0 blocker where a real v0.1.9 long render failed around frame 78,001/126,624 with `Python integer 65536 out of bounds for uint16` in `renderer._hue_shift_image()`.
