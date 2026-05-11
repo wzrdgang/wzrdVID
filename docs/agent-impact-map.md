@@ -15,10 +15,10 @@ This map describes the current repository so future agents can edit with context
 ### Render Engine
 
 - Owning files/directories: `renderer.py`, `presets.py`.
-- Purpose: Builds a virtual media timeline from videos/photos, samples frames, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output.
+- Purpose: Builds a virtual media timeline from videos/photos, samples frames, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output. PNG frame staging remains the default video transport; `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` enables an experimental raw RGB ffmpeg pipe path before the same audio/finalization stages.
 - Inbound dependencies: `app.py` render settings, timeline items, user selected output path, source media files.
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
-- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, and audio duration expectations. Run focused smoke tests after edits.
+- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
 
 ### ffmpeg and Media Utilities
 
@@ -115,7 +115,7 @@ This map describes the current repository so future agents can edit with context
 - UI/component path: `app.py` collects render settings and starts `RenderThread` or `BatchRenderThread`; progress/log signals update GUI.
 - Data/state path: `RenderSettings`, `PlaybackPlan`, optional `max_video_length`, optional `random_clip_assembly`, bypass intervals, random seeds, style/output/optimization/framing/effect settings.
 - Asset/media path: source media, temp frame directories, preview folder under app settings parent, user-selected output path, optional optimized output path.
-- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available.
+- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available. By default the silent MP4 is encoded from staged PNG frames; the internal `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` path streams rendered RGB frames directly to ffmpeg and falls back to PNG staging on pre-audio pipe failure.
 - Failure/empty behavior: Random clip assembly without max length or with match-to-music should reject before render; exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `theme.py`.
 
@@ -211,7 +211,7 @@ This map describes the current repository so future agents can edit with context
 - Desktop persistent settings: platform user config/application-support directory from `app.py` `_user_data_dir()`; includes `settings.json`.
 - Desktop previews: preview outputs are placed under a `Previews` folder next to the user-data/settings area.
 - User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
-- Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work.
+- Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work. The default renderer creates a `frames/` PNG sequence under the render temp directory; the experimental `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` transport avoids that PNG sequence unless it falls back.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.
 - Apple Lite generated web bundle: ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`, regenerated from `docs/lite/` and selected `docs/assets/` by `apple-lite/scripts/prepare_lite_web_bundle.py` or the Xcode build phase.
 - Static assets safe to edit with care: `assets/branding/`, `assets/logo/`, `assets/ui/`, `assets/demos/`, `assets/screenshots/`, `docs/assets/`.

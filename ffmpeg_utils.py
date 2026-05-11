@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable
+from typing import BinaryIO, Callable
 
 
 LogCallback = Callable[[str], None] | None
@@ -376,6 +376,122 @@ def encode_frames_to_mp4(
         ]
     )
     run_command(args, log)
+
+
+def encode_raw_rgb_frames_to_mp4(
+    write_frames: Callable[[BinaryIO], None],
+    width: int,
+    height: int,
+    fps: int,
+    output_path: str | Path,
+    log: LogCallback = None,
+    *,
+    crf: int = 22,
+    video_bitrate: int | None = None,
+) -> None:
+    """Encode raw RGB24 frames written to ffmpeg stdin as an H.264 MP4."""
+    if width <= 0 or height <= 0:
+        raise FFmpegError(f"Invalid raw frame size: {width}x{height}")
+    ffmpeg_path = require_binary("ffmpeg")
+    args = [
+        ffmpeg_path,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-s",
+        f"{width}x{height}",
+        "-framerate",
+        str(fps),
+        "-i",
+        "pipe:0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+    ]
+    if video_bitrate is not None:
+        bitrate = max(100_000, int(video_bitrate))
+        args.extend(
+            [
+                "-b:v",
+                str(bitrate),
+                "-maxrate",
+                str(bitrate),
+                "-bufsize",
+                str(max(200_000, bitrate * 2)),
+            ]
+        )
+    else:
+        args.extend(["-crf", str(max(14, min(40, int(crf))))])
+    args.extend(
+        [
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            str(fps),
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
+    )
+
+    display = " ".join(_quote_arg(arg) for arg in args)
+    _log(log, display)
+    process = subprocess.Popen(
+        args,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    if process.stdin is None:
+        raise FFmpegError("ffmpeg raw frame pipe did not provide stdin.")
+
+    try:
+        try:
+            write_frames(process.stdin)
+        except Exception as exc:
+            try:
+                process.stdin.close()
+            except OSError:
+                pass
+            stderr = process.stderr.read() if process.stderr else b""
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            details = _trim_subprocess_details(stderr)
+            if details:
+                raise FFmpegError(f"Raw frame pipe encode failed while writing frames:\n{details}") from exc
+            raise
+
+        process.stdin.close()
+        stderr = process.stderr.read() if process.stderr else b""
+        return_code = process.wait()
+    except FFmpegError:
+        raise
+    except Exception:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        raise
+
+    if return_code != 0:
+        details = _trim_subprocess_details(stderr)
+        raise FFmpegError(f"Command failed ({return_code}): {display}\n{details}")
+
+
+def _trim_subprocess_details(stderr: bytes | str) -> str:
+    if isinstance(stderr, bytes):
+        details = stderr.decode(errors="replace").strip()
+    else:
+        details = stderr.strip()
+    if len(details) > 4000:
+        return details[-4000:]
+    return details
 
 
 def parse_bitrate_bits_per_second(value: str | int | float | None) -> int:

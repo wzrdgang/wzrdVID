@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import colorsys
 import math
+import os
 import random
 import subprocess
 import tempfile
@@ -23,6 +24,7 @@ from presets import get_preset
 ProgressCallback = Callable[[int], None] | None
 LogCallback = Callable[[str], None] | None
 Interval = tuple[float, float]
+FrameWriter = Callable[[int, Image.Image], None]
 
 
 OUTPUT_SIZE = (1280, 720)
@@ -376,37 +378,60 @@ def render_project(
 
     with tempfile.TemporaryDirectory(prefix="wzrd_vid_render_") as temp_root:
         temp_root_path = Path(temp_root)
-        frames_dir = temp_root_path / "frames"
-        frames_dir.mkdir()
         silent_video = temp_root_path / "silent.mp4"
 
-        frame_stage_started = time.perf_counter()
-        _render_frames(
-            settings=settings,
-            preset=preset,
-            layout=layout,
-            timeline_segments=timeline_segments,
-            playback=playback,
-            frame_count=frame_count,
-            bypass_intervals=bypass_intervals,
-            frames_dir=frames_dir,
-            progress=progress,
-            log=log,
-        )
-        _emit_elapsed(log, "Frame render stage", frame_stage_started)
-
-        _emit(log, "Encoding rendered frames to MP4.")
-        _emit_progress(progress, 90)
-        encode_started = time.perf_counter()
-        ffmpeg_utils.encode_frames_to_mp4(
-            frames_dir / "frame_%06d.png",
-            settings.fps,
-            silent_video,
-            log=log,
-            crf=settings.video_crf,
-            video_bitrate=target_bitrate,
-        )
-        _emit_elapsed(log, "Frame encode stage", encode_started)
+        if _experimental_frame_pipe_enabled():
+            try:
+                _render_silent_video_with_pipe(
+                    settings=settings,
+                    preset=preset,
+                    layout=layout,
+                    timeline_segments=timeline_segments,
+                    playback=playback,
+                    frame_count=frame_count,
+                    bypass_intervals=bypass_intervals,
+                    silent_video=silent_video,
+                    target_bitrate=target_bitrate,
+                    progress=progress,
+                    log=log,
+                )
+            except Exception as exc:  # noqa: BLE001 - experimental transport must fall back cleanly.
+                _emit(log, f"Experimental frame pipe failed before audio muxing: {exc}")
+                _emit(log, "Falling back to PNG frame staging.")
+                try:
+                    silent_video.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                _emit_progress(progress, 5)
+                _render_silent_video_with_png_frames(
+                    settings=settings,
+                    preset=preset,
+                    layout=layout,
+                    timeline_segments=timeline_segments,
+                    playback=playback,
+                    frame_count=frame_count,
+                    bypass_intervals=bypass_intervals,
+                    frames_dir=temp_root_path / "frames",
+                    silent_video=silent_video,
+                    target_bitrate=target_bitrate,
+                    progress=progress,
+                    log=log,
+                )
+        else:
+            _render_silent_video_with_png_frames(
+                settings=settings,
+                preset=preset,
+                layout=layout,
+                timeline_segments=timeline_segments,
+                playback=playback,
+                frame_count=frame_count,
+                bypass_intervals=bypass_intervals,
+                frames_dir=temp_root_path / "frames",
+                silent_video=silent_video,
+                target_bitrate=target_bitrate,
+                progress=progress,
+                log=log,
+            )
 
         source_audio_path: Path | None = None
         if source_audio:
@@ -535,6 +560,121 @@ def render_project(
     _emit_progress(progress, 100)
     _emit(log, f"Done: {final_output_path}")
     return str(final_output_path)
+
+
+def _experimental_frame_pipe_enabled() -> bool:
+    return os.environ.get("WZRDVID_EXPERIMENTAL_FRAME_PIPE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _render_silent_video_with_png_frames(
+    *,
+    settings: RenderSettings,
+    preset: dict[str, Any],
+    layout: TextLayout,
+    timeline_segments: list[TimelineSegment],
+    playback: PlaybackPlan,
+    frame_count: int,
+    bypass_intervals: list[Interval],
+    frames_dir: Path,
+    silent_video: Path,
+    target_bitrate: int | None,
+    progress: ProgressCallback,
+    log: LogCallback,
+) -> None:
+    frames_dir.mkdir()
+
+    def write_png_frame(index: int, output_frame: Image.Image) -> None:
+        output_frame.save(frames_dir / f"frame_{index:06d}.png", optimize=False)
+
+    frame_stage_started = time.perf_counter()
+    _render_frames(
+        settings=settings,
+        preset=preset,
+        layout=layout,
+        timeline_segments=timeline_segments,
+        playback=playback,
+        frame_count=frame_count,
+        bypass_intervals=bypass_intervals,
+        write_frame=write_png_frame,
+        progress=progress,
+        log=log,
+    )
+    _emit_elapsed(log, "Frame render stage", frame_stage_started)
+
+    _emit(log, "Encoding rendered frames to MP4.")
+    _emit_progress(progress, 90)
+    encode_started = time.perf_counter()
+    ffmpeg_utils.encode_frames_to_mp4(
+        frames_dir / "frame_%06d.png",
+        settings.fps,
+        silent_video,
+        log=log,
+        crf=settings.video_crf,
+        video_bitrate=target_bitrate,
+    )
+    _emit_elapsed(log, "Frame encode stage", encode_started)
+
+
+def _render_silent_video_with_pipe(
+    *,
+    settings: RenderSettings,
+    preset: dict[str, Any],
+    layout: TextLayout,
+    timeline_segments: list[TimelineSegment],
+    playback: PlaybackPlan,
+    frame_count: int,
+    bypass_intervals: list[Interval],
+    silent_video: Path,
+    target_bitrate: int | None,
+    progress: ProgressCallback,
+    log: LogCallback,
+) -> None:
+    width, height = settings.output_size
+    frames_written = 0
+
+    def stream_frames(stdin: Any) -> None:
+        nonlocal frames_written
+
+        def write_raw_frame(index: int, output_frame: Image.Image) -> None:
+            nonlocal frames_written
+            if output_frame.size != (width, height):
+                raise RenderError(
+                    "Experimental frame pipe received a frame with "
+                    f"{output_frame.size[0]}x{output_frame.size[1]} pixels; expected {width}x{height}."
+                )
+            rgb_frame = output_frame if output_frame.mode == "RGB" else output_frame.convert("RGB")
+            stdin.write(rgb_frame.tobytes())
+            frames_written = index + 1
+
+        _render_frames(
+            settings=settings,
+            preset=preset,
+            layout=layout,
+            timeline_segments=timeline_segments,
+            playback=playback,
+            frame_count=frame_count,
+            bypass_intervals=bypass_intervals,
+            write_frame=write_raw_frame,
+            progress=progress,
+            log=log,
+        )
+
+    _emit(log, "Experimental frame pipe: streaming rendered frames directly to ffmpeg.")
+    pipe_started = time.perf_counter()
+    ffmpeg_utils.encode_raw_rgb_frames_to_mp4(
+        stream_frames,
+        width,
+        height,
+        settings.fps,
+        silent_video,
+        log=log,
+        crf=settings.video_crf,
+        video_bitrate=target_bitrate,
+    )
+    elapsed = max(0.0, time.perf_counter() - pipe_started)
+    throughput = frames_written / elapsed if elapsed > 0 else 0.0
+    _emit(log, f"Frame pipe render/encode stage completed in {elapsed:.2f}s ({throughput:.2f} fps).")
+    _emit_progress(progress, 90)
 
 
 def _emit_elapsed(log: LogCallback, label: str, started_at: float) -> None:
@@ -1028,7 +1168,7 @@ def _render_frames(
     playback: PlaybackPlan,
     frame_count: int,
     bypass_intervals: list[Interval],
-    frames_dir: Path,
+    write_frame: FrameWriter,
     progress: ProgressCallback,
     log: LogCallback,
 ) -> None:
@@ -1147,7 +1287,7 @@ def _render_frames(
             if settings.loop_friendly and first_output is not None:
                 output_frame = _apply_loop_friendly(output_frame, first_output, render_duration, output_t)
 
-            output_frame.save(frames_dir / f"frame_{index:06d}.png", optimize=False)
+            write_frame(index, output_frame)
             previous_output = output_frame.copy()
 
             if index % max(1, settings.fps) == 0 or index == frame_count - 1:

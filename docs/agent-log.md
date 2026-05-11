@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-11 - Experimental direct frame-pipe renderer prototype
+
+- Agent/task: Codex / prototype a reversible direct ffmpeg raw-frame pipe path after the v0.2.0 render-speed profiling found PNG staging secondary to ANSI/text drawing.
+- Intent: Keep PNG frame staging as the default/fallback, add only an internal `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` path, preserve visual frame generation and all audio/Lite/Apple Lite/website/version/package behavior, and stage only this pass despite unrelated Apple Lite worktree edits.
+- Files changed this pass: `renderer.py`, `ffmpeg_utils.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, experimental/internal only. Default renders still stage PNG frames and encode as before. With `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`, rendered RGB frames stream to ffmpeg stdin for the silent MP4; if that pre-audio pipe path fails, the renderer logs the failure and reruns the default PNG path from frame 0.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; frame encode path grep; synthetic media generation under `/tmp/wzrdvid-frame-pipe`; `.venv/bin/python` PNG-vs-pipe render matrix; ffprobe output duration/codec/audio checks; forced pipe-failure fallback smoke; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`.
+- Timing/validation: Amber 5s PNG 11.78s vs pipe 11.24s; Amber 10s 25.29s vs 24.01s; PUBLIC ACCESS 10s 27.52s vs 25.72s; Amber 10s with worky audio 25.65s vs 24.13s with AAC retained; Amber 30s 77.40s vs 72.55s; 31-minute synthetic source capped to 10s 22.37s vs 20.76s. All outputs were H.264/yuv420p with expected durations; worky audio output included AAC. Pipe mode did not log PNG staging and did not fall back during the matrix.
+- Decisions made: Keep the pipe path experimental for v0.2.0. It reduces temp PNG disk pressure and gives modest wall-time wins, but text rendering remains the main bottleneck, so it should not be promoted to default until tested on the user's real long render and more real media.
+- Known gaps: No visual pixel-diff was done beyond preserving the shared frame-generation path and checking codecs/durations/audio. The biggest speedup still requires future text rendering optimization or a broader renderer refactor.
+- Next recommended prompt: Run the real long render with `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` and compare output, wall time, temp disk use, and failure behavior against the PNG-staging renderer.
+
 ## 2026-05-11 - Desktop frame-render speed profiling
 
 - Agent/task: Codex / implement the v0.2.0 desktop render speed measurement-first plan after the hue-shift overflow blocker fix.

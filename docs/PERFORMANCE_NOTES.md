@@ -1,5 +1,23 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-11 - v0.2.0 experimental direct frame-pipe renderer
+
+- Added an experimental desktop render transport behind `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`. The default path still renders each frame to `frame_%06d.png` and then encodes the PNG sequence. The experimental path generates the same final `Image.Image` frames but writes RGB24 bytes directly into ffmpeg stdin for the silent MP4 encode.
+- The pipe path keeps audio mux/mix/source-audio/optimization behavior after silent video creation unchanged. If the pipe encode fails before audio muxing, the renderer logs the failure, removes the partial silent video, and reruns the default PNG-staging path from frame 0.
+- Synthetic comparison media lived under `/tmp/wzrdvid-frame-pipe` and was not committed. Test settings used 720x406, 24 fps, 64 text columns, CRF 28, Amber Terminal/PUBLIC ACCESS presets, and common visible effects.
+
+| Case | PNG total | Pipe total | Output validation | Notes |
+| --- | ---: | ---: | --- | --- |
+| Amber Terminal 5s | 11.78s | 11.24s | 5.000s H.264/yuv420p | pipe avoided PNG staging |
+| Amber Terminal 10s | 25.29s | 24.01s | 10.000s H.264/yuv420p | pipe avoided PNG staging |
+| PUBLIC ACCESS 10s | 27.52s | 25.72s | 10.000s H.264/yuv420p | pipe avoided PNG staging |
+| Amber Terminal 10s + worky audio | 25.65s | 24.13s | 10.000s H.264/yuv420p + AAC | audio mux stayed 0.06s in both modes |
+| Amber Terminal 30s | 77.40s | 72.55s | 30.000s H.264/yuv420p | pipe avoided PNG staging |
+| 31-minute synthetic source capped to 10s | 22.37s | 20.76s | 10.000s H.264/yuv420p | long-source output stayed bounded |
+
+- A forced pipe failure smoke monkeypatched the raw-frame encoder to raise before audio muxing. The render logged the pipe failure, logged fallback to PNG frame staging, and produced a valid fallback MP4.
+- Recommendation: keep the pipe path experimental for v0.2.0. It reduces temp-frame disk pressure and produced modest 5-7% wall-time wins on the matrix, but text rendering remains the dominant cost, so this should not be promoted to default until it is tested against the user's real long render and more real media.
+
 ## 2026-05-11 - v0.2.0 frame-render speed profiling
 
 - A temporary `/tmp` profiling harness measured the desktop renderer without committing debug instrumentation. Test outputs used 720x406, 24 fps, 64 text columns, Amber Terminal/PUBLIC ACCESS presets, all common visible effects enabled, and synthetic media under `/tmp/wzrdvid-speed`.
