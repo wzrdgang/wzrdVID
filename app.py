@@ -294,7 +294,7 @@ def _default_app_font() -> QFont:
 
 SETTINGS_PATH = _user_data_dir() / "settings.json"
 PREVIEW_DIR = SETTINGS_PATH.parent / "Previews"
-CACHE_CLEANUP_MAX_AGE_DAYS = 14
+CACHE_CLEANUP_MAX_AGE_DAYS = 7
 CACHE_CLEANUP_MAX_AGE_SECONDS = CACHE_CLEANUP_MAX_AGE_DAYS * 24 * 60 * 60
 WZRD_TEMP_PREFIXES = (
     "wzrd_vid_render_",
