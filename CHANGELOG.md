@@ -15,6 +15,7 @@
 - Added explicit frame-pipe startup logging and a local desktop developer toggle so packaged-app tests do not depend on macOS `open` propagating shell environment variables.
 - Added automatic and manual cleanup for WZRD.VID-managed preview/cache files.
 - Improved desktop random-normal/ANSI-bypass frame selection for long renders with many normal sections.
+- Improved HEIC/HEIF and photo slideshow import/render performance with deferred decode, reusable still proxies, and detailed still-frame timing logs.
 
 ## v0.1.9 — 2026-05-10
 

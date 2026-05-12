@@ -65,7 +65,7 @@ EN: dict[str, str] = {
     "group.optimize": "Optimize Output",
     "group.batch": "Output Variants",
     "group.output": "Output",
-    "button.add_videos": "ADD VIDEO(S)",
+    "button.add_videos": "ADD MEDIA",
     "button.add_photos": "ADD PHOTO(S)",
     "button.remove": "REMOVE",
     "button.up": "UP",
@@ -255,7 +255,7 @@ EN: dict[str, str] = {
     "dialog.clear_preview_cache_confirm": "Clear WZRD.VID preview/cache files?\n\nThis will delete about {size} across {count} file(s) and {dirs} folder(s).\n\nExported videos, source media, and recipes are not touched.",
     "dialog.clear_preview_cache_complete": "Preview/cache cleanup deleted {count} file(s), {dirs} folder(s), {size}.",
     "dialog.clear_preview_cache_running": "Preview/cache cleanup is already running.",
-    "file.add_video_title": "Add video source(s)",
+    "file.add_video_title": "Add media source(s)",
     "file.add_photo_title": "Add photo source(s)",
     "file.select_audio_title": "Select music / audio file",
     "file.output_title": "Choose output MP4",
@@ -3424,6 +3424,64 @@ _FRAME_PIPE_DRAFTS = {
     },
 }
 for _language, _strings in _FRAME_PIPE_DRAFTS.items():
+    _DRAFTS[_language].update(_strings)
+
+
+_MEDIA_PICKER_DRAFTS = {
+    "es": {
+        "button.add_videos": "AÑADIR MEDIOS",
+        "file.add_video_title": "Añadir fuente(s) de medios",
+    },
+    "pt-BR": {
+        "button.add_videos": "ADICIONAR MÍDIA",
+        "file.add_video_title": "Adicionar fonte(s) de mídia",
+    },
+    "fr": {
+        "button.add_videos": "AJOUTER MÉDIAS",
+        "file.add_video_title": "Ajouter source(s) média",
+    },
+    "de": {
+        "button.add_videos": "MEDIEN HINZUFÜGEN",
+        "file.add_video_title": "Medienquelle(n) hinzufügen",
+    },
+    "ru": {
+        "button.add_videos": "ДОБАВИТЬ МЕДИА",
+        "file.add_video_title": "Добавить медиаисточники",
+    },
+    "uk": {
+        "button.add_videos": "ДОДАТИ МЕДІА",
+        "file.add_video_title": "Додати медіаджерела",
+    },
+    "ja": {
+        "button.add_videos": "メディアを追加",
+        "file.add_video_title": "メディアソースを追加",
+    },
+    "ko": {
+        "button.add_videos": "미디어 추가",
+        "file.add_video_title": "미디어 소스 추가",
+    },
+    "zh-CN": {
+        "button.add_videos": "添加媒体",
+        "file.add_video_title": "添加媒体来源",
+    },
+    "zh-TW": {
+        "button.add_videos": "加入媒體",
+        "file.add_video_title": "加入媒體來源",
+    },
+    "fil": {
+        "button.add_videos": "MAGDAGDAG NG MEDIA",
+        "file.add_video_title": "Magdagdag ng media source(s)",
+    },
+    "hi": {
+        "button.add_videos": "मीडिया जोड़ें",
+        "file.add_video_title": "मीडिया स्रोत जोड़ें",
+    },
+    "ar": {
+        "button.add_videos": "إضافة وسائط",
+        "file.add_video_title": "إضافة مصدر/مصادر وسائط",
+    },
+}
+for _language, _strings in _MEDIA_PICKER_DRAFTS.items():
     _DRAFTS[_language].update(_strings)
 
 

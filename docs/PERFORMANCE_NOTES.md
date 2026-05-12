@@ -1,5 +1,17 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-12 - HEIC/photo still import and render performance
+
+- Finding: the HEIC/photo slowdown was still-specific, not caused by the recent ANSI bypass optimization. The desktop import path synchronously decoded HEIC/HEIF files for validation, and `_build_timeline()` decoded every photo again during every preview/render planning pass. During rendering, HEIC motion frames were animated from full-resolution decoded images.
+- Change: HEIC/HEIF files can now be selected from the normal media picker. HEIC validation is deferred so adding many stills does not block the UI on full decodes. A shared still cache stores HEIC proxy PNGs keyed by source path, size, mtime, and proxy size. Render-time stills use a proxy sized to about 2x the selected output dimension, preserving the final output size while avoiding full phone-resolution work on every frame.
+- Cache scope: still proxies live under the WZRD.VID app-support cache area and are included in the existing automatic/manual preview/cache cleanup flow. User exports, source media, and recipes are not touched.
+- Logging added: media import timing, random assembly timing, audio-reactive analysis timing, still decode/cache/motion timing, frame timing detail, and explicit frame-pipe enabled/disabled/fallback logs.
+- Synthetic phone-sized HEIC matrix under `/tmp/wzrdvid-heic-perf-hi`: 12 generated 3024x4032 HEIC files, WZRD Blocks, Social Share-style 720x406, 24 fps, CRF 28, random clip assembly, external audio plus worky mode.
+- Before: `_build_timeline()` took 3.91s and 3.92s on repeated runs; 5s/120-frame render took 38.44s total with 34.13s in frame render.
+- After: `_build_timeline()` took effectively 0.000s on repeated runs; 5s cold-cache render took 8.60s, and 5s warm-cache render took 6.81s. A 10s warm render took 13.72s. A 30s/720-frame render took 42.47s total with 41.32s in frame render and valid H.264/yuv420p plus AAC output.
+- Pipe smoke: the same 5s HEIC case with the desktop developer frame-pipe setting enabled produced a valid 5.000s H.264/yuv420p plus AAC output and logged direct frame piping instead of `frame_%06d.png`.
+- Current conclusion: repeated HEIC planning and full-resolution still motion were the immediate v0.2.0 blockers for HEIC slideshows. The remaining frame cost is now primarily the intentional still motion plus ANSI/chunky rendering at output size; real user HEIC batches should be retested, but the synthetic matrix moved from preview-like unusable performance to materially faster behavior.
+
 ## 2026-05-12 - experimental frame-pipe launch gate audit
 
 - Finding: `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1 open dist/WZRD.VID.app` is not a reliable way to enable the experimental renderer in the packaged macOS app. The environment variable is applied to the `open` command, but the app bundle is launched by macOS LaunchServices and the WZRD.VID process should not be assumed to inherit that shell environment.

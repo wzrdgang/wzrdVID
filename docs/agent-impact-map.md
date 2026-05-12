@@ -15,10 +15,10 @@ This map describes the current repository so future agents can edit with context
 ### Render Engine
 
 - Owning files/directories: `renderer.py`, `presets.py`.
-- Purpose: Builds a virtual media timeline from videos/photos, samples frames, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output. PNG frame staging remains the default video transport; `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` or the local desktop developer toggle enables an experimental raw RGB ffmpeg pipe path before the same audio/finalization stages.
+- Purpose: Builds a virtual media timeline from videos/photos, samples frames, prepares cached still/HEIC proxies, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output. PNG frame staging remains the default video transport; `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` or the local desktop developer toggle enables an experimental raw RGB ffmpeg pipe path before the same audio/finalization stages.
 - Inbound dependencies: `app.py` render settings, timeline items, user selected output path, source media files.
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
-- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
+- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, still proxy cache behavior, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
 
 ### ffmpeg and Media Utilities
 
@@ -95,7 +95,7 @@ This map describes the current repository so future agents can edit with context
 - UI/component path: `app.py` timeline widgets, `MediaDropTableWidget`, timeline item table columns, preview controls.
 - Data/state path: `TimelineItem` records path, kind, duration, trim, photo hold, `has_audio`, and `include_audio`; project JSON preserves timeline order and item settings.
 - Asset/media path: user selected videos/photos; photos are corrected for EXIF orientation through Pillow handling in the render/preview path.
-- Success behavior: Items append to timeline, durations are shown, video audio is detected, Include Audio defaults appropriately, preview updates.
+- Success behavior: Items append to timeline, durations are shown, video audio is detected, Include Audio defaults appropriately, preview updates. HEIC/HEIF stills can be selected from the normal media picker and defer full decode until preview/render, where cached app-managed still proxies are reused.
 - Failure/empty behavior: Unsupported media or probe/load failures are logged and shown as clear GUI errors.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`.
 
@@ -115,7 +115,7 @@ This map describes the current repository so future agents can edit with context
 - UI/component path: `app.py` collects render settings and starts `RenderThread` or `BatchRenderThread`; progress/log signals update GUI.
 - Data/state path: `RenderSettings`, `PlaybackPlan`, optional `max_video_length`, optional `random_clip_assembly`, bypass intervals, random seeds, style/output/optimization/framing/effect settings.
 - Asset/media path: source media, temp frame directories, preview folder under app settings parent, user-selected output path, optional optimized output path.
-- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available. By default the silent MP4 is encoded from staged PNG frames; the experimental frame-pipe path can be enabled by env var or local desktop developer setting, streams rendered RGB frames directly to ffmpeg, and falls back to PNG staging on pre-audio pipe failure. Preview MP4s under the app-owned Previews folder can be cleared manually, and old app-managed preview/cache/temp files are cleaned best-effort at launch.
+- Success behavior: Normal MP4 visually renders ANSI/text-art/glitch output, optional max-length caps output duration, optional random clip assembly builds deterministic seeded source segments before rendering, optional audio is muxed/mixed, optional optimization targets max MB, output/open-folder controls become available. By default the silent MP4 is encoded from staged PNG frames; the experimental frame-pipe path can be enabled by env var or local desktop developer setting, streams rendered RGB frames directly to ffmpeg, and falls back to PNG staging on pre-audio pipe failure. Preview MP4s and still/HEIC proxies under app-owned cache folders can be cleared manually, and old app-managed preview/cache/temp files are cleaned best-effort at launch.
 - Failure/empty behavior: Random clip assembly without max length or with match-to-music should reject before render; exceptions are logged and surfaced without freezing the GUI; temp directories should clean themselves up. Preview/cache cleanup failures should log and continue without deleting user-selected final exports, source media, or recipes.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `presets.py`, `theme.py`.
 
@@ -210,6 +210,7 @@ This map describes the current repository so future agents can edit with context
 
 - Desktop persistent settings: platform user config/application-support directory from `app.py` `_user_data_dir()`; includes `settings.json`.
 - Desktop previews: preview outputs are placed under a `Previews` folder next to the user-data/settings area.
+- Desktop still cache: HEIC/HEIF proxies are stored under a `StillCache` folder in the same WZRD.VID app-support/config area, keyed by source path, size, mtime, and proxy size. Manual Clear Preview Cache removes them; automatic cleanup removes old app-managed still cache files by age.
 - User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
 - Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work. The default renderer creates a `frames/` PNG sequence under the render temp directory; the experimental `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` transport avoids that PNG sequence unless it falls back.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.

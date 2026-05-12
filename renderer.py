@@ -15,9 +15,10 @@ from typing import Any, Callable, Iterable
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 import ffmpeg_utils
+import still_cache
 from presets import get_preset
 
 
@@ -81,6 +82,13 @@ class TimelineSegment:
     @property
     def timeline_end(self) -> float:
         return self.timeline_start + self.duration
+
+
+@dataclass(frozen=True)
+class _PhotoFrameRecord:
+    image: Image.Image
+    array: np.ndarray
+    is_heic: bool
 
 
 @dataclass(frozen=True)
@@ -255,12 +263,14 @@ def render_project(
         selected_audio_duration=selected_audio_duration,
     )
     if settings.random_clip_assembly:
+        random_started = time.perf_counter()
         timeline_segments = _randomized_timeline_segments(
             timeline_segments,
             playback,
             float(settings.max_video_length or 0.0),
             settings,
         )
+        _emit_elapsed(log, "Random assembly stage", random_started)
         timeline_duration = sum(segment.duration for segment in timeline_segments)
         playback = PlaybackPlan(
             timeline_start=0.0,
@@ -1039,7 +1049,6 @@ def _build_timeline(settings: RenderSettings) -> tuple[list[TimelineSegment], fl
             hold = float(item.photo_hold_duration or item.duration or 3.0)
             if hold <= 0:
                 raise ValueError(f"Photo source {index} must have a positive hold duration.")
-            _check_photo_readable(path)
             segments.append(
                 TimelineSegment(
                     path=path,
@@ -1083,33 +1092,31 @@ def _build_timeline(settings: RenderSettings) -> tuple[list[TimelineSegment], fl
 
 def _check_photo_readable(path: str) -> None:
     try:
-        _load_photo_image(path).load()
+        _load_photo_image(path, max_dimension=1024).load()
     except Exception as exc:  # noqa: BLE001 - Pillow support varies by local install.
         if Path(path).suffix.lower() in HEIC_EXTENSIONS:
             raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
         raise RenderError(f"Could not read photo source {path}: {exc}") from exc
 
 
-def _load_photo_image(path: str) -> Image.Image:
-    try:
-        with Image.open(path) as image:
-            return ImageOps.exif_transpose(image).convert("RGB")
-    except Exception:
-        if Path(path).suffix.lower() not in HEIC_EXTENSIONS:
-            raise
-    with tempfile.TemporaryDirectory(prefix="wzrd_heic_decode_") as temp_dir:
-        decoded = Path(temp_dir) / "decoded.png"
-        ffmpeg_utils.extract_still_frame(path, decoded)
-        with Image.open(decoded) as image:
-            return ImageOps.exif_transpose(image).convert("RGB")
+def _load_photo_image(path: str, *, max_dimension: int | None = None, log: LogCallback = None) -> Image.Image:
+    return still_cache.load_still_image(path, max_dimension=max_dimension, log=log).image
 
 
 class _TimelineFrameSource:
-    def __init__(self, segments: list[TimelineSegment]) -> None:
+    def __init__(self, segments: list[TimelineSegment], *, output_size: tuple[int, int], log: LogCallback) -> None:
         self.segments = segments
         self.captures: dict[str, cv2.VideoCapture] = {}
-        self.photo_cache: dict[str, np.ndarray] = {}
+        self.photo_cache: dict[str, _PhotoFrameRecord] = {}
         self.last_frames: dict[str, np.ndarray] = {}
+        self.still_proxy_max_dimension = _still_proxy_max_dimension(output_size)
+        self.log = log
+        self.photo_load_count = 0
+        self.photo_cache_hits = 0
+        self.photo_load_seconds = 0.0
+        self.heic_count = 0
+        self.heic_motion_frames = 0
+        self.heic_motion_seconds = 0.0
 
     def frame_at(self, timeline_t: float) -> np.ndarray:
         segment = self._segment_at(timeline_t)
@@ -1154,23 +1161,63 @@ class _TimelineFrameSource:
         return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
     def _photo_frame(self, path: str, local_t: float = 0.0, duration: float = 3.0) -> np.ndarray:
-        cached = self.photo_cache.get(path)
-        if cached is None:
+        record = self.photo_cache.get(path)
+        if record is None:
+            started = time.perf_counter()
             try:
-                cached = np.asarray(_load_photo_image(path))
+                still = still_cache.load_still_image(
+                    path,
+                    max_dimension=self.still_proxy_max_dimension,
+                    log=self.log,
+                )
             except Exception as exc:  # noqa: BLE001
                 if Path(path).suffix.lower() in HEIC_EXTENSIONS:
                     raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
                 raise RenderError(f"Could not load photo source {path}: {exc}") from exc
-            self.photo_cache[path] = cached
-        if Path(path).suffix.lower() in HEIC_EXTENSIONS:
-            return _heic_motion_loop_frame(cached, local_t, duration)
-        return cached
+            is_heic = Path(path).suffix.lower() in HEIC_EXTENSIONS
+            record = _PhotoFrameRecord(
+                image=still.image,
+                array=np.asarray(still.image),
+                is_heic=is_heic,
+            )
+            self.photo_cache[path] = record
+            self.photo_load_count += 1
+            self.photo_load_seconds += max(0.0, time.perf_counter() - started)
+            if still.cache_hit:
+                self.photo_cache_hits += 1
+            if is_heic:
+                self.heic_count += 1
+            if still.downscaled and self.log:
+                self.log(
+                    f"Still proxy prepared: {Path(path).name} "
+                    f"{still.source_size[0]}x{still.source_size[1]} -> "
+                    f"{still.proxy_size[0]}x{still.proxy_size[1]}."
+                )
+        if record.is_heic:
+            started = time.perf_counter()
+            frame = _heic_motion_loop_frame(record.image, local_t, duration)
+            self.heic_motion_frames += 1
+            self.heic_motion_seconds += max(0.0, time.perf_counter() - started)
+            return frame
+        return record.array
+
+    def still_timing_summary(self) -> str | None:
+        if self.photo_load_count <= 0 and self.heic_motion_frames <= 0:
+            return None
+        return (
+            f"Still source prep: loaded {self.photo_load_count} still(s), "
+            f"{self.heic_count} HEIC/HEIF, {self.photo_cache_hits} cache hit(s), "
+            f"load/decode {self.photo_load_seconds:.2f}s, "
+            f"HEIC motion {self.heic_motion_frames} frame(s) in {self.heic_motion_seconds:.2f}s."
+        )
 
 
-def _heic_motion_loop_frame(frame_rgb: np.ndarray, local_t: float, duration: float) -> np.ndarray:
+def _still_proxy_max_dimension(output_size: tuple[int, int]) -> int:
+    return max(960, min(3840, max(output_size) * 2))
+
+
+def _heic_motion_loop_frame(image: Image.Image, local_t: float, duration: float) -> np.ndarray:
     """Apply restrained automatic motion to HEIC/HEIF stills."""
-    image = Image.fromarray(frame_rgb).convert("RGB")
     loop_duration = max(0.75, min(3.0, float(duration or 3.0)))
     phase = (float(local_t or 0.0) % loop_duration) / loop_duration
     wave = math.sin(phase * math.tau)
@@ -1195,10 +1242,13 @@ def _render_frames(
     progress: ProgressCallback,
     log: LogCallback,
 ) -> None:
-    source = _TimelineFrameSource(timeline_segments)
+    source = _TimelineFrameSource(timeline_segments, output_size=settings.output_size, log=log)
     render_duration = playback.output_duration
     transition_boundaries = _transition_boundaries(timeline_segments, playback)
+    audio_hit_started = time.perf_counter()
     audio_hits = _audio_hit_levels(settings, render_duration, frame_count, log)
+    if _effect_on(settings.effects, "audio_reactive") and _uses_external_audio(settings):
+        _emit_elapsed(log, "Audio Reactive Hits analysis", audio_hit_started)
     framing_kwargs = _frame_framing_kwargs(settings)
     public_access_profile = preset.get("profile") == "public_access_v1"
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
@@ -1209,6 +1259,13 @@ def _render_frames(
     previous_output: Image.Image | None = None
     first_output: Image.Image | None = None
     last_source_t = _source_time_for_output(playback, max(0.0, render_duration - (1.0 / max(1, settings.fps))))
+    source_frame_seconds = 0.0
+    normal_render_seconds = 0.0
+    public_source_seconds = 0.0
+    ansi_prepare_seconds = 0.0
+    text_render_seconds = 0.0
+    transition_seconds = 0.0
+    write_seconds = 0.0
 
     try:
         for index in range(frame_count):
@@ -1221,11 +1278,15 @@ def _render_frames(
                 frame_effects["_hit_level"] = hit_level
 
             if _ending_freezes_source(settings, render_duration, output_t):
+                source_started = time.perf_counter()
                 frame_rgb = source.frame_at(last_source_t)
+                source_frame_seconds += max(0.0, time.perf_counter() - source_started)
             elif _effect_on(frame_effects, "stutter_hold") and held_frame is not None and index < hold_until:
                 frame_rgb = held_frame.copy()
             else:
+                source_started = time.perf_counter()
                 frame_rgb = source.frame_at(timeline_t)
+                source_frame_seconds += max(0.0, time.perf_counter() - source_started)
                 if _effect_on(frame_effects, "stutter_hold") and _starts_stutter_hold(index, settings):
                     held_frame = frame_rgb.copy()
                     hold_until = index + _stutter_hold_length(index, settings)
@@ -1239,6 +1300,7 @@ def _render_frames(
 
             public_source: Image.Image | None = None
             if public_access_profile:
+                public_started = time.perf_counter()
                 public_source = prepare_public_access_source(
                     frame_rgb,
                     output_size=settings.output_size,
@@ -1250,11 +1312,13 @@ def _render_frames(
                     framing=framing_kwargs,
                     seed=settings.weird_seed or settings.random_seed,
                 )
+                public_source_seconds += max(0.0, time.perf_counter() - public_started)
 
             if is_normal_bypass:
                 if public_source is not None:
                     output_frame = public_source
                 else:
+                    normal_started = time.perf_counter()
                     output_frame = render_normal_frame(
                         frame_rgb,
                         output_size=settings.output_size,
@@ -1264,10 +1328,12 @@ def _render_frames(
                         fps=settings.fps,
                         framing=framing_kwargs,
                     )
+                    normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
             else:
                 if public_source is not None:
                     ansi_source = public_source
                 else:
+                    ansi_started = time.perf_counter()
                     ansi_source = prepare_ansi_source(
                         frame_rgb,
                         output_size=settings.output_size,
@@ -1277,6 +1343,8 @@ def _render_frames(
                         fps=settings.fps,
                         framing=framing_kwargs,
                     )
+                    ansi_prepare_seconds += max(0.0, time.perf_counter() - ansi_started)
+                text_started = time.perf_counter()
                 output_frame = render_text_art_frame(
                     np.asarray(ansi_source),
                     preset=preset,
@@ -1289,10 +1357,12 @@ def _render_frames(
                     chunky_blocks=chunky_blocks,
                     dither_mode=settings.dither_mode,
                 )
+                text_render_seconds += max(0.0, time.perf_counter() - text_started)
 
             if first_output is None:
                 first_output = output_frame.copy()
 
+            transition_started = time.perf_counter()
             output_frame = _apply_transition_effect(
                 output_frame,
                 previous_output,
@@ -1320,8 +1390,11 @@ def _render_frames(
             )
             if settings.loop_friendly and first_output is not None:
                 output_frame = _apply_loop_friendly(output_frame, first_output, render_duration, output_t)
+            transition_seconds += max(0.0, time.perf_counter() - transition_started)
 
+            write_started = time.perf_counter()
             write_frame(index, output_frame)
+            write_seconds += max(0.0, time.perf_counter() - write_started)
             previous_output = output_frame.copy()
 
             if index % max(1, settings.fps) == 0 or index == frame_count - 1:
@@ -1329,6 +1402,20 @@ def _render_frames(
             frame_progress = 5 + int(((index + 1) / frame_count) * 84)
             _emit_progress(progress, min(frame_progress, 89))
     finally:
+        still_summary = source.still_timing_summary()
+        if still_summary:
+            _emit(log, still_summary)
+        _emit(
+            log,
+            "Frame timing detail: "
+            f"source/still {source_frame_seconds:.2f}s, "
+            f"normal {normal_render_seconds:.2f}s, "
+            f"public source {public_source_seconds:.2f}s, "
+            f"ANSI prep {ansi_prepare_seconds:.2f}s, "
+            f"text render {text_render_seconds:.2f}s, "
+            f"transitions/endings {transition_seconds:.2f}s, "
+            f"frame write {write_seconds:.2f}s.",
+        )
         source.close()
 
 

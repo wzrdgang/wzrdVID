@@ -23,7 +23,7 @@ from pathlib import Path
 
 from app_i18n import SUPPORTED_LANGUAGES, language_label, resolve_language, translate
 import cv2
-from PIL import Image, ImageOps
+from PIL import Image
 from PySide6.QtCore import QThread, QTimer, QUrl, Signal, Qt
 from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
 )
 
 import ffmpeg_utils
+import still_cache
 from presets import get_preset, preset_description, preset_names
 from renderer import (
     AUDIO_EXTERNAL,
@@ -349,10 +350,13 @@ def preview_cache_usage(
     *,
     preview_dir: Path = PREVIEW_DIR,
     temp_dir: Path | None = None,
+    still_cache_dir: Path | None = None,
     temp_age_seconds: int = CACHE_CLEANUP_MAX_AGE_SECONDS,
 ) -> CacheCleanupSummary:
     summary = CacheCleanupSummary()
     for path in _managed_preview_cache_targets(preview_dir, older_than_seconds=None):
+        summary.add(_path_usage(path))
+    for path in still_cache.managed_still_cache_targets(cache_dir=still_cache_dir, older_than_seconds=None):
         summary.add(_path_usage(path))
     for path in _managed_temp_targets(temp_dir=temp_dir, older_than_seconds=temp_age_seconds):
         summary.add(_path_usage(path))
@@ -363,13 +367,23 @@ def clear_preview_cache(
     *,
     preview_dir: Path = PREVIEW_DIR,
     temp_dir: Path | None = None,
+    still_cache_dir: Path | None = None,
     preview_age_seconds: int = 0,
+    still_age_seconds: int | None = None,
     temp_age_seconds: int = CACHE_CLEANUP_MAX_AGE_SECONDS,
     delete_path: Callable[[Path], None] | None = None,
 ) -> CacheCleanupSummary:
     delete_path = delete_path or _delete_cache_path
     summary = CacheCleanupSummary()
+    if still_age_seconds is None:
+        still_age_seconds = preview_age_seconds
     targets = list(_managed_preview_cache_targets(preview_dir, older_than_seconds=preview_age_seconds))
+    targets.extend(
+        still_cache.managed_still_cache_targets(
+            cache_dir=still_cache_dir,
+            older_than_seconds=still_age_seconds,
+        )
+    )
     targets.extend(_managed_temp_targets(temp_dir=temp_dir, older_than_seconds=temp_age_seconds))
     for path in targets:
         usage = _path_usage(path)
@@ -2070,9 +2084,14 @@ class MainWindow(QMainWindow):
             self,
             self.tr("file.add_video_title"),
             str(Path.home()),
-            "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
+            (
+                "Media files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm "
+                "*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif);;"
+                "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm);;"
+                "Photo files (*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif)"
+            ),
         )
-        self._add_timeline_paths(paths, forced_kind="video")
+        self._add_timeline_paths(paths)
 
     def add_photos(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
@@ -2089,20 +2108,28 @@ class MainWindow(QMainWindow):
     def _add_timeline_paths(self, paths: list[str], forced_kind: str | None = None) -> None:
         if not paths:
             return
+        started = time.perf_counter()
         start_index = len(self.timeline_items)
         added = 0
         skipped: list[str] = []
+        heic_count = 0
         for path in paths:
             kind = forced_kind or media_kind(path)
             if kind not in {"video", "photo"}:
                 skipped.append(Path(path).name or path)
                 continue
+            if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+                heic_count += 1
             if self._append_timeline_item(path, kind):
                 added += 1
         if added:
             self._refresh_timeline_table()
             self.timeline_table.selectRow(start_index)
             self._after_timeline_changed()
+            heic_note = f", {heic_count} HEIC/HEIF" if heic_count else ""
+            self.append_log(
+                f"Media import: added {added} source(s){heic_note} in {time.perf_counter() - started:.2f}s."
+            )
         if skipped:
             self.append_log(
                 "Rejected unsupported timeline file(s): "
@@ -2163,7 +2190,10 @@ class MainWindow(QMainWindow):
                 return False
             duration = 3.0
             if source.suffix.lower() in HEIC_EXTENSIONS:
-                self.append_log(f"Added HEIC/HEIF photo: {source.name} (3.0s subtle motion loop, silent)")
+                self.append_log(
+                    f"Added HEIC/HEIF photo: {source.name} "
+                    "(3.0s subtle motion loop, silent; decode cached on first preview/render)"
+                )
             else:
                 self.append_log(f"Added photo: {source.name} (3.0s hold, silent)")
         self.timeline_items.append(
@@ -2190,28 +2220,23 @@ class MainWindow(QMainWindow):
 
     def _validate_photo_source(self, path: str) -> None:
         suffix = Path(path).suffix.lower()
+        if suffix in HEIC_EXTENSIONS:
+            return
         try:
             self._load_photo_image(path).load()
         except Exception as exc:  # noqa: BLE001 - Pillow codec support varies locally.
-            if suffix in HEIC_EXTENSIONS:
-                raise ValueError(
-                    "HEIC/HEIF image support is not available in this install. "
-                    "Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again."
-                ) from exc
             raise ValueError(f"Could not read photo file:\n{path}\n\n{exc}") from exc
 
     def _load_photo_image(self, path: str) -> Image.Image:
         try:
-            with Image.open(path) as image:
-                return ImageOps.exif_transpose(image).convert("RGB")
-        except Exception:
-            if Path(path).suffix.lower() not in HEIC_EXTENSIONS:
-                raise
-        with tempfile.TemporaryDirectory(prefix="wzrd_heic_preview_") as temp_dir:
-            decoded = Path(temp_dir) / "decoded.png"
-            ffmpeg_utils.extract_still_frame(path, decoded)
-            with Image.open(decoded) as image:
-                return ImageOps.exif_transpose(image).convert("RGB")
+            return still_cache.load_still_image(path, max_dimension=1024, log=self.append_log).image
+        except Exception as exc:  # noqa: BLE001 - Pillow/ffmpeg HEIC support varies locally.
+            if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+                raise ValueError(
+                    "HEIC/HEIF image support is not available in this install. "
+                    "Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again."
+                ) from exc
+            raise
 
     def _refresh_timeline_table(self) -> None:
         self._timeline_table_updating = True

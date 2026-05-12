@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - HEIC/photo still cache and import performance
+
+- Agent/task: Codex / investigate and fix HEIC/photo still pipeline performance and import UX after many HEICs froze import, repeated preview/render planning took about 43-45s in user logs, and HEIC slideshows rendered at about 3.4-3.7 fps.
+- Intent: Keep changes narrow to HEIC/photo import, planning, cache, and render timing; do not change Lite/Apple Lite/site/version/package/publish/tag behavior, worky music mode, audio semantics, or successful long `.mov` behavior.
+- Files changed this pass: `app.py`, `app_i18n.py`, `renderer.py`, `still_cache.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, performance and import UX only. HEIC/HEIF can now be selected from the normal Add Media picker. HEIC import validation is deferred so the UI does not synchronously decode every still. Render planning no longer decodes every photo on every preview/render. HEIC/still render loads use app-managed cached proxies keyed by path, mtime, size, and proxy dimension, with proxy size about 2x the selected output dimension.
+- Safety boundaries: User source media, final exports, and recipes are not deleted or modified. Still proxies live under WZRD.VID-managed cache storage and are included in Clear Preview Cache and 7-day automatic cache cleanup. The subtle 3-second HEIC motion loop remains enabled; worky/external audio and random assembly behavior are unchanged.
+- Timing/validation: Synthetic 12-file phone-sized HEIC matrix used 3024x4032 HEICs, WZRD Blocks, 720x406, 24 fps, CRF 28, random clip assembly, external audio plus worky mode. Before this pass, `_build_timeline()` took 3.91s/3.92s and a 5s render took 38.44s with 34.13s frame render. After this pass, `_build_timeline()` took effectively 0.000s; 5s cold-cache render took 8.60s, 5s warm-cache render took 6.81s, 10s warm render took 13.72s, and 30s/720-frame warm render took 42.47s with valid H.264/yuv420p plus AAC output. Pipe-mode 5s HEIC smoke produced valid H.264/yuv420p plus AAC and logged direct frame piping.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; HEIC/photo/import/render hot-path grep; synthetic HEIC generation under `/tmp/wzrdvid-heic-perf-hi` using Pillow plus `sips`; baseline and after render timing smokes with `.venv/bin/python`; ffprobe codec/pix_fmt/duration/audio checks; offscreen GUI add-media smoke with temp settings; still cache direct hit smoke; preview/still cache cleanup safety tests.
+- Known gaps: Synthetic HEICs validate the code path and performance shape, but real user HEIC batches should still be retested. The remaining render cost is intentional still motion plus ANSI/chunky/text output, not repeated planning decode.
+- Next recommended prompt: Relaunch the local dev app, add the real HEIC batch through Add Media, run a 5s preview and a 30s WZRD Blocks render, then compare planning time, frame render time, output quality, and cache size.
+
 ## 2026-05-12 - Experimental frame-pipe launch gate audit
 
 - Agent/task: Codex / audit why `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1 open dist/WZRD.VID.app` did not activate the experimental frame-pipe renderer in a packaged macOS render.
