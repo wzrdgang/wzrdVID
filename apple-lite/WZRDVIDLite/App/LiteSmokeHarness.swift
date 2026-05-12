@@ -180,11 +180,30 @@ enum LiteSmokeHarness {
           const audioMode = window.WZRDVID_LITE_EXPORT?.audioMode?.() || '';
           result.audioMode = audioMode;
           check('audioPipelineReady', ['captureStream', 'webAudio'].includes(audioMode), audioMode || 'no audio mode');
+          const diagnostics = window.WZRDVID_LITE_EXPORT?.diagnostics?.() || {};
+          result.exportDiagnostics = diagnostics;
+          check('exportHasVideoTrack', Number(diagnostics.videoTracks || 0) > 0, JSON.stringify(diagnostics));
+          check('exportBlobHasBytes', Number(diagnostics.blobSize || 0) > 1024, JSON.stringify(diagnostics));
+          window.__wzrdvidNativeExportValidation = null;
+          const nativeExportSent = await window.WZRDVID_LITE_EXPORT?.shareRenderedClip?.();
+          result.nativeExportSent = Boolean(nativeExportSent);
+          for (let index = 0; index < 30; index += 1) {
+            if (window.__wzrdvidNativeExportValidation) break;
+            await sleep(100);
+          }
+          const nativeValidation = window.__wzrdvidNativeExportValidation || {};
+          result.nativeExportValidation = nativeValidation;
+          check('nativeExportSent', nativeExportSent === true, 'native export bridge did not accept payload');
+          check('nativeExportValidatedVideo', Number(nativeValidation.videoTracks || 0) > 0, JSON.stringify(nativeValidation));
         } else {
           check('randomRenderCompleted', false, 'MediaRecorder/canvas capture unavailable or local import failed');
           check('exportDownloadReady', false, 'Render did not produce a download link');
           check('nativeRenderedClipReady', false, 'Render did not produce a native export payload');
           check('audioPipelineReady', false, 'Render did not run');
+          check('exportHasVideoTrack', false, 'Render did not run');
+          check('exportBlobHasBytes', false, 'Render did not run');
+          check('nativeExportSent', false, 'Render did not run');
+          check('nativeExportValidatedVideo', false, 'Render did not run');
         }
 
         const required = [
@@ -200,7 +219,11 @@ enum LiteSmokeHarness {
           'exportDownloadReady',
           'nativeExportBridgeSurface',
           'nativeRenderedClipReady',
-          'audioPipelineReady'
+          'audioPipelineReady',
+          'exportHasVideoTrack',
+          'exportBlobHasBytes',
+          'nativeExportSent',
+          'nativeExportValidatedVideo'
         ];
         result.passed = required.every((name) => result.checks[name] === true);
       } catch (error) {

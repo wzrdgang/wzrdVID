@@ -24,6 +24,7 @@
     renderedFilename: '',
     renderedType: '',
     lastAudioMode: 'none',
+    lastExportDiagnostics: null,
     renderAbort: false
   };
 
@@ -108,6 +109,7 @@
     state.renderedBlob = null;
     state.renderedFilename = '';
     state.renderedType = '';
+    state.lastExportDiagnostics = null;
   }
 
   function resetDownloadButton() {
@@ -132,9 +134,13 @@
     if (!bridge || !state.renderedBlob) return false;
 
     const dataUrl = await blobToDataUrl(state.renderedBlob);
-    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const base64Marker = ';base64,';
+    const markerIndex = dataUrl.indexOf(base64Marker);
+    const base64 = markerIndex >= 0
+      ? dataUrl.slice(markerIndex + base64Marker.length)
+      : dataUrl.slice(dataUrl.lastIndexOf(',') + 1);
     const id = `export-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const chunkSize = 256 * 1024;
+    const chunkSize = 48 * 1024;
     const chunkCount = Math.max(1, Math.ceil(base64.length / chunkSize));
     bridge.postMessage({
       action: 'start',
@@ -158,6 +164,7 @@
   window.WZRDVID_LITE_EXPORT = {
     hasRenderedClip: () => Boolean(state.renderedBlob && state.renderedFilename),
     audioMode: () => state.lastAudioMode,
+    diagnostics: () => state.lastExportDiagnostics,
     shareRenderedClip: shareRenderedClipWithNative
   };
 
@@ -547,8 +554,21 @@
     const expectedFrames = Math.max(1, Math.ceil(duration * fps));
     const mimeType = pickRecorderMimeType();
     const chunks = [];
-    const canvasStream = elements.canvas.captureStream(fps);
-    const mixedStream = new MediaStream(canvasStream.getVideoTracks());
+    await drawFrame(timeline, 0, duration, preset, ansiIntervals);
+    let canvasStream = elements.canvas.captureStream(0);
+    let videoTracks = canvasStream.getVideoTracks();
+    let manualCanvasFrames = typeof videoTracks[0]?.requestFrame === 'function';
+    if (!manualCanvasFrames) {
+      canvasStream.getTracks().forEach((track) => track.stop?.());
+      canvasStream = elements.canvas.captureStream(fps);
+      videoTracks = canvasStream.getVideoTracks();
+      manualCanvasFrames = false;
+    }
+    const requestCanvasFrame = () => {
+      if (manualCanvasFrames) videoTracks[0]?.requestFrame?.();
+    };
+    requestCanvasFrame();
+    const mixedStream = new MediaStream(videoTracks);
     state.lastAudioMode = 'none';
     const audioController = await prepareAudioStream(duration);
     if (audioController?.track) mixedStream.addTrack(audioController.track);
@@ -581,6 +601,7 @@
     const hardStop = window.setTimeout(stopRecorder, duration * 1000);
     let frameCount = 0;
     recorder.start(250);
+    requestCanvasFrame();
     await audioController?.start();
 
     while (!state.renderAbort && !recorderStopped) {
@@ -588,6 +609,7 @@
       if (now >= deadline) break;
       const elapsed = Math.max(0, Math.min(duration, (now - startedAt) / 1000));
       await drawFrame(timeline, elapsed, duration, preset, ansiIntervals);
+      requestCanvasFrame();
       frameCount += 1;
       setProgress((elapsed / duration) * 100);
       const nextFrameAt = startedAt + frameCount * (1000 / fps);
@@ -596,9 +618,10 @@
     }
 
     window.clearTimeout(hardStop);
-    audioController?.stop();
     stopRecorder();
     await stopped;
+    audioController?.stop();
+    canvasStream.getTracks().forEach((track) => track.stop?.());
     setProgress(100);
     elements.renderButton.disabled = false;
 
@@ -609,6 +632,18 @@
     state.renderedUrl = URL.createObjectURL(blob);
     const extension = type.includes('mp4') ? 'mp4' : 'webm';
     state.renderedFilename = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
+    state.lastExportDiagnostics = {
+      mimeType,
+      recorderMimeType: recorder.mimeType || '',
+      blobType: blob.type || '',
+      blobSize: blob.size,
+      filename: state.renderedFilename,
+      videoTracks: videoTracks.length,
+      videoTrackReadyState: videoTracks[0]?.readyState || '',
+      canvasFrameMode: manualCanvasFrames ? 'manual' : 'interval',
+      audioTracks: mixedStream.getAudioTracks().length,
+      audioMode: state.lastAudioMode
+    };
     elements.downloadButton.href = state.renderedUrl;
     elements.downloadButton.download = state.renderedFilename;
     elements.downloadButton.textContent = t('lite.download_type', { type: extension.toUpperCase() });

@@ -24,6 +24,8 @@
 	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>WZRD.VID Lite lets you select local videos and photos to render short clips on this device. Files are not uploaded.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>WZRD.VID Lite saves rendered clips to Photos when you tap Download. Files stay on this device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -10,6 +10,7 @@ Current export behavior:
 
 - Uses MediaRecorder with MP4 when the browser supports MP4 recording.
 - Falls back to WebM when MP4 recording is unavailable.
+- In the Apple Lite wrapper, rendered blobs are handed to Swift for local Photos saving because iOS WKWebView download/share handling is not reliable enough by itself.
 - Clip length is capped by the selected duration: 15, 30, or 60 seconds.
 - ANSI Coverage controls random time coverage across the final clip. It is not a gradual intensity ramp: 0% is normal video, 100% is full ANSI/text-art, and values between those build scattered ANSI intervals.
 - The PUBLIC ACCESS preset applies browser-side public-access/VHS source treatment before ANSI Coverage is applied, so 0%, 50%, and 100% ANSI remain meaningful.

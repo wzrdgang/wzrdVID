@@ -81,14 +81,14 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 - Confirm 15/30/60 duration controls work.
 - Confirm Random clip assembly appears and can be toggled.
 - Attempt a short render with local media.
-- Verify the output download/share path. The native shell now intercepts rendered Lite blobs and presents an iOS share sheet because WKWebView blob downloads opened the clip for playback on a real device.
-- Verify audio separately. Real-device manual testing found export works after the native bridge, but added audio was still silent before the Web Audio fallback. The current build now smoke-selects `webAudio` on iPhone and needs a hand audio retest.
+- Verify the output Save Video path. The native shell now intercepts rendered Lite blobs, validates that the temporary movie has a video track, and saves directly to Photos because WKWebView blob downloads and the generic share-sheet Save Video path were unreliable on a real device.
+- Verify audio and video together. Real-device manual testing confirmed added audio, saved video, and video playback now work. The current build seeds and requests canvas frames before recording, fixes native Blob payload transfer for MP4 codec strings, and smoke-verifies browser-side and native video/audio tracks.
 - Confirm no external navigation is allowed from inside the wrapper.
 
 ## Known Gaps
 
 - Final Apple Developer Team ID, production Bundle ID, App Store Connect record, and signing/export settings are not configured yet.
-- Native export/share bridge has a first implementation for rendered Lite blobs. It keeps the browser renderer local, sends the rendered blob to Swift through `WKScriptMessageHandler`, writes a temporary local file, and opens the iOS share sheet.
-- Apple Lite added-audio capture has a first Web Audio fallback for iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable. Simulator and physical-device smokes select `webAudio`, but audible/exported audio still needs a real media hand retest. Source clip audio is not currently preserved from Lite's visual source timeline.
+- Native export/save bridge has a first implementation for rendered Lite blobs. It keeps the browser renderer local, sends the rendered blob to Swift through `WKScriptMessageHandler`, writes a temporary local file, validates the movie has a video track, and saves directly to Photos with add-only permission.
+- Apple Lite added-audio capture has a first Web Audio fallback for iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable. Simulator and physical-device smokes select `webAudio` and verify a generated MP4 payload with browser-side and native video/audio tracks. Real-device manual testing confirmed added audio and saved video playback. Source clip audio is not currently preserved from Lite's visual source timeline.
 - No TestFlight/App Store metadata yet.
 - No App Store submission, notarization, signing automation, or release packaging is included here.

@@ -61,8 +61,8 @@ Do not try to ship the desktop renderer, bundled ffmpeg, or full desktop feature
 - `apple-lite/scripts/run_simulator_smoke.py` builds the project, installs the app on an available iPhone simulator, and launches a debug-only WKWebView smoke harness for bundled Lite load, local import surface, language switching, random clip rendering, and download-link readiness.
 - `apple-lite/README.md` documents the Xcode project, target setup, local-only boundaries, and required simulator/device smokes.
 - `docs/APPLE_LITE_DEVICE_TEST_LOG.md` tracks the guided real-device manual test and native import/share bridge decision.
-- A first native export/share bridge has been added after real-device testing confirmed the WKWebView blob download handoff opened rendered clips for playback instead of giving a reliable save/share path.
-- A first Web Audio fallback has been added for the explicit Add Audio bus after simulator and physical iPhone smoke showed `HTMLAudioElement.captureStream()` is unavailable but `AudioContext.createMediaStreamDestination()` is available. No production signing state, App Store Connect app record, or TestFlight build has been added yet.
+- A first native export/save bridge has been added after real-device testing confirmed the WKWebView blob download handoff opened rendered clips for playback and the generic share-sheet Save Video path was unreliable. The bridge keeps rendering local, validates that the temporary movie has a video track, and saves directly to Photos with add-only permission.
+- A first Web Audio fallback has been added for the explicit Add Audio bus after simulator and physical iPhone smoke showed `HTMLAudioElement.captureStream()` is unavailable but `AudioContext.createMediaStreamDestination()` is available. Current smokes verify generated MP4 payload transfer and browser-side/native video/audio tracks, but final real-media video+audio save still needs hand retest. No production signing state, App Store Connect app record, or TestFlight build has been added yet.
 
 ## Product Boundaries
 

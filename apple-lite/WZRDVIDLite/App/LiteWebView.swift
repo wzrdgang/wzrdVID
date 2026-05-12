@@ -1,4 +1,6 @@
 import SwiftUI
+import AVFoundation
+import Photos
 import UIKit
 import WebKit
 
@@ -69,6 +71,11 @@ struct LiteWebView: UIViewRepresentable {
 
         private weak var webView: WKWebView?
         private var exportBuffers: [String: ExportBuffer] = [:]
+        private var isSmokeMode: Bool {
+            let environment = ProcessInfo.processInfo.environment
+            let arguments = ProcessInfo.processInfo.arguments
+            return environment["WZRDVID_LITE_SMOKE"] == "1" || arguments.contains("--lite-smoke")
+        }
 
         func attach(_ webView: WKWebView) {
             self.webView = webView
@@ -224,7 +231,7 @@ struct LiteWebView: UIViewRepresentable {
                 let fileURL = folder.appendingPathComponent(buffer.filename)
                 try data.write(to: fileURL, options: [.atomic])
                 print("WZRDVID_LITE_EXPORT_READY=\(buffer.filename) \(buffer.mimeType) \(data.count)")
-                presentShareSheet(for: fileURL)
+                validateAndSaveVideo(fileURL)
             } catch {
                 print("WZRDVID_LITE_EXPORT_ERROR=\(error.localizedDescription)")
             }
@@ -245,6 +252,89 @@ struct LiteWebView: UIViewRepresentable {
                 return fallback
             }
             return String(trimmed.prefix(120))
+        }
+
+        private func validateAndSaveVideo(_ fileURL: URL) {
+            Task { [weak self] in
+                let asset = AVURLAsset(url: fileURL)
+                let videoTracks = (try? await asset.loadTracks(withMediaType: .video)) ?? []
+                let audioTracks = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
+                print("WZRDVID_LITE_EXPORT_MEDIA=videoTracks=\(videoTracks.count) audioTracks=\(audioTracks.count)")
+                if self?.isSmokeMode == true {
+                    await MainActor.run { [weak self] in
+                        self?.setSmokeExportValidation(videoTracks: videoTracks.count, audioTracks: audioTracks.count)
+                    }
+                    return
+                }
+                guard !videoTracks.isEmpty else {
+                    await MainActor.run { [weak self] in
+                        self?.presentAlert(
+                            title: "Export needs video",
+                            message: "The rendered clip did not contain a Photos-compatible video track. Please render again and try Download."
+                        )
+                    }
+                    return
+                }
+                self?.saveVideoToPhotoLibrary(fileURL)
+            }
+        }
+
+        private func setSmokeExportValidation(videoTracks: Int, audioTracks: Int) {
+            let script = "window.__wzrdvidNativeExportValidation = { videoTracks: \(videoTracks), audioTracks: \(audioTracks) };"
+            webView?.evaluateJavaScript(script)
+            print("WZRDVID_LITE_EXPORT_VALIDATED=videoTracks=\(videoTracks) audioTracks=\(audioTracks)")
+        }
+
+        private func saveVideoToPhotoLibrary(_ fileURL: URL) {
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+                guard status == .authorized || status == .limited else {
+                    print("WZRDVID_LITE_EXPORT_ERROR=photo add access denied")
+                    Task { @MainActor [weak self] in
+                        self?.presentAlert(
+                            title: "Photo Access Needed",
+                            message: "Allow WZRD.VID Lite to add videos to Photos, then tap Download again."
+                        )
+                    }
+                    return
+                }
+
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
+                }) { [weak self] success, error in
+                    if success {
+                        print("WZRDVID_LITE_EXPORT_SAVED=\(fileURL.lastPathComponent)")
+                        Task { @MainActor [weak self] in
+                            self?.presentAlert(
+                                title: "Saved Video",
+                                message: "The rendered clip was saved to Photos."
+                            )
+                        }
+                    } else {
+                        print("WZRDVID_LITE_EXPORT_ERROR=photo save failed \(error?.localizedDescription ?? "unknown")")
+                        Task { @MainActor [weak self] in
+                            self?.presentAlert(
+                                title: "Save Failed",
+                                message: "Photos could not save this clip. Render again and try Download once more."
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        private func presentAlert(title: String, message: String) {
+            DispatchQueue.main.async { [weak self] in
+                guard let webView = self?.webView,
+                      let presenter = Self.topViewController(from: webView.window?.rootViewController)
+                else {
+                    print("WZRDVID_LITE_EXPORT_ERROR=no presenter for alert")
+                    return
+                }
+
+                let controller = UIAlertController(title: title, message: message, preferredStyle: .alert)
+                controller.addAction(UIAlertAction(title: "OK", style: .default))
+                presenter.present(controller, animated: true)
+            }
         }
 
         private func presentShareSheet(for fileURL: URL) {
