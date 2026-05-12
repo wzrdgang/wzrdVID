@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Real Safari/WKWebView HEIC batch profile
+
+- Agent/task: Codex / run a real HEIC batch profile in Safari desktop and Apple Lite WKWebView using the new Lite import timing logs, then decide whether Lite needs a memory-only still proxy.
+- Intent: Keep this profiling/logging-only for Lite/Apple Lite, preserve desktop renderer/app behavior, packaging, versioning, DUNS/App Store metadata, GitHub Pages deployment config, and unrelated dirty worktree files.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: No. No source/runtime behavior changed in this pass.
+- Safari desktop results: served local Lite from `http://127.0.0.1:8770/lite/` and manually tested 8 real HEIC files copied under `/tmp/wzrdvid-lite-real-heic-profile/heic-batch`. Safari WebDriver and Apple Events JavaScript automation were blocked by local Safari settings. The 8-file import loaded 8/8 files, failed 0, logged 8 HEIC/HEIF files, and completed in 0.05s with per-file HEIC decode logs mostly 0.00-0.01s. A 30s random clip render with added audio completed to MP4-ready state. Clear Project removed selected media, audio, rendered output state, reset download state, and allowed reselecting the same HEIC batch while keeping language/duration/quality/ANSI/random preferences.
+- Safari memory observation: total Safari/WebKit RSS was about 596 MB after import and about 1.05 GB during/after render; the largest WebContent process was about 348 MB. No freeze or obvious runaway memory behavior was observed for this 8-file batch.
+- Apple Lite WKWebView results: used a temporary copy at `/tmp/wzrdvid-apple-heic-profile` with a debug-only smoke harness embedding the same 8 real HEIC files, leaving tracked Apple Lite files untouched. On the iPhone 17 simulator, WKWebView loaded 8/8 HEIC files, failed 0, logged import in 0.66s, and per-file HEIC decode was about 0.07-0.13s. Render start delay was 86 ms; a 15s random HEIC render completed in 15.19s with MP4/H.264 video, Web Audio audio, 451/450 frames, 8 timeline sources, and a 12.19 MB blob. Clear Project reset runtime state and allowed the same HEIC batch to be reselected.
+- Proxy decision: do not add a Lite still-proxy cache now. The measured real HEIC batch does not show still decode as the bottleneck in Safari or WKWebView, and a proxy would add memory and visual-quality risk. Revisit only if larger real batches or older devices show repeated decode/downscale cost.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; memory lookup for Apple Lite public-baseline context; local static server for `docs/`; Safari manual UI profile via file picker; `safaridriver --enable` and Safari WebDriver session attempts, blocked by Safari settings; AppleScript Safari JavaScript attempt, blocked by Safari settings; HEIC fixture copy and `sips` metadata sample; Safari/WebKit RSS sampling with `ps`; temporary Apple Lite Xcode-project copy and debug smoke harness; `python3 apple-lite/scripts/run_simulator_smoke.py` inside the temp copy.
+- Known gaps: iOS Safari on a real device was not profiled. The Apple Lite WKWebView result is simulator-based, not a real iPhone/iPad device run. Larger HEIC batches and older devices may still need a future profile.
+- Next recommended prompt: Run a larger real HEIC batch on an actual iPhone/iPad Apple Lite build and iOS Safari, then only prototype a session-only still proxy if decode/import timing or memory pressure clearly regresses.
+
 ## 2026-05-12 - Lite/Apple HEIC import reset support
 
 - Agent/task: Codex / fix WZRD.VID Lite and Apple Lite HEIC import UX, add project reset, and decide whether browser still proxies are justified.
