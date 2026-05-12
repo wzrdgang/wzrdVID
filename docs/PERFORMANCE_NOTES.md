@@ -1,5 +1,14 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-12 - Lite/Apple HEIC import reset and proxy decision
+
+- Goal: fix Lite/Apple Lite project clearing and HEIC import UX without copying desktop ffmpeg/still-cache internals into browser/WKWebView.
+- Multi-HEIC import finding: the Lite media input already used `multiple` and accepted `.heic`/`.heif`; drag/drop and extension filtering also treated HEIC/HEIF as image media. This pass keeps that surface and clears the file input after each selection so the same HEIC batch can be selected again without requiring a page refresh. Decode remains browser/WKWebView-dependent.
+- Reset behavior: Lite now has a localized `Clear Project` control that releases selected media object URLs, added audio object URLs, rendered Blob/object URL state, native export readiness state, progress/status/log output, and file input values. It keeps durable UI preferences such as language, duration, quality, preset, ANSI coverage, and random assembly.
+- Profiling/logging: Lite logs an import summary with selected timeline count, loaded/failed count, HEIC/HEIF count, and elapsed import time. HEIC/HEIF images also log per-file browser decode time when decode succeeds.
+- Proxy decision: no browser still-proxy cache was implemented in this pass. Without Safari/WKWebView evidence showing large-still decode is the bottleneck, adding ImageBitmap/offscreen-canvas proxies would add memory pressure and visual-quality risk. If future device profiling shows repeated decode/downscale cost, prototype a memory-only per-session proxy and clear it through `Clear Project`; do not use IndexedDB, CacheStorage, service workers, localStorage media blobs, uploads, or network APIs.
+- Apple Lite implication: Apple Lite inherits the reset button, HEIC acceptance surface, and import timing logs through the bundled Lite runtime. No native import/cache/export bridge change is required for this pass.
+
 ## 2026-05-12 - frame pipe promoted to default transport
 
 - Change: direct raw RGB ffmpeg frame pipe is now the default desktop render transport. Legacy PNG staging remains available through the local desktop developer opt-out, `Force legacy PNG staging`, or through `WZRDVID_FORCE_PNG_STAGING=1`. If the pipe path fails before audio muxing, the renderer logs the failure and reruns the same render through PNG staging.

@@ -34,6 +34,7 @@
     audioDrop: document.getElementById('audioDrop'),
     audioInput: document.getElementById('audioInput'),
     audioButton: document.getElementById('audioButton'),
+    resetButton: document.getElementById('resetButton'),
     fileList: document.getElementById('fileList'),
     preset: document.getElementById('presetSelect'),
     ansi: document.getElementById('ansiAmount'),
@@ -77,6 +78,11 @@
     return (file.name.split('.').pop() || '').toLowerCase();
   }
 
+  function isHeicFile(file) {
+    const ext = extensionOf(file);
+    return ext === 'heic' || ext === 'heif' || /heic|heif/i.test(file.type || '');
+  }
+
   function fileKind(file) {
     const ext = extensionOf(file);
     if (file.type.startsWith('video/') || VIDEO_EXTENSIONS.has(ext)) return 'video';
@@ -102,6 +108,14 @@
     state.renderedBlob = null;
     state.renderedFilename = '';
     state.renderedType = '';
+  }
+
+  function resetDownloadButton() {
+    elements.downloadButton.className = 'btn btn-disabled';
+    elements.downloadButton.removeAttribute('href');
+    elements.downloadButton.removeAttribute('download');
+    elements.downloadButton.setAttribute('aria-disabled', 'true');
+    elements.downloadButton.textContent = t('lite.download_clip');
   }
 
   function blobToDataUrl(blob) {
@@ -148,25 +162,45 @@
   };
 
   async function addMediaFiles(files) {
+    const startedAt = performance.now();
+    const selectedFiles = Array.from(files || []);
     const accepted = [];
-    for (const file of files) {
+    let heicCount = 0;
+    for (const file of selectedFiles) {
       const kind = fileKind(file);
-      if (kind === 'video' || kind === 'image') accepted.push({ file, kind });
+      if (kind === 'video' || kind === 'image') {
+        if (kind === 'image' && isHeicFile(file)) heicCount += 1;
+        accepted.push({ file, kind });
+      }
       if (kind === 'audio') await setAudioFile(file);
     }
     if (!accepted.length) {
       log(t('lite.log_no_timeline'));
       return;
     }
+    let loaded = 0;
+    let failed = 0;
     for (const item of accepted) {
       try {
         const prepared = await prepareTimelineItem(item.file, item.kind);
         state.media.push(prepared);
+        loaded += 1;
         log(t('lite.log_loaded', { kind: t(`lite.kind.${item.kind}`), name: item.file.name }));
+        if (prepared.isHeic) {
+          log(t('lite.log_heic_decode_profile', { name: item.file.name, seconds: (prepared.prepareMs / 1000).toFixed(2) }));
+        }
       } catch (error) {
+        failed += 1;
         log(t('lite.log_decode_failed', { name: item.file.name, error: error.message || error }));
       }
     }
+    log(t('lite.log_import_profile', {
+      count: accepted.length,
+      loaded,
+      failed,
+      heic: heicCount,
+      seconds: ((performance.now() - startedAt) / 1000).toFixed(2)
+    }));
     updateFileList();
     drawIdleFrame();
   }
@@ -187,6 +221,7 @@
   }
 
   async function prepareTimelineItem(file, kind) {
+    const startedAt = performance.now();
     const url = URL.createObjectURL(file);
     if (kind === 'video') {
       const video = document.createElement('video');
@@ -203,7 +238,7 @@
         URL.revokeObjectURL(url);
         throw error;
       }
-      return { file, kind, url, element: video, duration: video.duration };
+      return { file, kind, url, element: video, duration: video.duration, prepareMs: performance.now() - startedAt, isHeic: false };
     }
     const image = new Image();
     image.decoding = 'async';
@@ -217,7 +252,37 @@
       URL.revokeObjectURL(url);
       throw error;
     }
-    return { file, kind, url, element: image, duration: 2.4 };
+    return { file, kind, url, element: image, duration: 2.4, prepareMs: performance.now() - startedAt, isHeic: isHeicFile(file) };
+  }
+
+  function clearProject() {
+    state.renderAbort = true;
+    state.media.forEach((item) => {
+      try { item.element?.pause?.(); } catch { /* media may already be stopped */ }
+      try {
+        if (item.element && 'src' in item.element) item.element.src = '';
+      } catch { /* ignore source cleanup failures */ }
+      if (item.url) URL.revokeObjectURL(item.url);
+    });
+    if (state.audio) {
+      try { state.audio.audio?.pause?.(); } catch { /* audio may already be stopped */ }
+      if (state.audio.url) URL.revokeObjectURL(state.audio.url);
+    }
+    revokeRenderedUrl();
+    state.media = [];
+    state.audio = null;
+    state.lastAudioMode = 'none';
+    state.renderAbort = false;
+    if ('lastExportDiagnostics' in state) state.lastExportDiagnostics = null;
+    if (elements.mediaInput) elements.mediaInput.value = '';
+    if (elements.audioInput) elements.audioInput.value = '';
+    resetDownloadButton();
+    setProgress(0);
+    elements.log.textContent = t('lite.log_initial');
+    log(t('lite.log_project_cleared'));
+    setStatus(t('lite.status_cleared'));
+    updateFileList();
+    drawIdleFrame();
   }
 
   function waitForMetadata(media) {
@@ -277,7 +342,7 @@
     });
     updateRenderButtonCopy();
     if (!state.renderedUrl) {
-      elements.downloadButton.textContent = t('lite.download_clip');
+      resetDownloadButton();
     }
     if (!state.media.length) {
       setStatus(t('lite.status_idle'));
@@ -467,9 +532,7 @@
     revokeRenderedUrl();
     state.renderAbort = false;
     elements.renderButton.disabled = true;
-    elements.downloadButton.className = 'btn btn-disabled';
-    elements.downloadButton.removeAttribute('href');
-    elements.downloadButton.setAttribute('aria-disabled', 'true');
+    resetDownloadButton();
 
     const duration = selectedDuration();
     const quality = qualitySettings();
@@ -920,11 +983,17 @@
   elements.audioButton.addEventListener('click', () => elements.audioInput.click());
   elements.mediaDrop.addEventListener('click', () => elements.mediaInput.click());
   elements.audioDrop.addEventListener('click', () => elements.audioInput.click());
-  elements.mediaInput.addEventListener('change', async () => addMediaFiles(Array.from(elements.mediaInput.files || [])));
+  elements.mediaInput.addEventListener('change', async () => {
+    const files = Array.from(elements.mediaInput.files || []);
+    elements.mediaInput.value = '';
+    await addMediaFiles(files);
+  });
   elements.audioInput.addEventListener('change', async () => {
     const file = elements.audioInput.files?.[0];
+    elements.audioInput.value = '';
     if (file) await setAudioFile(file);
   });
+  elements.resetButton?.addEventListener('click', clearProject);
   setupDropZone(elements.mediaDrop, addMediaFiles);
   setupDropZone(elements.audioDrop, async (files) => {
     const file = files.find((candidate) => ['audio', 'video'].includes(fileKind(candidate)));

@@ -57,8 +57,8 @@ This map describes the current repository so future agents can edit with context
 - Owning files/directories: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`, `docs/i18n.js`, `docs/lite/README.md`.
 - Purpose: Browser-only, static WZRD.VID Lite prototype for local 15/30/60-second chaos cuts using drag/drop, Canvas, Web Audio, and MediaRecorder. It does not upload user files.
 - Inbound dependencies: browser file inputs/drop events, local media selected by user.
-- Outbound dependencies: object URLs, Canvas, Web Audio, MediaRecorder, downloaded blob output, and Apple Lite native share handoff when running inside the iOS wrapper.
-- High-risk notes: Privacy copy and no-upload behavior are product boundaries. Grep for network APIs after edits: `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`.
+- Outbound dependencies: object URLs, Canvas, Web Audio, MediaRecorder, downloaded blob output, local Reset/Clear Project state release, and Apple Lite native share handoff when running inside the iOS wrapper.
+- High-risk notes: Privacy copy and no-upload behavior are product boundaries. Lite accepts HEIC/HEIF by extension, but decode support is browser/WKWebView-dependent and does not use the desktop ffmpeg still-cache path. Lite clears selected media/audio/rendered blobs through the browser runtime and should revoke object URLs when resetting. Lite already avoids desktop-style PNG frame staging by drawing to Canvas and recording via MediaRecorder. Grep for network APIs after edits: `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`.
 
 ### Static Assets and Branding
 
@@ -144,10 +144,10 @@ This map describes the current repository so future agents can edit with context
 
 - Entry point: `docs/lite/index.html`, Add Media, Add Audio, drag/drop, MAKE CLIP.
 - UI/component path: `docs/lite/index.html`, `docs/lite/styles.css`, `docs/lite/app.js`.
-- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, optional random clip assembly state, ANSI intervals, Canvas state, explicit Add Audio bus state, MediaRecorder blobs, and the latest rendered Blob for native Apple Lite export handoff. UI language preference may be stored in localStorage only.
+- Data/state path: in-memory arrays of local File objects/object URLs, generated timeline segments, optional random clip assembly state, ANSI intervals, Canvas state, explicit Add Audio bus state, MediaRecorder blobs, and the latest rendered Blob for native Apple Lite export handoff. Reset/Clear Project releases selected media/audio/rendered object URLs and resets runtime render state while keeping durable UI preferences such as language, duration, quality, preset, ANSI coverage, and random assembly. UI language preference may be stored in localStorage only.
 - Asset/media path: local user files only; browser object URLs; no upload/server path.
-- Success behavior: Browser renders a max 15/30/60-second local chaos cut, optionally assembling random local sections up to the selected duration, optionally captures explicitly added audio through `captureStream()` or Web Audio `createMediaStreamDestination()`, and exposes a download button.
-- Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback. Lite does not currently preserve source audio from visual media clips during timeline sampling/random assembly.
+- Success behavior: Browser renders a max 15/30/60-second local chaos cut, optionally assembling random local sections up to the selected duration, optionally captures explicitly added audio through `captureStream()` or Web Audio `createMediaStreamDestination()`, and exposes a download button. HEIC/HEIF import logs browser decode timing when decode succeeds.
+- Failure/empty behavior: Browser API incompatibility or unsupported file types should log/fail in the Lite UI without network fallback. HEIC/HEIF files may be selectable but still fail decode if the browser cannot decode them. Lite does not currently preserve source audio from visual media clips during timeline sampling/random assembly. Do not add persistent browser media caches without updating privacy/storage docs.
 - Files likely involved in changes: `docs/lite/app.js`, `docs/lite/index.html`, `docs/lite/styles.css`, `docs/i18n.js`, `docs/lite/README.md`.
 
 ### WZRD.VID Lite Apple Wrapper Groundwork

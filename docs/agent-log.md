@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Lite/Apple HEIC import reset support
+
+- Agent/task: Codex / fix WZRD.VID Lite and Apple Lite HEIC import UX, add project reset, and decide whether browser still proxies are justified.
+- Intent: Work on Lite/Apple Lite only, preserve desktop renderer/app behavior, packaging, versioning, DUNS/App Store metadata, GitHub Pages deployment config, and unrelated dirty worktree files.
+- Files changed this pass: `docs/lite/index.html`, `docs/lite/app.js`, `docs/i18n.js`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, Lite runtime only. A localized `Clear Project` button now clears selected visual media, added audio, rendered Blob/object URL state, native export readiness state, status/progress/log output, and file input values without a page refresh. It keeps language, duration, quality, preset, ANSI coverage, and random assembly preferences.
+- HEIC/multi-select findings: the Lite visual media input already had `multiple` plus `.heic`/`.heif` acceptance, and drag/drop filtering already treated HEIC/HEIF as image files. The import flow now clears the file input after selection so the same HEIC batch can be selected again. Decode support is still Safari/WKWebView/browser-dependent and remains clearly logged on failure.
+- Profiling/proxy decision: Lite now logs import timing summary and per-file HEIC/HEIF decode timing when browser decode succeeds. No memory-only still proxy cache was implemented because this run did not produce Safari/WKWebView evidence that repeated still decode/downscale is the bottleneck. If future profiling proves it, prototype a session-only proxy and clear it through Reset; do not use IndexedDB, CacheStorage, service workers, uploaded media, or persistent media storage.
+- Apple Lite implication: Apple Lite inherits this behavior from the bundled Lite runtime. No native import/share/cache bridge change was required.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required docs reads; Lite/Apple Lite import/reset/privacy grep; targeted reads of `docs/lite/index.html`, `docs/lite/app.js`, `docs/lite/styles.css`, `docs/i18n.js`, and Apple Lite WKWebView/smoke sources; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; localized key smoke for new Lite keys; full Python compile command; forbidden network/storage grep; local static server and `curl` checks for `/`, `/lite/`, `/i18n.js`, and Lite reset/import code; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`.
+- Checks passed: static syntax checks, localized key smoke, no forbidden Lite network/storage APIs found, local static Lite/site smoke, and Apple Lite simulator smoke passed. Simulator smoke validated WKWebView load, file input surface, Spanish language switching, random rendering, added-audio Web Audio fallback, native export bridge, video/audio track validation, and 30 fps Fast-path diagnostics.
+- Known gaps: No automated Safari desktop, iOS Safari, or Apple Lite WKWebView real-HEIC decode profile was run with actual HEIC files in this pass. HEIC files can still fail in browsers that cannot decode them. Source audio from visual media remains future Lite work.
+- Next recommended prompt: Run a real Safari and Apple Lite WKWebView HEIC batch profile with the new import timing logs, then decide whether a memory-only still proxy is justified.
+
 ## 2026-05-12 - Frame pipe default transport
 
 - Agent/task: Codex / make the direct ffmpeg frame pipe the default desktop render transport while preserving automatic PNG fallback and a local emergency opt-out.
