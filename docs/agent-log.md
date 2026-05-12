@@ -17,6 +17,21 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Physical Apple Lite HEIC reset reinstall
+
+- Agent/task: Codex / rebuild and reinstall Apple Lite on the now-available physical iPhone, then retest the Lite HEIC/reset behavior as far as local tooling allows.
+- Intent: Device verification only; preserve desktop renderer behavior, DUNS/App Store metadata, versioning, GitHub Pages config, release packaging, and unrelated dirty worktree files.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No source behavior changed in this pass. The already-committed Lite HEIC/reset runtime was bundled into a fresh Debug iPhone build.
+- Device availability: `xcrun devicectl list devices --timeout 30` showed `iPhone14` connected with CoreDevice identifier `E3AA485E-F6D0-51A3-848F-9143BA1FC07E`; `xcrun xcdevice list --timeout 10` showed physical UDID `00008110-001C4D410C85401E` available over USB; `xcodebuild -showdestinations` listed the physical destination.
+- Bundle/build/install result: `python3 apple-lite/scripts/prepare_lite_web_bundle.py` refreshed `LiteWeb/`, and marker/hash checks confirmed `.heic/.heif`, `Clear Project`, input-value clearing, `isHeicFile`, and import timing strings were present. The physical-device Debug build succeeded with existing signing. `xcrun devicectl device install app` installed `WZRD.VID Lite` version `0.2.0` build `1` on the iPhone.
+- Smoke/launch result: first smoke launch attempts were blocked while the phone was locked. After the phone became launchable, the physical smoke passed with `passed: true`, Web Audio, random multi-source coverage, native export bridge, and native MP4 validation with one video track and one audio track. A normal non-smoke launch also succeeded, and `devicectl device info processes` showed `WZRDVIDLite` running on the iPhone.
+- Manual HEIC/reset result: direct multi-HEIC picker and Clear Project tapping on the physical phone could not be completed by Codex because available CoreDevice/Xcode tooling exposes install, launch, process inspection, app listing, and smoke logs, but not remote tap/gesture control for the real iPhone. The app is installed and running for hand testing.
+- Commands/tools run: required repo docs reads; memory lookup for Apple Lite parity context; `git status --short --branch`; `git log --oneline -15`; `xcrun devicectl list devices --timeout 30`; `xcrun xcdevice list --timeout 10`; `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30`; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; bundled Lite hash/marker checks; physical-device `xcodebuild`; `xcrun devicectl device install app`; physical smoke launch with `WZRDVID_LITE_SMOKE=1`; normal physical launch; `xcrun devicectl device info apps`; `xcrun devicectl device info processes`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; full Python compile command; forbidden Lite/network storage grep; `git diff --check`; `git diff --cached --check`.
+- Checks passed: device availability, bundle marker/hash checks, physical build, physical install, physical smoke, normal launch, app-process inspection, JS/Python/static whitespace checks, and forbidden-network/storage grep all passed.
+- Known gaps: true on-device manual multi-HEIC selection, selected-media count verification, Clear Project tap, same-batch reselection, and optional real HEIC render/export still need a human hand test on the installed iPhone. Any remaining issue after that is likely WKWebView/browser HEIC decode or iOS picker behavior rather than stale source/bundle.
+- Next recommended prompt: I manually retested the freshly installed Apple Lite iPhone app with a multi-HEIC batch. Results: [multi-select pass/fail], [Clear Project pass/fail], [same-batch reselection pass/fail], [optional export pass/fail]. Update the Apple Lite device log and decide whether any native bridge work remains.
+
 ## 2026-05-12 - Lite HEIC deployment and Apple Lite reinstall check
 
 - Agent/task: Codex / push the Lite HEIC/reset commits to GitHub Pages, verify live `wzrdvid.com/lite`, refresh Apple Lite bundle, and attempt physical iPhone rebuild/reinstall.
