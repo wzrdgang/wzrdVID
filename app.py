@@ -1218,9 +1218,9 @@ class MainWindow(QMainWindow):
         self.copy_report_button = self._button("button.copy_report")
         self.copy_report_button.setObjectName("secondaryButton")
         self._register_tooltip(self.copy_report_button, "tooltip.copy_report")
-        self.experimental_frame_pipe = self._checkbox("check.experimental_frame_pipe")
-        self.experimental_frame_pipe.setObjectName("experimentalToggle")
-        self._register_tooltip(self.experimental_frame_pipe, "tooltip.experimental_frame_pipe")
+        self.force_legacy_png_staging = self._checkbox("check.force_legacy_png_staging")
+        self.force_legacy_png_staging.setObjectName("experimentalToggle")
+        self._register_tooltip(self.force_legacy_png_staging, "tooltip.force_legacy_png_staging")
         self.batch_enabled = self._checkbox("check.batch")
         self.batch_checks: dict[str, QCheckBox] = {}
         for variant in BATCH_VARIANTS:
@@ -1936,7 +1936,7 @@ class MainWindow(QMainWindow):
         project_row.addWidget(self.load_project_button)
         project_row.addWidget(self.reset_project_button)
         project_row.addStretch(1)
-        project_row.addWidget(self.experimental_frame_pipe)
+        project_row.addWidget(self.force_legacy_png_staging)
         project_row.addWidget(self.open_output_button)
 
         action_row = QHBoxLayout()
@@ -1979,7 +1979,7 @@ class MainWindow(QMainWindow):
         self.reset_project_button.clicked.connect(self.reset_project)
         self.open_output_button.clicked.connect(self.open_output_folder)
         self.copy_report_button.clicked.connect(self.copy_report)
-        self.experimental_frame_pipe.toggled.connect(lambda _checked: self._save_settings())
+        self.force_legacy_png_staging.toggled.connect(lambda _checked: self._save_settings())
         self.check_update_button.clicked.connect(lambda: self.check_for_updates(manual=True))
         self.download_update_button.clicked.connect(self.open_update_download)
         self.language_combo.currentIndexChanged.connect(self._language_changed)
@@ -3359,7 +3359,7 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(enabled)
         self.preview_button.setEnabled(enabled)
         self.batch_button.setEnabled(enabled)
-        self.experimental_frame_pipe.setEnabled(enabled)
+        self.force_legacy_png_staging.setEnabled(enabled)
         cleanup_running = bool(self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning())
         self.clear_preview_cache_button.setEnabled(enabled and not cleanup_running)
         if enabled:
@@ -3583,7 +3583,7 @@ class MainWindow(QMainWindow):
             ending_mode=self.ending_mode.currentText(),
             loop_friendly=self.loop_friendly.isChecked(),
             timeline_items=timeline_items,
-            experimental_frame_pipe=self.experimental_frame_pipe.isChecked(),
+            force_legacy_png_staging=self.force_legacy_png_staging.isChecked(),
         )
 
     def _collect_preview_settings(self) -> RenderSettings:
@@ -4201,6 +4201,8 @@ class MainWindow(QMainWindow):
             return
 
         self._apply_project_state(data)
+        if "force_legacy_png_staging" in data:
+            self.force_legacy_png_staging.setChecked(bool(data.get("force_legacy_png_staging", False)))
 
         if self.audio_path.text().strip() and Path(self.audio_path.text().strip()).exists():
             self._probe_duration(self.audio_path.text().strip(), self.audio_duration, "audio")
@@ -4210,7 +4212,7 @@ class MainWindow(QMainWindow):
         try:
             SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
             data = self._project_state()
-            data["experimental_frame_pipe"] = self.experimental_frame_pipe.isChecked()
+            data["force_legacy_png_staging"] = self.force_legacy_png_staging.isChecked()
             SETTINGS_PATH.write_text(json.dumps(data, indent=2))
         except OSError as exc:
             self.append_log(f"Could not save settings: {exc}")
@@ -4297,8 +4299,6 @@ class MainWindow(QMainWindow):
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
         self.max_video_length.setText(str(data.get("max_video_length", "")))
         self.random_clip_assembly.setChecked(bool(data.get("random_clip_assembly", False)))
-        if "experimental_frame_pipe" in data:
-            self.experimental_frame_pipe.setChecked(bool(data.get("experimental_frame_pipe", False)))
         loaded_audio_mode = self._canonical_audio_mode(
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
         )

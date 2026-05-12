@@ -141,6 +141,7 @@ class RenderSettings:
     loop_friendly: bool = False
     timeline_items: list[TimelineItem] = field(default_factory=list)
     experimental_frame_pipe: bool = False
+    force_legacy_png_staging: bool = False
 
 
 @dataclass(frozen=True)
@@ -389,11 +390,11 @@ def render_project(
         _emit(log, "HEIC/HEIF stills: applying subtle 3-second automatic motion loop.")
     _emit_progress(progress, 5)
 
-    frame_pipe_enabled, frame_pipe_state, frame_pipe_reason = _experimental_frame_pipe_status(settings)
+    frame_pipe_enabled, frame_pipe_state, frame_pipe_reason = _frame_pipe_transport_status(settings)
     if frame_pipe_enabled:
-        _emit(log, f"Experimental frame pipe: enabled ({frame_pipe_reason}).")
+        _emit(log, f"Frame pipe transport: enabled ({frame_pipe_reason}).")
     else:
-        _emit(log, f"Experimental frame pipe: {frame_pipe_state} ({frame_pipe_reason}); using PNG frame staging.")
+        _emit(log, f"Frame pipe transport: {frame_pipe_state} ({frame_pipe_reason}); using PNG frame staging.")
 
     with tempfile.TemporaryDirectory(prefix="wzrd_vid_render_") as temp_root:
         temp_root_path = Path(temp_root)
@@ -415,7 +416,7 @@ def render_project(
                     log=log,
                 )
             except Exception as exc:  # noqa: BLE001 - experimental transport must fall back cleanly.
-                _emit(log, f"Experimental frame pipe failed before audio muxing ({frame_pipe_reason}): {exc}")
+                _emit(log, f"Frame pipe transport failed before audio muxing ({frame_pipe_reason}): {exc}")
                 _emit(log, "Falling back to PNG frame staging.")
                 try:
                     silent_video.unlink(missing_ok=True)
@@ -582,23 +583,28 @@ def render_project(
 
 
 FRAME_PIPE_ENV_VAR = "WZRDVID_EXPERIMENTAL_FRAME_PIPE"
+FRAME_PIPE_FORCE_PNG_ENV_VAR = "WZRDVID_FORCE_PNG_STAGING"
 FRAME_PIPE_TRUTHY = {"1", "true", "yes", "on"}
 
 
-def _experimental_frame_pipe_status(settings: RenderSettings) -> tuple[bool, str, str]:
+def _frame_pipe_transport_status(settings: RenderSettings) -> tuple[bool, str, str]:
     width, height = settings.output_size
     if width <= 0 or height <= 0:
         return False, "unavailable", f"invalid output size {width}x{height}"
+    if settings.force_legacy_png_staging:
+        return False, "forced legacy PNG", "desktop developer setting is on"
+
+    force_png_value = os.environ.get(FRAME_PIPE_FORCE_PNG_ENV_VAR)
+    if force_png_value is not None and force_png_value.strip().lower() in FRAME_PIPE_TRUTHY:
+        return False, "forced legacy PNG", f"{FRAME_PIPE_FORCE_PNG_ENV_VAR}={force_png_value!r}"
+
     if settings.experimental_frame_pipe:
-        return True, "enabled", "desktop developer setting is on"
+        return True, "enabled", "legacy desktop developer pipe setting is on"
 
     raw_value = os.environ.get(FRAME_PIPE_ENV_VAR)
-    if raw_value is None or raw_value.strip() == "":
-        return False, "disabled", f"{FRAME_PIPE_ENV_VAR} is not set"
-    normalized = raw_value.strip().lower()
-    if normalized in FRAME_PIPE_TRUTHY:
+    if raw_value is not None and raw_value.strip().lower() in FRAME_PIPE_TRUTHY:
         return True, "enabled", f"{FRAME_PIPE_ENV_VAR}={raw_value!r}"
-    return False, "disabled", f"{FRAME_PIPE_ENV_VAR}={raw_value!r} is not an enabled value"
+    return True, "enabled", "default desktop transport"
 
 
 def _render_silent_video_with_png_frames(
@@ -674,7 +680,7 @@ def _render_silent_video_with_pipe(
             nonlocal frames_written
             if output_frame.size != (width, height):
                 raise RenderError(
-                    "Experimental frame pipe received a frame with "
+                    "Frame pipe transport received a frame with "
                     f"{output_frame.size[0]}x{output_frame.size[1]} pixels; expected {width}x{height}."
                 )
             rgb_frame = output_frame if output_frame.mode == "RGB" else output_frame.convert("RGB")
@@ -694,7 +700,7 @@ def _render_silent_video_with_pipe(
             log=log,
         )
 
-    _emit(log, "Experimental frame pipe: streaming rendered frames directly to ffmpeg.")
+    _emit(log, "Frame pipe transport: streaming rendered frames directly to ffmpeg.")
     pipe_started = time.perf_counter()
     ffmpeg_utils.encode_raw_rgb_frames_to_mp4(
         stream_frames,

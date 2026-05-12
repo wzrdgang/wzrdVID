@@ -1,5 +1,40 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-12 - frame pipe promoted to default transport
+
+- Change: direct raw RGB ffmpeg frame pipe is now the default desktop render transport. Legacy PNG staging remains available through the local desktop developer opt-out, `Force legacy PNG staging`, or through `WZRDVID_FORCE_PNG_STAGING=1`. If the pipe path fails before audio muxing, the renderer logs the failure and reruns the same render through PNG staging.
+- Recipe scope: the opt-out is local settings only. Recipe export/import remains unchanged.
+- Logging: render startup now reports `Frame pipe transport: enabled (default desktop transport)` or `Frame pipe transport: forced legacy PNG (...)`; fallback logs `Frame pipe transport failed before audio muxing (...)` followed by `Falling back to PNG frame staging.`
+
+| Case | Default pipe total | Legacy PNG total | Default temp frames | Legacy temp frames | Output validation |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Warm-cache HEIC WZRD Blocks 30s + worky | 47.68s | 50.64s | 0 / 0.00 MB | 720 / 16.58 MB | 30.000s H.264/yuv420p + AAC |
+| Normal video 10s | 19.09s | 20.19s | 0 / 0.00 MB | 240 / 15.48 MB | 10.000s H.264/yuv420p |
+| PUBLIC ACCESS 10s | 23.59s | 25.20s | 0 / 0.00 MB | 240 / 40.48 MB | 10.000s H.264/yuv420p |
+| Normal video 10s + worky audio | 19.11s | 20.21s | 0 / 0.00 MB | 240 / 15.48 MB | 10.000s H.264/yuv420p + AAC |
+| Forced pipe failure fallback 2s | 0.88s fallback | n/a | fallback used PNG | 23 / 0.32 MB | 2.000s H.264/yuv420p |
+
+- Env opt-out smoke: `WZRDVID_FORCE_PNG_STAGING=1` forced legacy PNG staging and produced a valid 1.000s H.264/yuv420p MP4.
+- Current conclusion: default pipe is the better desktop default for v0.2.0 because it keeps output validation and audio behavior intact while avoiding the large PNG frame directory on successful renders. Keep legacy PNG staging as a local emergency fallback until more real long renders and HEIC batches are retested.
+
+## 2026-05-12 - frame-pipe default readiness audit
+
+- Goal: decide whether the experimental desktop frame pipe is safe enough to become the default render transport, using the real HEIC/WZRD Blocks slowdown shape as the target while leaving current behavior unchanged in this audit pass.
+- Test matrix under `/tmp/wzrdvid-pipe-default-audit`: synthetic HEIC stills, synthetic normal MP4, synthetic external WAV, 720x406, 24 fps where applicable. The HEIC target used WZRD Blocks, chunky blocks, random clip assembly, warm HEIC proxy cache, external audio, and worky mode.
+
+| Case | PNG total | Pipe total | PNG temp frames | Pipe temp frames | Output validation |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Warm-cache HEIC WZRD Blocks 30s + worky | 49.80s | 47.85s | 720 / 16.58 MB | 0 / 0.00 MB | 30.000s H.264/yuv420p + AAC |
+| Normal video 10s | 20.00s | 19.09s | 240 / 15.48 MB | 0 / 0.00 MB | 10.000s H.264/yuv420p |
+| PUBLIC ACCESS 10s | 25.02s | 23.45s | 240 / 40.48 MB | 0 / 0.00 MB | 10.000s H.264/yuv420p |
+| Normal video 10s + worky audio | 20.05s | 18.95s | 240 / 15.48 MB | 0 / 0.00 MB | 10.000s H.264/yuv420p + AAC |
+| Forced pipe failure fallback 2s | n/a | 0.83s fallback | 24 / 0.33 MB | fallback used PNG | 2.000s H.264/yuv420p |
+
+- Pipe path did not emit `frame_%06d.png` in successful pipe runs and did not create a PNG frame directory. The default PNG path did create the expected frame sequence.
+- Worky/external audio stayed unchanged: the HEIC worky case and normal-video worky case both preserved AAC output, with external audio mux at about 0.14s and 0.07s respectively in both transports.
+- Forced-failure smoke monkeypatched the raw-frame encoder to raise before audio muxing. The renderer logged the pipe failure, logged fallback to PNG frame staging, and produced a valid fallback MP4.
+- Decision: the measured current pipe path is stable and consistently no worse on this matrix. It is reasonable to promote it to the default desktop render transport in a separate narrow code pass, preserving the existing automatic fallback to PNG staging and leaving the developer/env override available as an emergency off-switch if added. This audit pass does not change the default behavior.
+
 ## 2026-05-12 - warm-cache HEIC motion/text render audit
 
 - Finding: warm-cache HEIC slideshow planning is now bounded, but the 30s WZRD Blocks render still spends most time in per-frame HEIC motion plus ANSI/text drawing.

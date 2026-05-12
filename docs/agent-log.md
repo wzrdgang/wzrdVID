@@ -17,6 +17,30 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Frame pipe default transport
+
+- Agent/task: Codex / make the direct ffmpeg frame pipe the default desktop render transport while preserving automatic PNG fallback and a local emergency opt-out.
+- Intent: Keep scope to desktop renderer/app settings/docs; avoid Lite/Apple Lite/site/release/version/package/audio/preset/recipe behavior changes and leave unrelated dirty files unstaged.
+- Files changed this pass: `app.py`, `app_i18n.py`, `renderer.py`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, desktop video transport only. Default renders now use the frame-pipe transport. The Output-area developer checkbox is now `Force legacy PNG staging`, stored only in local app settings as `force_legacy_png_staging`; recipe JSON remains unchanged. `WZRDVID_FORCE_PNG_STAGING=1` also forces legacy PNG staging. The old opt-in env var remains accepted but is no longer required.
+- Timing/validation: Synthetic matrix under `/tmp/wzrdvid-pipe-default-impl`. Warm-cache 30s HEIC WZRD Blocks + external worky audio: default pipe 47.68s with no frame sequence vs legacy PNG 50.64s with 720 staged PNGs/16.58 MB frame temp, both 30.000s H.264/yuv420p + AAC. Normal video 10s: 19.09s default pipe vs 20.19s legacy PNG. PUBLIC ACCESS 10s: 23.59s vs 25.20s. Normal video 10s + worky audio: 19.11s vs 20.21s with AAC in both. Forced pipe failure fallback logged fallback and produced a valid 2.000s H.264/yuv420p MP4.
+- Additional validation: `WZRDVID_FORCE_PNG_STAGING=1` forced legacy PNG staging and produced a valid 1.000s H.264/yuv420p MP4. Successful default runs did not log `frame_%06d.png` and did not create PNG frame sequences.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; frame-pipe/settings grep; full synthetic render matrix with `.venv/bin/python`; temp frame directory sampling; `ffprobe` duration/codec/pixel-format/audio checks; forced pipe failure monkeypatch smoke; env opt-out smoke; targeted `python3 -m py_compile app.py app_i18n.py renderer.py`.
+- Known gaps: No visual pixel diff was performed. Real HEIC batches and the user's real long render should be retested after this default flip. Legacy PNG staging remains available for emergency rollback.
+- Next recommended prompt: Relaunch the local dev app, confirm the Output-area Force legacy PNG staging checkbox is off, then run the real 30s HEIC WZRD Blocks render and the real long render with default frame pipe.
+
+## 2026-05-12 - Frame-pipe default readiness audit
+
+- Agent/task: Codex / audit whether the experimental desktop frame pipe is safe enough to become the default render transport after the HEIC/WZRD Blocks performance work.
+- Intent: Measure first, keep current behavior unchanged, avoid packaging/versioning/Lite/Apple Lite/site/release/audio/preset behavior changes, and stage only directly related docs hunks.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: No. This pass documents a recommendation only; PNG staging remains the default in source.
+- Timing/validation: Synthetic matrix under `/tmp/wzrdvid-pipe-default-audit`. Warm-cache 30s HEIC WZRD Blocks + external worky audio: PNG 49.80s with 720 staged PNGs/16.58 MB frame temp vs pipe 47.85s with no frame sequence, both 30.000s H.264/yuv420p + AAC. Normal video 10s: PNG 20.00s vs pipe 19.09s. PUBLIC ACCESS 10s: PNG 25.02s vs pipe 23.45s. Normal video 10s + worky audio: PNG 20.05s vs pipe 18.95s with AAC in both. Forced pipe failure fallback logged fallback and produced a valid 2.000s H.264/yuv420p MP4.
+- Decision: Pipe mode is stable and consistently no worse on the measured matrix, while materially reducing temp frame disk use. Recommend a separate narrow code pass to promote pipe to the default desktop transport while preserving automatic PNG fallback and an emergency opt-out.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; frame-pipe/render-flow grep; synthetic HEIC/video/audio generation under `/tmp`; PNG-vs-pipe render matrix with `.venv/bin/python`; temp frame directory sampling; `ffprobe` duration/codec/pixel-format/audio checks; forced pipe failure monkeypatch smoke.
+- Known gaps: No visual pixel diff was performed. The matrix used synthetic media; real HEIC batches and the user's real long render should still be tested after any default flip.
+- Next recommended prompt: Make the direct frame pipe the default desktop render transport with an explicit local opt-out and the existing PNG fallback, then rerun the HEIC/video/worky/fallback smoke matrix.
+
 ## 2026-05-12 - Warm-cache HEIC slideshow render audit
 
 - Agent/task: Codex / audit whether warm-cache HEIC/photo slideshow renders can reuse motion frames or obvious WZRD Blocks text constants after planning reached 0.00s with HEIC cache hits.
