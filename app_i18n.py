@@ -96,6 +96,7 @@ EN: dict[str, str] = {
     "check.worky_music": "worky's music mode",
     "check.match_music": "Match video length to music",
     "check.random_clip_assembly": "Random clip assembly",
+    "check.experimental_frame_pipe": "Experimental frame pipe",
     "check.chunky_blocks": "Use chunky blocks",
     "check.upper_bias": "Preserve faces / upper frame bias",
     "check.loop_friendly": "Make loop-friendly",
@@ -170,6 +171,7 @@ EN: dict[str, str] = {
     "tooltip.target_size": "Maximum size for the optimized copy. 29 MB is built in for text-message limits.",
     "tooltip.preview_duration": "Preview render length. Keep it tight: 5s or 10s.",
     "tooltip.clear_preview_cache": "Deletes old WZRD.VID preview/cache files. Does not delete your exported videos or source media.",
+    "tooltip.experimental_frame_pipe": "Developer test path: streams rendered frames directly to FFmpeg instead of staging PNG frames. Leave off unless testing long renders.",
     "tooltip.export_recipe": "Export a recipe JSON that references your media paths without copying media files.",
     "tooltip.import_recipe": "Import a WZRD.VID recipe or older project preset JSON.",
     "tooltip.reset_project": "Reset controls and clear selected sources. This never deletes media or output files.",
@@ -3364,6 +3366,64 @@ _CACHE_CLEANUP_DRAFTS: dict[str, dict[str, str]] = {
     },
 }
 for _language, _strings in _CACHE_CLEANUP_DRAFTS.items():
+    _DRAFTS[_language].update(_strings)
+
+
+_FRAME_PIPE_DRAFTS = {
+    "es": {
+        "check.experimental_frame_pipe": "Tubería de frames experimental",
+        "tooltip.experimental_frame_pipe": "Ruta de prueba para desarrolladores: envía los frames renderizados directamente a FFmpeg en vez de crear PNG. Déjala apagada salvo para probar renders largos.",
+    },
+    "pt-BR": {
+        "check.experimental_frame_pipe": "Pipe de quadros experimental",
+        "tooltip.experimental_frame_pipe": "Caminho de teste para desenvolvedores: envia quadros renderizados direto para o FFmpeg em vez de gravar PNGs. Deixe desligado salvo para testar renders longos.",
+    },
+    "fr": {
+        "check.experimental_frame_pipe": "Pipe d'images expérimental",
+        "tooltip.experimental_frame_pipe": "Chemin de test développeur : envoie les images rendues directement vers FFmpeg au lieu de créer des PNG. Laissez désactivé sauf pour tester les longs rendus.",
+    },
+    "de": {
+        "check.experimental_frame_pipe": "Experimentelle Frame-Pipe",
+        "tooltip.experimental_frame_pipe": "Entwickler-Testpfad: streamt gerenderte Frames direkt an FFmpeg statt PNG-Frames zu speichern. Nur für Tests langer Render aktivieren.",
+    },
+    "ru": {
+        "check.experimental_frame_pipe": "Экспериментальный поток кадров",
+        "tooltip.experimental_frame_pipe": "Тестовый путь для разработчиков: отправляет отрендеренные кадры напрямую в FFmpeg вместо сохранения PNG. Оставьте выключенным, кроме тестов длинных рендеров.",
+    },
+    "uk": {
+        "check.experimental_frame_pipe": "Експериментальний потік кадрів",
+        "tooltip.experimental_frame_pipe": "Тестовий шлях для розробників: передає відрендерені кадри напряму в FFmpeg замість збереження PNG. Вмикайте лише для тестів довгих рендерів.",
+    },
+    "ja": {
+        "check.experimental_frame_pipe": "実験的フレームパイプ",
+        "tooltip.experimental_frame_pipe": "開発者向けテスト経路: レンダリング済みフレームを PNG 保存せず FFmpeg へ直接送ります。長時間レンダーのテスト以外ではオフにしてください。",
+    },
+    "ko": {
+        "check.experimental_frame_pipe": "실험용 프레임 파이프",
+        "tooltip.experimental_frame_pipe": "개발자 테스트 경로: 렌더링된 프레임을 PNG로 저장하지 않고 FFmpeg로 직접 보냅니다. 긴 렌더 테스트가 아니면 꺼 두세요.",
+    },
+    "zh-CN": {
+        "check.experimental_frame_pipe": "实验性帧管道",
+        "tooltip.experimental_frame_pipe": "开发者测试路径：将渲染帧直接传给 FFmpeg，而不是暂存 PNG 帧。除非测试长渲染，否则请保持关闭。",
+    },
+    "zh-TW": {
+        "check.experimental_frame_pipe": "實驗性影格管線",
+        "tooltip.experimental_frame_pipe": "開發者測試路徑：將渲染影格直接傳給 FFmpeg，而不是暫存 PNG 影格。除非測試長時間渲染，否則請保持關閉。",
+    },
+    "fil": {
+        "check.experimental_frame_pipe": "Experimental frame pipe",
+        "tooltip.experimental_frame_pipe": "Developer test path: direktang ipinapadala ang rendered frames sa FFmpeg sa halip na mag-stage ng PNG frames. Iwanang naka-off maliban sa long-render testing.",
+    },
+    "hi": {
+        "check.experimental_frame_pipe": "प्रायोगिक फ़्रेम पाइप",
+        "tooltip.experimental_frame_pipe": "डेवलपर टेस्ट पथ: rendered frames को PNG staging के बजाय सीधे FFmpeg में भेजता है। लंबे renders की testing के अलावा इसे बंद रखें।",
+    },
+    "ar": {
+        "check.experimental_frame_pipe": "مسار إطارات تجريبي",
+        "tooltip.experimental_frame_pipe": "مسار اختبار للمطورين: يرسل الإطارات المولدة مباشرة إلى FFmpeg بدلاً من تخزين إطارات PNG. اتركه متوقفاً إلا عند اختبار الرندر الطويل.",
+    },
+}
+for _language, _strings in _FRAME_PIPE_DRAFTS.items():
     _DRAFTS[_language].update(_strings)
 
 

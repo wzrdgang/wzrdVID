@@ -132,6 +132,7 @@ class RenderSettings:
     ending_mode: str = "Fade Out"
     loop_friendly: bool = False
     timeline_items: list[TimelineItem] = field(default_factory=list)
+    experimental_frame_pipe: bool = False
 
 
 @dataclass(frozen=True)
@@ -376,11 +377,17 @@ def render_project(
         _emit(log, "HEIC/HEIF stills: applying subtle 3-second automatic motion loop.")
     _emit_progress(progress, 5)
 
+    frame_pipe_enabled, frame_pipe_state, frame_pipe_reason = _experimental_frame_pipe_status(settings)
+    if frame_pipe_enabled:
+        _emit(log, f"Experimental frame pipe: enabled ({frame_pipe_reason}).")
+    else:
+        _emit(log, f"Experimental frame pipe: {frame_pipe_state} ({frame_pipe_reason}); using PNG frame staging.")
+
     with tempfile.TemporaryDirectory(prefix="wzrd_vid_render_") as temp_root:
         temp_root_path = Path(temp_root)
         silent_video = temp_root_path / "silent.mp4"
 
-        if _experimental_frame_pipe_enabled():
+        if frame_pipe_enabled:
             try:
                 _render_silent_video_with_pipe(
                     settings=settings,
@@ -396,7 +403,7 @@ def render_project(
                     log=log,
                 )
             except Exception as exc:  # noqa: BLE001 - experimental transport must fall back cleanly.
-                _emit(log, f"Experimental frame pipe failed before audio muxing: {exc}")
+                _emit(log, f"Experimental frame pipe failed before audio muxing ({frame_pipe_reason}): {exc}")
                 _emit(log, "Falling back to PNG frame staging.")
                 try:
                     silent_video.unlink(missing_ok=True)
@@ -562,8 +569,24 @@ def render_project(
     return str(final_output_path)
 
 
-def _experimental_frame_pipe_enabled() -> bool:
-    return os.environ.get("WZRDVID_EXPERIMENTAL_FRAME_PIPE", "").strip().lower() in {"1", "true", "yes", "on"}
+FRAME_PIPE_ENV_VAR = "WZRDVID_EXPERIMENTAL_FRAME_PIPE"
+FRAME_PIPE_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _experimental_frame_pipe_status(settings: RenderSettings) -> tuple[bool, str, str]:
+    width, height = settings.output_size
+    if width <= 0 or height <= 0:
+        return False, "unavailable", f"invalid output size {width}x{height}"
+    if settings.experimental_frame_pipe:
+        return True, "enabled", "desktop developer setting is on"
+
+    raw_value = os.environ.get(FRAME_PIPE_ENV_VAR)
+    if raw_value is None or raw_value.strip() == "":
+        return False, "disabled", f"{FRAME_PIPE_ENV_VAR} is not set"
+    normalized = raw_value.strip().lower()
+    if normalized in FRAME_PIPE_TRUTHY:
+        return True, "enabled", f"{FRAME_PIPE_ENV_VAR}={raw_value!r}"
+    return False, "disabled", f"{FRAME_PIPE_ENV_VAR}={raw_value!r} is not an enabled value"
 
 
 def _render_silent_video_with_png_frames(

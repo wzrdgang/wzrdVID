@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Experimental frame-pipe launch gate audit
+
+- Agent/task: Codex / audit why `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1 open dist/WZRD.VID.app` did not activate the experimental frame-pipe renderer in a packaged macOS render.
+- Intent: Preserve default PNG-staging correctness and long-render behavior, keep pipe mode explicitly opt-in, avoid Lite/Apple Lite/site/versioning/package/publish/tag changes, and stage only relevant hunks despite unrelated Apple Lite worktree edits.
+- Finding: The renderer had no preset/audio/render-configuration disable path for pipe mode. The likely cause is macOS `open`: the environment variable is applied to the `open` process, while the app bundle is launched through LaunchServices and should not be assumed to inherit that shell environment.
+- Files changed this pass: `app.py`, `app_i18n.py`, `renderer.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, opt-in/developer-only. Default renders still use PNG staging. Render startup now logs whether the experimental frame pipe is enabled, disabled, unavailable, or falling back, with the reason. A localized desktop Output-area `Experimental frame pipe` checkbox persists in local app settings and enables the same pipe path without relying on shell env propagation. Recipe JSON is unchanged.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; frame-pipe gate/code grep; partial and full Python compile checks; desktop localization key-coverage audit; synthetic source generation under `/tmp/wzrdvid-frame-pipe-gate`; disabled render smoke confirming PNG `frame_%06d.png` staging; enabled developer-setting render smoke confirming raw `rgb24` pipe and no PNG sequence command; direct source-run env render smoke confirming `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1` works when the render process receives it; ffprobe codec/pix_fmt/duration checks; offscreen GUI setting/persistence smoke; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`.
+- Checks passed: Disabled mode produced valid H.264/yuv420p MP4 at 2.000s and logged PNG staging. Developer-setting enabled mode produced valid H.264/yuv420p MP4 at 2.000s and logged raw frame piping with no `frame_%06d.png`. Direct env source-run mode produced valid H.264/yuv420p MP4 at 1.000s and logged `WZRDVID_EXPERIMENTAL_FRAME_PIPE='1'`. Python compile, JS syntax, localization coverage, GUI setting smoke, and whitespace checks passed.
+- Known gaps: The already-built packaged app does not include this new logging/toggle until rebuilt. This pass did not rerun the full real long render.
+- Next recommended prompt: Rebuild the macOS app, enable Experimental frame pipe from the desktop Output panel, then run the short failure-point preview and 2-minute 53:00-55:00 render before attempting the full long render.
+
 ## 2026-05-11 - ANSI bypass render audit and interval cursor
 
 - Agent/task: Codex / audit whether random-normal/ANSI-bypass frames still pay ANSI prep/text-rendering cost before another full long-render attempt.

@@ -1204,6 +1204,9 @@ class MainWindow(QMainWindow):
         self.copy_report_button = self._button("button.copy_report")
         self.copy_report_button.setObjectName("secondaryButton")
         self._register_tooltip(self.copy_report_button, "tooltip.copy_report")
+        self.experimental_frame_pipe = self._checkbox("check.experimental_frame_pipe")
+        self.experimental_frame_pipe.setObjectName("experimentalToggle")
+        self._register_tooltip(self.experimental_frame_pipe, "tooltip.experimental_frame_pipe")
         self.batch_enabled = self._checkbox("check.batch")
         self.batch_checks: dict[str, QCheckBox] = {}
         for variant in BATCH_VARIANTS:
@@ -1919,6 +1922,7 @@ class MainWindow(QMainWindow):
         project_row.addWidget(self.load_project_button)
         project_row.addWidget(self.reset_project_button)
         project_row.addStretch(1)
+        project_row.addWidget(self.experimental_frame_pipe)
         project_row.addWidget(self.open_output_button)
 
         action_row = QHBoxLayout()
@@ -1961,6 +1965,7 @@ class MainWindow(QMainWindow):
         self.reset_project_button.clicked.connect(self.reset_project)
         self.open_output_button.clicked.connect(self.open_output_folder)
         self.copy_report_button.clicked.connect(self.copy_report)
+        self.experimental_frame_pipe.toggled.connect(lambda _checked: self._save_settings())
         self.check_update_button.clicked.connect(lambda: self.check_for_updates(manual=True))
         self.download_update_button.clicked.connect(self.open_update_download)
         self.language_combo.currentIndexChanged.connect(self._language_changed)
@@ -3329,6 +3334,7 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(enabled)
         self.preview_button.setEnabled(enabled)
         self.batch_button.setEnabled(enabled)
+        self.experimental_frame_pipe.setEnabled(enabled)
         cleanup_running = bool(self.cache_cleanup_worker and self.cache_cleanup_worker.isRunning())
         self.clear_preview_cache_button.setEnabled(enabled and not cleanup_running)
         if enabled:
@@ -3552,6 +3558,7 @@ class MainWindow(QMainWindow):
             ending_mode=self.ending_mode.currentText(),
             loop_friendly=self.loop_friendly.isChecked(),
             timeline_items=timeline_items,
+            experimental_frame_pipe=self.experimental_frame_pipe.isChecked(),
         )
 
     def _collect_preview_settings(self) -> RenderSettings:
@@ -4177,7 +4184,9 @@ class MainWindow(QMainWindow):
     def _save_settings(self) -> None:
         try:
             SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            SETTINGS_PATH.write_text(json.dumps(self._project_state(), indent=2))
+            data = self._project_state()
+            data["experimental_frame_pipe"] = self.experimental_frame_pipe.isChecked()
+            SETTINGS_PATH.write_text(json.dumps(data, indent=2))
         except OSError as exc:
             self.append_log(f"Could not save settings: {exc}")
 
@@ -4263,6 +4272,8 @@ class MainWindow(QMainWindow):
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
         self.max_video_length.setText(str(data.get("max_video_length", "")))
         self.random_clip_assembly.setChecked(bool(data.get("random_clip_assembly", False)))
+        if "experimental_frame_pipe" in data:
+            self.experimental_frame_pipe.setChecked(bool(data.get("experimental_frame_pipe", False)))
         loaded_audio_mode = self._canonical_audio_mode(
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
         )

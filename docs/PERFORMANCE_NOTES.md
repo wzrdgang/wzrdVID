@@ -1,5 +1,13 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-12 - experimental frame-pipe launch gate audit
+
+- Finding: `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1 open dist/WZRD.VID.app` is not a reliable way to enable the experimental renderer in the packaged macOS app. The environment variable is applied to the `open` command, but the app bundle is launched by macOS LaunchServices and the WZRD.VID process should not be assumed to inherit that shell environment.
+- Renderer-side evidence: the frame-pipe code has no preset/audio/render-configuration rejection path. If the render process sees `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`, or the new desktop developer checkbox is enabled, it attempts the raw RGB ffmpeg pipe path before audio muxing. If it does not see an explicit enable, it logs the disabled reason and uses PNG frame staging.
+- Added render-start logging for the experimental frame pipe gate: enabled, disabled, unavailable, or fallback, including the reason. A packaged app render that still logs `WZRDVID_EXPERIMENTAL_FRAME_PIPE is not set` confirms the bundle process did not receive the shell variable.
+- Added a local desktop developer setting, `Experimental frame pipe`, in the Output area. It persists only in the local app settings JSON and is intentionally not exported in recipe JSON. The default remains off, so PNG staging remains the normal renderer unless pipe mode is explicitly enabled.
+- Validation under source run: explicit disabled mode logged PNG staging and the ffmpeg `frame_%06d.png` input; explicit enabled mode logged raw `rgb24` pipe encoding with no PNG sequence command. Both outputs were H.264/yuv420p at the expected duration.
+
 ## 2026-05-11 - v0.2.0 ANSI bypass / random-normal audit
 
 - Audit answer: for non-PUBLIC ACCESS presets, `_render_frames()` already decides normal/bypass before `prepare_ansi_source()` and `render_text_art_frame()`. True normal frames do not call `prepare_ansi_source()`, `render_text_art_frame()`, or `ImageDraw.text()`.
