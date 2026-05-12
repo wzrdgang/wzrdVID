@@ -1,5 +1,17 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-12 - warm-cache HEIC motion/text render audit
+
+- Finding: warm-cache HEIC slideshow planning is now bounded, but the 30s WZRD Blocks render still spends most time in per-frame HEIC motion plus ANSI/text drawing.
+- Motion cache audit: the measured 720-frame random HEIC slideshow had no exact repeated motion-frame keys. Exact `(path, local_time, loop_duration)` and rounded phase keys both produced `total=720 unique=720 reusable_hits=0`. A quantized phase cache could create hits, but would change motion sampling, so it was not implemented.
+- Change kept: HEIC/HEIF motion frames now stay as `Image.Image` objects after the motion crop/contrast step instead of round-tripping through NumPy before the normal output-size framing path. Text layout now precomputes column and row pixel positions once per render layout.
+- Change rejected: a vectorized per-frame color grid for WZRD Blocks was tested and removed because it regressed text-render time on the warm-cache 30s matrix.
+- Same synthetic matrix as the prior HEIC pass: 12 generated HEIC stills, WZRD Blocks, 720x406, 24 fps, CRF 28, random clip assembly, external audio plus worky mode, warm proxy cache.
+- Unmodified `HEAD` comparison: 50.93s total, 49.98s frame render, 13.13s source/still, 5.98s ANSI prep, 28.92s text render, 1.46s frame write, 0.76s encode.
+- After kept changes: 49.32s total, 48.37s frame render, 12.54s source/still, 5.41s ANSI prep, 28.48s text render, 1.46s frame write, 0.76s encode.
+- Output validation: both before and after outputs were 30.000s H.264/yuv420p plus AAC. The renderer still logged PNG staging by default because the experimental frame pipe was not enabled.
+- Current conclusion: the safe local win is small, about 1.6s on this 30s matrix, and it does not change visual output intentionally. The remaining cost is still intentional HEIC motion and ImageDraw/text rendering; larger gains need a deeper text-rendering or frame-transport refactor.
+
 ## 2026-05-12 - HEIC/photo still import and render performance
 
 - Finding: the HEIC/photo slowdown was still-specific, not caused by the recent ANSI bypass optimization. The desktop import path synchronously decoded HEIC/HEIF files for validation, and `_build_timeline()` decoded every photo again during every preview/render planning pass. During rendering, HEIC motion frames were animated from full-resolution decoded images.

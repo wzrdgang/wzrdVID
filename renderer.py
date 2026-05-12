@@ -162,6 +162,8 @@ class TextLayout:
     line_height: int
     x_offset: int
     y_offset: int
+    x_positions: tuple[int, ...]
+    y_positions: tuple[int, ...]
 
 
 class RenderError(RuntimeError):
@@ -1118,7 +1120,7 @@ class _TimelineFrameSource:
         self.heic_motion_frames = 0
         self.heic_motion_seconds = 0.0
 
-    def frame_at(self, timeline_t: float) -> np.ndarray:
+    def frame_at(self, timeline_t: float) -> np.ndarray | Image.Image:
         segment = self._segment_at(timeline_t)
         local_t = max(0.0, min(segment.duration, timeline_t - segment.timeline_start))
         if segment.kind == "photo":
@@ -1160,7 +1162,7 @@ class _TimelineFrameSource:
             self.last_frames[segment.path] = frame_bgr
         return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-    def _photo_frame(self, path: str, local_t: float = 0.0, duration: float = 3.0) -> np.ndarray:
+    def _photo_frame(self, path: str, local_t: float = 0.0, duration: float = 3.0) -> np.ndarray | Image.Image:
         record = self.photo_cache.get(path)
         if record is None:
             started = time.perf_counter()
@@ -1216,7 +1218,7 @@ def _still_proxy_max_dimension(output_size: tuple[int, int]) -> int:
     return max(960, min(3840, max(output_size) * 2))
 
 
-def _heic_motion_loop_frame(image: Image.Image, local_t: float, duration: float) -> np.ndarray:
+def _heic_motion_loop_frame(image: Image.Image, local_t: float, duration: float) -> Image.Image:
     """Apply restrained automatic motion to HEIC/HEIF stills."""
     loop_duration = max(0.75, min(3.0, float(duration or 3.0)))
     phase = (float(local_t or 0.0) % loop_duration) / loop_duration
@@ -1227,7 +1229,7 @@ def _heic_motion_loop_frame(image: Image.Image, local_t: float, duration: float)
     moved = _zoom_crop(image, zoom=zoom, center_x=center_x, center_y=center_y)
     shimmer = 1.0 + 0.018 * math.sin(phase * math.tau * 2.0)
     moved = ImageEnhance.Contrast(moved).enhance(shimmer)
-    return np.asarray(moved)
+    return moved
 
 
 def _render_frames(
@@ -1254,7 +1256,7 @@ def _render_frames(
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
     bypass_index = 0
     bypass_count = len(bypass_intervals)
-    held_frame: np.ndarray | None = None
+    held_frame: np.ndarray | Image.Image | None = None
     hold_until = -1
     previous_output: Image.Image | None = None
     first_output: Image.Image | None = None
@@ -1799,11 +1801,13 @@ def make_text_layout(
         line_height=line_height,
         x_offset=x_offset,
         y_offset=y_offset,
+        x_positions=tuple(x_offset + (col * char_width) for col in range(width_chars)),
+        y_positions=tuple(y_offset + (row * line_height) for row in range(rows)),
     )
 
 
 def prepare_ansi_source(
-    frame_rgb: np.ndarray,
+    frame_rgb: np.ndarray | Image.Image,
     output_size: tuple[int, int],
     effects: dict[str, bool],
     intensity: float,
@@ -1851,7 +1855,7 @@ def prepare_ansi_source(
 
 
 def prepare_public_access_source(
-    frame_rgb: np.ndarray,
+    frame_rgb: np.ndarray | Image.Image,
     output_size: tuple[int, int],
     preset: dict[str, Any],
     effects: dict[str, bool],
@@ -1982,7 +1986,7 @@ def _apply_public_access_vignette(image: Image.Image, amount: float) -> Image.Im
 
 
 def render_normal_frame(
-    frame_rgb: np.ndarray,
+    frame_rgb: np.ndarray | Image.Image,
     output_size: tuple[int, int],
     effects: dict[str, bool],
     intensity: float,
@@ -2051,6 +2055,8 @@ def render_text_art_frame(
     image = Image.new("RGB", output_size, tuple(preset["background"]))
     draw = ImageDraw.Draw(image)
     charset = str(preset["charset"])
+    x_positions = layout.x_positions
+    y_positions = layout.y_positions
     jitter_base = 1.0 if chunky_blocks else 2.0
     row_jitter = int(round((jitter_base if _effect_on(effects, "glitch") else 0.0) * intensity))
     noise = float(preset["base_noise"])
@@ -2065,8 +2071,8 @@ def render_text_art_frame(
             if noise and rng.random() < noise:
                 character = rng.choice(charset[1:] or charset)
 
-            x = layout.x_offset + (col * layout.char_width) + row_shift
-            y = layout.y_offset + (row * layout.line_height)
+            x = x_positions[col] + row_shift
+            y = y_positions[row]
             if row_jitter >= 3 and rng.random() < (0.006 if chunky_blocks else 0.014):
                 x += rng.randint(-row_jitter * 2, row_jitter * 2)
 

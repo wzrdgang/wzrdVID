@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Warm-cache HEIC slideshow render audit
+
+- Agent/task: Codex / audit whether warm-cache HEIC/photo slideshow renders can reuse motion frames or obvious WZRD Blocks text constants after planning reached 0.00s with HEIC cache hits.
+- Intent: Keep changes narrow to renderer/still-cache performance, do not change packaging/versioning/Lite/Apple Lite/site/audio/release files, and avoid speculative visual changes.
+- Files changed this pass: `renderer.py`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, performance-only. HEIC/HEIF motion frames now stay as `Image.Image` objects after motion crop/contrast instead of round-tripping through NumPy before final framing. Text layout precomputes column and row pixel positions once per layout.
+- Bypass/cache findings: Still cache reuse is working for proxy decode/planning, but a per-render exact motion-frame cache would not help the measured random HEIC slideshow: exact and rounded phase keys both showed `total=720 unique=720 reusable_hits=0`. A quantized phase cache was rejected because it would change motion sampling. A vectorized WZRD Blocks color-grid trial was also rejected because it made text render slower.
+- Timing/validation: Same 30s/720-frame synthetic HEIC WZRD Blocks matrix, warm cache, random clip assembly, external audio plus worky mode. Unmodified `HEAD` took 50.93s total with 49.98s frame render, 13.13s source/still, 5.98s ANSI prep, 28.92s text render. Kept changes took 49.32s total with 48.37s frame render, 12.54s source/still, 5.41s ANSI prep, 28.48s text render. Output stayed 30.000s H.264/yuv420p plus AAC.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -15`; required repo docs reads; HEIC/still/text hot-path grep; temporary synthetic HEIC render harness under `/tmp/wzrdvid-heic-perf-hi`; detached `/tmp/wzrdvid-baseline` worktree comparison against unmodified `HEAD`; exact motion-key audit; `ffprobe` duration/codec/audio checks; `python3 -m py_compile renderer.py`.
+- Known gaps: This is a small measured win, not a major speedup. Remaining warm-cache HEIC slideshow cost is still intentional HEIC motion and ImageDraw/text rendering. Larger gains need a deeper text-rendering or frame-transport refactor.
+- Next recommended prompt: Relaunch the local dev app and rerun the real 30s HEIC WZRD Blocks render with warm cache, then compare source/still, ANSI prep, text render, and total frame-render timing against the previous app build.
+
 ## 2026-05-12 - HEIC/photo still cache and import performance
 
 - Agent/task: Codex / investigate and fix HEIC/photo still pipeline performance and import UX after many HEICs froze import, repeated preview/render planning took about 43-45s in user logs, and HEIC slideshows rendered at about 3.4-3.7 fps.
