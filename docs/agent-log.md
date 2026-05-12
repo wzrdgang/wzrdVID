@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Lite HEIC deployment verification
+
+- Agent/task: Codex / verify whether the Lite HEIC picker/reset changes from `9f7187a` and real-HEIC profile docs from `81214f8` are present in local source, live `wzrdvid.com/lite`, and Apple Lite bundled runtime.
+- Intent: Verification only unless local source was missing the intended Lite behavior; preserve desktop renderer/app behavior, Lite runtime behavior, Apple Lite native/runtime behavior, packaging, versioning, DUNS/App Store metadata, GitHub Pages deployment config, and unrelated dirty files.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No.
+- Local source result: `docs/lite/index.html`, `docs/lite/app.js`, and `docs/i18n.js` include the intended behavior. The visual media input has `multiple` and `.heic,.heif`; HEIC/HEIF extensions are treated as images; media/audio file input values clear after selection; localized `Clear Project` exists; reset revokes selected media/audio/rendered object URLs, clears rendered/export diagnostics and runtime state, and keeps durable preferences.
+- Live site result: `https://wzrdvid.com/lite/` is stale relative to local source. The live HTML still has multi-select and `.heic,.heif`, but live JS lacks `Clear Project`, input-value clearing, and the import timing/reset localization keys. The live response header showed `Last-Modified: Sun, 10 May 2026 15:57:49 GMT`, before these local follow-up commits.
+- Apple Lite result: after `python3 apple-lite/scripts/prepare_lite_web_bundle.py`, `apple-lite/WZRDVIDLite/Resources/LiteWeb/` matched current local Lite source hashes and includes HEIC/reset/import timing behavior. `python3 apple-lite/scripts/run_simulator_smoke.py` installed and ran the current simulator build successfully. Physical iPhone entries from `xcrun devicectl list devices` were unavailable, so a previously installed real-device app may still be stale until rebuilt/reinstalled.
+- Diagnosis: local source is not missing the fix. Public `wzrdvid.com/lite` is stale. Prepared/current simulator Apple Lite bundle is current. If a real iPhone/iPad installed app lacks reset/import timing, it is likely an older installed app build or a browser/WKWebView HEIC decode limitation, not missing local source.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; `git show --name-only --oneline 9f7187a`; `git show --name-only --oneline 81214f8`; required repo docs reads; local Lite marker greps/snippet reads; live `curl` fetches for `/lite/`, `/lite/app.js`, and `/i18n.js`; live header/hash/marker comparisons; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; bundled Lite marker/hash checks; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; forbidden Lite/network storage grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`.
+- Known gaps: Physical real-device installed Apple Lite app contents were not inspectable because connected iPhone entries were unavailable to `devicectl`. Live Pages cannot become current until the relevant commits are pushed/deployed and CDN cache expires.
+- Next recommended prompt: Push/deploy the Lite HEIC reset commits to GitHub Pages and rebuild/reinstall the Apple Lite app on the physical iPhone, then retest multi-HEIC selection and Clear Project on live web and device.
+
 ## 2026-05-12 - Real Safari/WKWebView HEIC batch profile
 
 - Agent/task: Codex / run a real HEIC batch profile in Safari desktop and Apple Lite WKWebView using the new Lite import timing logs, then decide whether Lite needs a memory-only still proxy.
