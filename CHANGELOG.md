@@ -13,6 +13,7 @@
 - Fixed a hue-shift overflow crash that could appear during long desktop renders.
 - Prototyped an experimental direct ffmpeg frame-pipe renderer behind `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`; PNG frame staging remains the default and fallback while validation continues.
 - Added automatic and manual cleanup for WZRD.VID-managed preview/cache files.
+- Improved desktop random-normal/ANSI-bypass frame selection for long renders with many normal sections.
 
 ## v0.1.9 — 2026-05-10
 

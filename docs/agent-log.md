@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-11 - ANSI bypass render audit and interval cursor
+
+- Agent/task: Codex / audit whether random-normal/ANSI-bypass frames still pay ANSI prep/text-rendering cost before another full long-render attempt.
+- Intent: Keep visual output, audio, Lite/Apple Lite/site behavior, versioning, packaging, publishing, pushing, and tagging unchanged; optimize only if the bypass path showed a safe compute shortcut.
+- Files changed this pass: `renderer.py`, `CHANGELOG.md`, `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Bypass-path finding: Non-PUBLIC ACCESS normal frames already skip `prepare_ansi_source()`, `render_text_art_frame()`, and `ImageDraw.text()`. PUBLIC ACCESS normal frames still prepare the shared public-access source treatment, then skip text rendering when bypassed. Transitions/endings run after the normal-vs-ANSI decision and do not force an extra ANSI render for normal frames.
+- Behavior changed: Yes, performance-only. `_render_frames()` now uses a monotonic bypass interval cursor instead of scanning all random-normal intervals for every output frame, and reuses per-render framing/chunky/public-access constants inside the frame loop.
+- Timing/validation: 10s Amber Terminal synthetic outputs remained H.264/yuv420p at 10.000s. Short PNG matrix before/after: full ANSI 24.36s/24.38s, 55.2% normal 14.20s/14.71s, 100% normal 6.14s/6.53s. Short pipe matrix before/after: full ANSI 23.09s/23.33s, 55.2% normal 13.27s/13.37s, 100% normal 5.46s/5.63s. Long lookup simulation for 5,276s/126,624 frames with 1,967 intervals improved from 4.323s old scan to 0.028s cursor with identical bypass-hit counts.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -15`; required repo docs reads; bypass/ANSI hot-path grep; synthetic media generation under `/tmp/wzrdvid-bypass-audit`; temporary monkeypatch timing harness for PNG and pipe render matrices; ffprobe duration/codec/pixel-format checks; long interval lookup simulation; `python3 -m py_compile renderer.py`; full Python compile command; `node --check docs/i18n.js`; `node --check docs/lite/app.js`; `git diff --check`.
+- Known gaps: The optimization does not reduce text-rendering cost on frames that remain ANSI. A temporary profiler run hit an unrelated read-only NumPy array edge when enabling the glitch output effect, so that effect was omitted from the timing harness rather than mixing another bug into this bypass pass.
+- Next recommended prompt: Relaunch the local dev app, run a 10s preview at the old failure point and a 2-minute 53:00-55:00 render, then run the full long render only if both pass.
+
 ## 2026-05-11 - Preview/cache cleanup threshold correction
 
 - Agent/task: Codex / correct the v0.2.0 automatic preview/cache cleanup threshold from 14 days to 7 days.

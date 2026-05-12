@@ -1,5 +1,15 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-11 - v0.2.0 ANSI bypass / random-normal audit
+
+- Audit answer: for non-PUBLIC ACCESS presets, `_render_frames()` already decides normal/bypass before `prepare_ansi_source()` and `render_text_art_frame()`. True normal frames do not call `prepare_ansi_source()`, `render_text_art_frame()`, or `ImageDraw.text()`.
+- PUBLIC ACCESS is different by design: it prepares one public-access-treated source frame first, then either outputs that normal frame or sends it through ANSI/text rendering. Bypassed PUBLIC ACCESS frames still skip `render_text_art_frame()`.
+- Transitions, global artifacts, endings, and loop-friendly blending run after the normal-vs-ANSI decision. They do not force an extra ANSI render for a normal frame, though transitions can visually blend from a prior ANSI frame.
+- The safe optimization landed here is not a visual shortcut. It changes bypass membership lookup inside `_render_frames()` from a per-frame scan of all intervals to a monotonic interval cursor, and reuses per-render framing/chunky/public-access constants in the frame loop.
+- Synthetic 10s Amber Terminal 720x406/24fps/CRF28 outputs stayed valid H.264/yuv420p at 10.000s. The short render matrix is dominated by text/normal frame work, so wall-time variation is noise-level: PNG path before/after was full ANSI 24.36s/24.38s, 55.2% normal 14.20s/14.71s, and 100% normal 6.14s/6.53s. Pipe path before/after was full ANSI 23.09s/23.33s, 55.2% normal 13.27s/13.37s, and 100% normal 5.46s/5.63s.
+- The long-render win is in interval lookup scale. A simulated 5,276s/126,624-frame render with 1,967 random-normal intervals took 4.323s for the old `is_bypass_time()` scan and 0.028s with the cursor logic, with identical bypass-hit counts.
+- Current conclusion: random-normal sections already reduce the expensive ANSI/text cost proportionally. This pass removes avoidable interval-scan overhead for long renders with many random-normal sections, but the dominant remaining cost is still text rendering on the ANSI frames that remain.
+
 ## 2026-05-11 - v0.2.0 experimental direct frame-pipe renderer
 
 - Added an experimental desktop render transport behind `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`. The default path still renders each frame to `frame_%06d.png` and then encodes the PNG sequence. The experimental path generates the same final `Image.Image` frames but writes RGB24 bytes directly into ffmpeg stdin for the silent MP4 encode.

@@ -1176,6 +1176,11 @@ def _render_frames(
     render_duration = playback.output_duration
     transition_boundaries = _transition_boundaries(timeline_segments, playback)
     audio_hits = _audio_hit_levels(settings, render_duration, frame_count, log)
+    framing_kwargs = _frame_framing_kwargs(settings)
+    public_access_profile = preset.get("profile") == "public_access_v1"
+    chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
+    bypass_index = 0
+    bypass_count = len(bypass_intervals)
     held_frame: np.ndarray | None = None
     hold_until = -1
     previous_output: Image.Image | None = None
@@ -1202,8 +1207,15 @@ def _render_frames(
                     held_frame = frame_rgb.copy()
                     hold_until = index + _stutter_hold_length(index, settings)
 
+            while bypass_index < bypass_count and output_t >= bypass_intervals[bypass_index][1]:
+                bypass_index += 1
+            is_normal_bypass = (
+                bypass_index < bypass_count
+                and bypass_intervals[bypass_index][0] <= output_t < bypass_intervals[bypass_index][1]
+            )
+
             public_source: Image.Image | None = None
-            if preset.get("profile") == "public_access_v1":
+            if public_access_profile:
                 public_source = prepare_public_access_source(
                     frame_rgb,
                     output_size=settings.output_size,
@@ -1212,11 +1224,11 @@ def _render_frames(
                     intensity=settings.effect_intensity,
                     frame_index=index,
                     fps=settings.fps,
-                    framing=_frame_framing_kwargs(settings),
+                    framing=framing_kwargs,
                     seed=settings.weird_seed or settings.random_seed,
                 )
 
-            if is_bypass_time(output_t, bypass_intervals):
+            if is_normal_bypass:
                 if public_source is not None:
                     output_frame = public_source
                 else:
@@ -1227,7 +1239,7 @@ def _render_frames(
                         intensity=settings.effect_intensity,
                         frame_index=index,
                         fps=settings.fps,
-                        framing=_frame_framing_kwargs(settings),
+                        framing=framing_kwargs,
                     )
             else:
                 if public_source is not None:
@@ -1240,7 +1252,7 @@ def _render_frames(
                         intensity=settings.effect_intensity,
                         frame_index=index,
                         fps=settings.fps,
-                        framing=_frame_framing_kwargs(settings),
+                        framing=framing_kwargs,
                     )
                 output_frame = render_text_art_frame(
                     np.asarray(ansi_source),
@@ -1251,8 +1263,7 @@ def _render_frames(
                     effects=frame_effects,
                     intensity=settings.effect_intensity,
                     fps=settings.fps,
-                    chunky_blocks=settings.chunky_blocks
-                    or preset.get("render_mode") == "chunky_blocks",
+                    chunky_blocks=chunky_blocks,
                     dither_mode=settings.dither_mode,
                 )
 
