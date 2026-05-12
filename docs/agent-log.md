@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Apple Lite HEIC reset manual pass
+
+- Agent/task: Codex / record user manual retest results for the freshly installed physical Apple Lite iPhone build.
+- Intent: Documentation/status update only; preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime/native behavior, DUNS/App Store metadata, versioning, GitHub Pages config, release packaging, and unrelated dirty worktree files.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No source or runtime behavior changed in this pass.
+- Manual result: user confirmed multi-HEIC batch selection passed, Clear Project passed, same-batch HEIC reselection passed, and optional export passed on the freshly installed physical iPhone app.
+- Decision: the physical Apple Lite app is no longer stale after rebuild/reinstall. No native import bridge is needed for HEIC selection/reset based on current evidence, and no additional native bridge work remains for this HEIC/reset issue.
+- Remaining caveats: HEIC decode is still browser/WKWebView dependent across OS versions/devices. Source audio from visual media remains separate future work. Larger/older-device HEIC stress remains optional future profiling.
+- Commands/tools run: required repo docs reads; memory lookup for Apple Lite parity context; `git status --short --branch`; `git log --oneline -15`; `git diff -- docs/agent-log.md`; `git diff --cached -- docs/agent-log.md`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; full Python compile command; forbidden Lite/network storage grep; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript, Python, forbidden-network/storage grep, whitespace checks, and targeted staged-diff checks passed. Manual HEIC/reset/export checks all passed by user report.
+- Known gaps: No new automated on-device interaction was added. Cross-device HEIC decode variability still needs future profiling only if users report failures.
+- Next recommended prompt: Push the Apple Lite HEIC reset manual-pass log commit, then decide whether to proceed with broader v0.2.0 release stabilization or additional real-device HEIC stress testing.
+
 ## 2026-05-12 - Physical Apple Lite HEIC reset reinstall
 
 - Agent/task: Codex / rebuild and reinstall Apple Lite on the now-available physical iPhone, then retest the Lite HEIC/reset behavior as far as local tooling allows.
