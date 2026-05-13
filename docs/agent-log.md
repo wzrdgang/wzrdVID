@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Desktop worky placement real-render confirmation
+
+- Agent/task: Codex / rebuild and relaunch the desktop app after `58f3685`, run the real External + selected source audio/worky project with Max Video Length blank, and confirm final-output audio placement.
+- Intent: Verification/logging only after the worky delay fix. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No source/runtime behavior changed in this pass.
+- Render/log result: `./build_app.sh` rebuilt `dist/WZRD.VID.app`, the app launched, and the real render wrote `/tmp/wzrdvid-audio-placement-after-58f3685/real_mix_worky_on_after_58f3685.mp4`. Support report said `Max video length: auto/full timeline`; render log said `Max video length: auto/full selected timeline (0:48.48)`, requested external source trim `0:00 to 4:14.14`, requested output placement `video 0:24 to auto/output end`, and the actual mix command applied `adelay=24000` before the worky filters.
+- Final MP4 audio result: extracting the final MP4 audio and comparing against selected-source and external-song references confirmed the 0:00-0:24 segment is selected source audio only (`corr_final_source=0.9993`, `corr_final_external_song_start=-0.0004`). From 0:24 onward, after removing the source-audio component, the residual matches the external song start (`corr_source_removed_residual_external_song_start=0.9978`), confirming the external music begins at video time 0:24 from song time 0:00.
+- Caveat: Codex cannot personally hear Mac speaker output; this confirmation is from the render log and final MP4 audio extraction/correlation. The output and extracted WAV/reference files remain under `/tmp/wzrdvid-audio-placement-after-58f3685` for manual listening if needed.
+- Commands/tools run: required repo reads; memory lookup; `git status --short --branch`; `git log --oneline --decorate -6`; settings inspection; `./build_app.sh`; packaged app launch smoke; real render via `.venv/bin/python`; ffprobe; final MP4 WAV extraction; source/external reference extraction; final-output correlation/spectral analysis.
+- Known gaps: A human ear check can still be done from `/tmp/wzrdvid-audio-placement-after-58f3685/real_mix_worky_on_after_58f3685.mp4`, but the final-output signal analysis supports the intended placement.
+- Next recommended prompt: Push the desktop audio placement commits, then run a short packaged-app hand listen before broader v0.2.0 stabilization continues.
+
 ## 2026-05-12 - Desktop worky audio placement real-output fix
 
 - Agent/task: Codex / rebuild and relaunch the desktop app after `6f8c4aa`, render the user's real External + selected source audio/worky project with Max Video Length blank, and analyze the final MP4 audio rather than relying on logs or intermediate command strings.
