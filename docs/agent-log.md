@@ -17,6 +17,17 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Desktop max length auto and music placement fix
+
+- Agent/task: Codex / fix desktop Max Video Length optional/default behavior and external music placement semantics before more v0.2.0 stabilization.
+- Intent: Keep scope to desktop max-length parsing, render planning, external-audio placement logging/math, and directly related docs. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Files changed this pass: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Blank or `auto` Max Video Length now means no cap/full selected timeline. Random clip assembly with blank/auto max length now uses the selected timeline duration instead of requiring a typed max value. Explicit max length still caps output. External music placement is logged and resolved separately from source trim so Music start in video delays where the selected external audio plays in the rendered output without becoming the song trim offset.
+- Validation result: synthetic regression smokes under `/tmp` passed for blank/auto max length, explicit max cap, random assembly with blank max, external-only delayed music, external plus selected source audio, trim-start-only, trim-start plus delayed placement, and preview-like outside-placement source-audio behavior. Tone analysis verified silence before delayed external music and the expected 440/880 Hz source/external tones after placement/trim.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline --decorate -15`; targeted max/audio greps; targeted code reads; `python3 -m py_compile app.py renderer.py ffmpeg_utils.py`; synthetic render/audio regression harness with `.venv/bin/python`; ffprobe duration/codec/pixel-format checks; ffmpeg WAV extraction plus tone/silence analysis.
+- Known gaps: This pass used synthetic media. The user's real delayed-music project should be rerun from the dev build or next package to confirm the log now shows source trim and output placement clearly with the real source/audio files.
+- Next recommended prompt: Rerun the desktop render with Music start in video set to 0:24 and Max Video Length blank/auto, then confirm the log shows external source trim from 0:00 and output placement beginning at 0:24.
+
 ## 2026-05-12 - Apple Lite Bucket 1/2 deploy and final smoke
 
 - Agent/task: Codex / push Bucket 1 direct Photos export and Bucket 2 Lite render coverage/smoothness commits, then verify live Lite and Apple Lite smoke status.

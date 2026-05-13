@@ -1016,6 +1016,7 @@ class MainWindow(QMainWindow):
             field.setPlaceholderText("0:00, 1:40, 100, 12.5, or auto")
         self.max_video_length = QLineEdit()
         self.max_video_length.setMinimumWidth(112)
+        self.max_video_length.setPlaceholderText("auto, 1:30, or 90")
         self._register_tooltip(self.max_video_length, "tooltip.max_video_length")
         self.random_clip_assembly = self._checkbox("check.random_clip_assembly")
         self._register_tooltip(self.random_clip_assembly, "tooltip.random_clip_assembly")
@@ -2917,7 +2918,7 @@ class MainWindow(QMainWindow):
 
     def _selected_max_video_length(self, strict: bool) -> float | None:
         raw = self.max_video_length.text().strip()
-        if not raw:
+        if not raw or raw.lower() == "auto":
             return None
         try:
             seconds = ffmpeg_utils.parse_timecode(raw)
@@ -3527,8 +3528,6 @@ class MainWindow(QMainWindow):
             raise ValueError("Music end in video must be after music start in video.")
         max_video_length = self._selected_max_video_length(strict=True)
         random_clip_assembly = self.random_clip_assembly.isChecked()
-        if random_clip_assembly and max_video_length is None:
-            raise ValueError(self.tr("dialog.random_requires_max"))
         if random_clip_assembly and self.match_timeline_to_audio.isChecked():
             raise ValueError(self.tr("dialog.random_conflicts_match_music"))
         output_values = self._output_size_values()
@@ -3853,6 +3852,13 @@ class MainWindow(QMainWindow):
         ]
         if len(self.timeline_items) > len(timeline_names):
             timeline_names.append(f"... {len(self.timeline_items) - len(timeline_names)} more")
+        max_length_text = self.max_video_length.text().strip()
+        if not max_length_text or max_length_text.lower() == "auto":
+            max_length_text = "auto/full timeline"
+        music_trim_start = self.audio_start.text().strip() or "0:00"
+        music_trim_end = self.audio_end.text().strip() or "auto"
+        music_video_start = self.audio_timeline_start.text().strip() or "0:00"
+        music_video_end = self.audio_timeline_end.text().strip() or "auto"
         lines = [
             f"{APP_NAME} support report",
             f"Version: v{APP_VERSION}",
@@ -3865,6 +3871,10 @@ class MainWindow(QMainWindow):
             f"Audio mode: {self.audio_mode.currentText()}",
             f"worky music mode: {'on' if self.worky_music_mode.isChecked() else 'off'}",
             f"External audio: {self._display_path(self.audio_path.text().strip()) if self.audio_path.text().strip() else '(none)'}",
+            f"Music source trim: {music_trim_start} to {music_trim_end}",
+            f"Music placement in video: {music_video_start} to {music_video_end}",
+            f"Max video length: {max_length_text}",
+            f"Random clip assembly: {'on' if self.random_clip_assembly.isChecked() else 'off'}",
             f"Style preset: {self.preset.currentText()}",
             f"Chunky blocks: {'on' if self.chunky_blocks.isChecked() else 'off'}",
             (

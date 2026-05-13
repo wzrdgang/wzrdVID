@@ -267,10 +267,15 @@ def render_project(
     )
     if settings.random_clip_assembly:
         random_started = time.perf_counter()
+        random_target_duration = (
+            float(settings.max_video_length)
+            if settings.max_video_length is not None
+            else playback.output_duration
+        )
         timeline_segments = _randomized_timeline_segments(
             timeline_segments,
             playback,
-            float(settings.max_video_length or 0.0),
+            random_target_duration,
             settings,
         )
         _emit_elapsed(log, "Random assembly stage", random_started)
@@ -299,11 +304,14 @@ def render_project(
         f"Timeline: {len(timeline_segments)} segment(s), {source_count} source file(s), "
         f"{ffmpeg_utils.format_duration(playback.source_duration)} selected.",
     )
-    if settings.max_video_length is not None:
+    if settings.max_video_length is None:
+        _emit(log, f"Max video length: auto/full timeline ({ffmpeg_utils.format_duration(render_duration)}).")
         if settings.random_clip_assembly:
-            _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(render_duration)}.")
-        else:
-            _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(render_duration)}.")
+            _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for the selected timeline duration.")
+    elif settings.random_clip_assembly:
+        _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(render_duration)}.")
+    else:
+        _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(render_duration)}.")
     source_audio = _uses_source_audio(settings)
     if settings.match_timeline_to_audio and audio_mode == AUDIO_MIX:
         _emit(log, "Source audio mixing is disabled when matching timeline length to music. Using external audio only.")
@@ -320,6 +328,19 @@ def render_project(
         _emit(log, f"External audio starts in video at {ffmpeg_utils.format_duration(settings.audio_timeline_start)}.")
     if external_audio and settings.audio_timeline_end is not None:
         _emit(log, f"External audio stops in video at {ffmpeg_utils.format_duration(settings.audio_timeline_end)}.")
+    if external_audio:
+        trim_end = "auto" if audio_end is None else ffmpeg_utils.format_duration(audio_end)
+        placement_end = "auto/output end" if settings.audio_timeline_end is None else ffmpeg_utils.format_duration(settings.audio_timeline_end)
+        _emit(
+            log,
+            "External audio source trim: "
+            f"{ffmpeg_utils.format_duration(audio_start)} to {trim_end}.",
+        )
+        _emit(
+            log,
+            "External audio placement in video: "
+            f"{ffmpeg_utils.format_duration(settings.audio_timeline_start)} to {placement_end}.",
+        )
     if external_audio and settings.worky_music_mode:
         _emit(log, "worky_music_profile_v1: external audio becomes tiny mono broadcast texture.")
     if settings.match_timeline_to_audio and external_audio:
@@ -798,8 +819,6 @@ def _validate_settings(settings: RenderSettings) -> None:
         raise ValueError("Match video length to music requires External only or External + selected source audio mode with a selected audio track.")
     if settings.max_video_length is not None and settings.max_video_length <= 0:
         raise ValueError("Max video length must be greater than 0.")
-    if settings.random_clip_assembly and settings.max_video_length is None:
-        raise ValueError("Random clip assembly requires a max video length.")
     if settings.random_clip_assembly and settings.match_timeline_to_audio:
         raise ValueError("Random clip assembly cannot be used with Match video length to music.")
     if settings.audio_timeline_start < 0:

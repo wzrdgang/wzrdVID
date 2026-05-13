@@ -602,13 +602,15 @@ def mux_audio(
     the rendered timeline while preserving total output duration.
     """
     ffmpeg_path = require_binary("ffmpeg")
-    output_duration = max(0.001, float(output_duration))
-    audio_start = max(0.0, float(audio_start or 0.0))
-    offset = max(0.0, min(float(audio_offset or 0.0), output_duration))
-    output_end = output_duration if audio_output_end is None else min(output_duration, max(offset, float(audio_output_end)))
-    output_span = max(0.0, output_end - offset)
-    source_span = output_span if audio_end is None else min(output_span, max(0.0, float(audio_end) - audio_start))
+    output_duration, audio_start, source_span, offset, placement_end = _audio_source_placement(
+        audio_start,
+        audio_end,
+        output_duration,
+        audio_offset,
+        audio_output_end,
+    )
     source_span = max(0.001, source_span)
+    _log_audio_source_placement(log, "Audio", audio_start, source_span, offset, placement_end, output_duration)
 
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
@@ -756,15 +758,15 @@ def mix_external_and_source_audio(
         raise ValueError("Output duration must be positive when mixing audio.")
     ffmpeg_path = require_binary("ffmpeg")
     output = Path(output_path)
-    external_start = max(0.0, float(external_start or 0.0))
-    output_duration = float(output_duration)
-    offset = max(0.0, min(float(external_offset or 0.0), output_duration))
-    output_end = output_duration if external_output_end is None else min(output_duration, max(offset, float(external_output_end)))
-    output_span = max(0.0, output_end - offset)
-    external_duration = output_span
-    if external_end is not None:
-        external_duration = min(output_span, max(0.0, float(external_end) - external_start))
+    output_duration, external_start, external_duration, offset, placement_end = _audio_source_placement(
+        external_start,
+        external_end,
+        output_duration,
+        external_offset,
+        external_output_end,
+    )
     external_duration = max(0.001, external_duration)
+    _log_audio_source_placement(log, "External audio", external_start, external_duration, offset, placement_end, output_duration)
 
     ext_vol = max(0.0, float(external_volume or 0.0))
     src_vol = max(0.0, float(source_volume or 0.0))
@@ -810,6 +812,61 @@ def mix_external_and_source_audio(
     ]
     run_command(args, log)
     return output
+
+
+def _audio_source_placement(
+    source_start: float | None,
+    source_end: float | None,
+    output_duration: float,
+    placement_start: float | None,
+    placement_end: float | None,
+) -> tuple[float, float, float, float, float]:
+    """Resolve source trim and rendered-output placement for an audio input."""
+    resolved_output_duration = max(0.001, float(output_duration))
+    resolved_source_start = max(0.0, float(source_start or 0.0))
+    resolved_placement_start = max(0.0, min(float(placement_start or 0.0), resolved_output_duration))
+    resolved_placement_end = (
+        resolved_output_duration
+        if placement_end is None
+        else min(resolved_output_duration, max(resolved_placement_start, float(placement_end)))
+    )
+    output_span = max(0.0, resolved_placement_end - resolved_placement_start)
+    source_span = output_span
+    if source_end is not None:
+        source_span = min(output_span, max(0.0, float(source_end) - resolved_source_start))
+    return (
+        resolved_output_duration,
+        resolved_source_start,
+        source_span,
+        resolved_placement_start,
+        resolved_placement_end,
+    )
+
+
+def _log_audio_source_placement(
+    log: LogCallback,
+    label: str,
+    source_start: float,
+    source_span: float,
+    placement_start: float,
+    placement_end: float,
+    output_duration: float,
+) -> None:
+    source_end = source_start + source_span
+    audible_end = min(output_duration, placement_start + source_span)
+    _log(
+        log,
+        f"{label} source trim resolved: "
+        f"{format_duration(source_start)} to {format_duration(source_end)} "
+        f"({format_duration(source_span)} active).",
+    )
+    _log(
+        log,
+        f"{label} output placement resolved: "
+        f"{format_duration(placement_start)} to {format_duration(audible_end)} "
+        f"inside {format_duration(output_duration)} output"
+        f"{' (placement cap ' + format_duration(placement_end) + ')' if placement_end < output_duration else ''}.",
+    )
 
 
 def _worky_music_filter_suffix() -> str:
