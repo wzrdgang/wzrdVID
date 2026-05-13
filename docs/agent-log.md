@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-13 - v0.2.0 GitHub Release published
+
+- Agent/task: Codex / push the v0.2.0 metadata and package-validation commits, then publish the verified local release ZIP on GitHub Releases.
+- Intent: Release publication only. Preserve source behavior, Lite, Apple Lite, website content, GitHub Pages config, DUNS/App Store metadata, and package contents.
+- Files changed this pass: `docs/agent-log.md` only after publication. `WZRD.VID-macOS.zip` was uploaded as a GitHub Release asset, not committed to git.
+- Behavior changed: No source/runtime behavior changed in this pass.
+- Push result: pushed `488eae8 Bump version metadata for v0.2.0` and `fdf8e82 Document v0.2.0 package validation` to `main`.
+- Release result: created GitHub Release `v0.2.0` titled `WZRD.VID v0.2.0` at `https://github.com/wzrdgang/wzrdVID/releases/tag/v0.2.0`; release is not draft and not prerelease. The `WZRD.VID-macOS.zip` asset is attached with size `79,840,291` bytes.
+- Artifact verification: local pre-publish SHA256 matched `84534d15124aadd9564f9b71bb573555b349ab1d86a9093c0231b5c41314baf9`; GitHub asset metadata reported the same `sha256:` digest; a fresh release download to `/tmp/wzrdvid-v020-release-download/WZRD.VID-macOS.zip` also matched that SHA256. Unzipping the downloaded asset confirmed `CFBundleShortVersionString=0.2.0` and `CFBundleVersion=0.2.0`.
+- Commands/tools run: required repo docs/release docs reads; GitHub skill read; memory lookup; `git status --short --branch`; `git log --oneline --decorate -8`; `git log --oneline origin/main..HEAD`; version metadata checks; local ZIP SHA and unzip plist checks; Python and JavaScript syntax checks; Lite forbidden-network/storage grep; `git diff --check`; `git diff --cached --check`; SSH fetch attempt blocked by public-key auth; one-off HTTPS/GitHub CLI credential-helper fetch and push without rewriting `origin`; `gh release create`; `gh release view`; `gh release download`; downloaded ZIP SHA and plist checks.
+- Known gaps: Physical iPhone Apple Lite smoke was not rerun during publication. Future Apple/TestFlight work remains separate from the desktop GitHub Release.
+- Next recommended prompt: Verify the public v0.2.0 release page and live `wzrdvid.com` download/update links, then do a final manual download/install smoke from the published ZIP.
+
 ## 2026-05-13 - v0.2.0 release-candidate package validation
 
 - Agent/task: Codex / rebuild and package the local v0.2.0 release candidate from commit `488eae8` without publishing, pushing, tagging, creating a GitHub Release, or changing App Store/DUNS/GitHub Pages config.
