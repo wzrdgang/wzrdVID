@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Desktop worky audio placement real-output fix
+
+- Agent/task: Codex / rebuild and relaunch the desktop app after `6f8c4aa`, render the user's real External + selected source audio/worky project with Max Video Length blank, and analyze the final MP4 audio rather than relying on logs or intermediate command strings.
+- Intent: Keep scope to desktop audio placement only. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Files changed this pass: `ffmpeg_utils.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Delayed external audio in worky music mode now applies the output-placement delay before worky's 24 kHz mono/downsample texture processing. Non-worky placement behavior is unchanged.
+- Real-output finding: the rebuilt current app loaded the stale saved `max_video_length: "0:48:48"` setting as blank/auto. Support report said `Max video length: auto/full timeline`, `RenderSettings.max_video_length` was `None`, and the real render log said `Max video length: auto/full selected timeline (0:48.48)`. The log also showed requested external source trim `0:00 to 4:14.14` and requested output placement `video 0:24 to auto/output end`.
+- Bug confirmation: extracting `/tmp/wzrdvid-audio-placement/real_mix_worky_on.mp4` proved the final MP4's 0:00-0:24 segment correlated with the worky-filtered external track, not the selected source timeline audio. The leak was specific to delayed worky audio: on this ffmpeg build, `adelay` after worky's `aformat=sample_rates=24000:channel_layouts=mono` collapsed the delay.
+- Validation result: synthetic final-MP4 tone checks passed for external-only and external + selected source audio with worky mode both off and on. Before placement, external-only outputs were silent, mix outputs contained the 440 Hz source tone only, and no 880 Hz external tone leaked. After placement, the 880 Hz external tone appeared. Real-audio audio-only final MP4 checks also passed: fixed external-only worky output was silent before 0:24, and fixed External + selected source audio/worky output had pre-0:24 correlation 0.9999 with selected source audio and no correlation with the external track.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline --decorate -12`; targeted code/doc greps; Qt offscreen support-report and render-settings smoke; `./build_app.sh`; packaged app launch smoke; real diagnostic render with `.venv/bin/python`; ffprobe; final MP4 audio extraction to WAV; source/external reference WAV extraction; final-output correlation/spectral analysis; synthetic tone final-MP4 matrix; real-audio fixed final-MP4 matrix.
+- Known gaps: The original pre-fix real MP4 and derived WAV/reference files remain under `/tmp/wzrdvid-audio-placement` for inspection during this session. A full visual re-render after the code fix was not run because the targeted fixed audio matrix covers the exact final mux/mix paths without repeating the slow frame render.
+- Next recommended prompt: Rebuild/relaunch the desktop app after the worky placement fix, run one short real render with Music start in video at 0:24, and confirm by ear that pre-0:24 contains only selected source audio.
+
 ## 2026-05-12 - Desktop max length saved-state and audio read-window follow-up
 
 - Agent/task: Codex / fix remaining desktop Max Video Length saved-state regression and validate external music placement from final rendered MP4 audio, not just ffmpeg command strings.

@@ -616,9 +616,13 @@ def mux_audio(
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
     audio_chain = f"[1:a:0]atrim=0:{source_span:.6f},asetpts=PTS-STARTPTS"
+    if delay_ms and worky_music_mode:
+        # Keep the placement delay before worky's 24 kHz mono downsample; some
+        # ffmpeg builds collapse adelay when it follows that aformat step.
+        audio_chain += f",adelay={delay_ms}:all=1"
     if worky_music_mode:
         audio_chain += _worky_music_filter_suffix()
-    if delay_ms:
+    if delay_ms and not worky_music_mode:
         audio_chain += f",adelay={delay_ms}:all=1"
     audio_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS"
     fade_out_duration = max(0.0, min(float(fade_out_duration or 0.0), output_duration))
@@ -774,9 +778,13 @@ def mix_external_and_source_audio(
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
     external_chain = f"[0:a:0]volume={ext_vol:.4f},atrim=0:{external_duration:.6f},asetpts=PTS-STARTPTS"
+    if delay_ms and worky_music_mode:
+        # Keep the placement delay before worky's 24 kHz mono downsample; some
+        # ffmpeg builds collapse adelay when it follows that aformat step.
+        external_chain += f",adelay={delay_ms}:all=1"
     if worky_music_mode:
         external_chain += _worky_music_filter_suffix()
-    if delay_ms:
+    if delay_ms and not worky_music_mode:
         external_chain += f",adelay={delay_ms}:all=1"
     external_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS[a0]"
     filter_complex = (

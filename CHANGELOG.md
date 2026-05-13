@@ -22,6 +22,7 @@
 - Improved desktop random-normal/ANSI-bypass frame selection for long renders with many normal sections.
 - Improved HEIC/HEIF and photo slideshow import/render performance with deferred decode, reusable still proxies, and detailed still-frame timing logs.
 - Fixed desktop Max Video Length auto/default saved-state handling and clarified external music requested trim, read window, and output placement logs.
+- Fixed delayed external music placement when worky music mode is enabled.
 
 ## v0.1.9 — 2026-05-10
 
