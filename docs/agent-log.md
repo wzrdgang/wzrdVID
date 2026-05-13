@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Packaged worky audio hand-listen pass
+
+- Agent/task: Codex / record the packaged-app manual hand-listen result for delayed external audio placement after the worky audio fix.
+- Intent: Documentation-only confirmation. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Files changed this pass: `docs/agent-log.md`.
+- Behavior changed: No source/runtime behavior changed in this pass.
+- Manual result: user confirmed the packaged app launched successfully and the extracted listening segments passed. From 0:00-0:24 there was no external music, the external music started at 0:24 from the beginning of the song, and selected source audio remained where expected.
+- Evidence files: `/tmp/wzrdvid-packaged-hand-listen/pre_0_to_24.wav` and `/tmp/wzrdvid-packaged-hand-listen/post_24_to_36.wav`.
+- Commands/tools run: required repo docs reads; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `git diff --check`; `git diff --cached --check`.
+- Known gaps: None for the delayed worky external-audio placement issue.
+- Next recommended prompt: Review the remaining dirty docs buckets and decide what to keep or drop before final v0.2.0 stabilization.
+
 ## 2026-05-12 - Desktop worky placement real-render confirmation
 
 - Agent/task: Codex / rebuild and relaunch the desktop app after `58f3685`, run the real External + selected source audio/worky project with Max Video Length blank, and confirm final-output audio placement.
