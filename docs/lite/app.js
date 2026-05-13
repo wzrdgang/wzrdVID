@@ -2,6 +2,9 @@
   'use strict';
 
   const DEFAULT_DURATION = 30;
+  const LITE_FAST_FPS = 30;
+  const LITE_BETTER_FPS = 24;
+  const LITE_PRESET_FPS_CAP = 30;
   const MIN_ANSI_CHUNK = 0.5;
   const MAX_ANSI_CHUNK = 3.0;
   const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'webm', 'mkv', 'avi']);
@@ -9,11 +12,11 @@
   const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'aif', 'aiff']);
 
   const presets = {
-    'Chunkcore Chaos': { grid: 74, ramp: '  ░▒▓█', scanlines: 0.34, rgb: 5, tape: 0.34, mosaic: 0.4, punch: 0.28, fps: 15 },
-    'Classic ANSI Lite': { grid: 96, ramp: ' .:-=+*#%@', scanlines: 0.2, rgb: 2, tape: 0.12, mosaic: 0.14, punch: 0.16, fps: 15 },
-    'VHS Damage Lite': { grid: 84, ramp: '  ░▒▓█', scanlines: 0.46, rgb: 8, tape: 0.58, mosaic: 0.26, punch: 0.22, fps: 15 },
-    'Dial-Up Glitch': { grid: 68, ramp: '  ░▒▓█', scanlines: 0.28, rgb: 9, tape: 0.44, mosaic: 0.62, punch: 0.36, fps: 15 },
-    'PUBLIC ACCESS': { grid: 88, ramp: ' .:-=+*#%@ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', scanlines: 0.38, rgb: 4, tape: 0.5, mosaic: 0.18, punch: 0.14, fps: 15, profile: 'publicAccess' }
+    'Chunkcore Chaos': { grid: 74, ramp: '  ░▒▓█', scanlines: 0.34, rgb: 5, tape: 0.34, mosaic: 0.4, punch: 0.28, fps: LITE_PRESET_FPS_CAP },
+    'Classic ANSI Lite': { grid: 96, ramp: ' .:-=+*#%@', scanlines: 0.2, rgb: 2, tape: 0.12, mosaic: 0.14, punch: 0.16, fps: LITE_PRESET_FPS_CAP },
+    'VHS Damage Lite': { grid: 84, ramp: '  ░▒▓█', scanlines: 0.46, rgb: 8, tape: 0.58, mosaic: 0.26, punch: 0.22, fps: LITE_PRESET_FPS_CAP },
+    'Dial-Up Glitch': { grid: 68, ramp: '  ░▒▓█', scanlines: 0.28, rgb: 9, tape: 0.44, mosaic: 0.62, punch: 0.36, fps: LITE_PRESET_FPS_CAP },
+    'PUBLIC ACCESS': { grid: 88, ramp: ' .:-=+*#%@ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', scanlines: 0.38, rgb: 4, tape: 0.5, mosaic: 0.18, punch: 0.14, fps: LITE_PRESET_FPS_CAP, profile: 'publicAccess' }
   };
 
   const state = {
@@ -320,6 +323,27 @@
     });
   }
 
+  function waitForVideoFrame(video) {
+    return new Promise((resolve) => {
+      if (video.readyState >= 2 && typeof video.requestVideoFrameCallback !== 'function') {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        video.requestVideoFrameCallback(done);
+      } else {
+        video.addEventListener('loadeddata', done, { once: true });
+      }
+      setTimeout(done, 260);
+    });
+  }
+
   function updateFileList() {
     const lines = [];
     state.media.forEach((item, index) => {
@@ -360,13 +384,26 @@
 
   function makeRandomTimeline(duration) {
     const timeline = [];
+    let sourceQueue = [];
+    let previousSource = null;
     let t = 0;
     let guard = 0;
     while (t < duration - 0.001 && guard < 240) {
       guard += 1;
-      const source = state.media[Math.floor(Math.random() * state.media.length)];
+      if (!sourceQueue.length) {
+        sourceQueue = state.media.slice();
+        shuffle(sourceQueue, Math.random);
+        if (previousSource && sourceQueue.length > 1 && sourceQueue[0] === previousSource) {
+          [sourceQueue[0], sourceQueue[1]] = [sourceQueue[1], sourceQueue[0]];
+        }
+      }
+      const source = sourceQueue.shift();
       const isVideo = source.kind === 'video';
-      const segmentDuration = isVideo ? randomBetween(1.2, 4.2) : randomBetween(1, 3);
+      const remainingSources = Math.max(1, sourceQueue.length + 1);
+      const coverageBudget = (duration - t) / remainingSources;
+      const minVisible = isVideo ? 1.65 : 1.45;
+      const maxForCoverage = Math.max(minVisible, coverageBudget * 1.35);
+      const segmentDuration = Math.min(isVideo ? randomBetween(1.9, 4.6) : randomBetween(1.6, 3.3), maxForCoverage);
       const safeDuration = Math.min(segmentDuration, duration - t);
       if (safeDuration <= 0.001) break;
       const sourceMax = Math.max(0, (source.duration || safeDuration) - safeDuration);
@@ -378,6 +415,7 @@
         sourceStart,
         seed: Math.random()
       });
+      previousSource = source;
       t += safeDuration;
     }
     if (timeline.length) {
@@ -499,8 +537,8 @@
   }
 
   function qualitySettings() {
-    if (elements.quality.value === 'better') return { width: 1280, height: 720, fps: 18 };
-    return { width: 854, height: 480, fps: 15 };
+    if (elements.quality.value === 'better') return { width: 1280, height: 720, fps: LITE_BETTER_FPS };
+    return { width: 854, height: 480, fps: LITE_FAST_FPS };
   }
 
   function drawIdleFrame() {
@@ -599,6 +637,7 @@
     const startedAt = performance.now();
     const deadline = startedAt + duration * 1000;
     const hardStop = window.setTimeout(stopRecorder, duration * 1000);
+    const renderPlayback = { segment: null, video: null };
     let frameCount = 0;
     recorder.start(250);
     requestCanvasFrame();
@@ -608,7 +647,7 @@
       const now = performance.now();
       if (now >= deadline) break;
       const elapsed = Math.max(0, Math.min(duration, (now - startedAt) / 1000));
-      await drawFrame(timeline, elapsed, duration, preset, ansiIntervals);
+      await drawFrame(timeline, elapsed, duration, preset, ansiIntervals, renderPlayback);
       requestCanvasFrame();
       frameCount += 1;
       setProgress((elapsed / duration) * 100);
@@ -620,6 +659,7 @@
     window.clearTimeout(hardStop);
     stopRecorder();
     await stopped;
+    stopRenderPlayback(renderPlayback);
     audioController?.stop();
     canvasStream.getTracks().forEach((track) => track.stop?.());
     setProgress(100);
@@ -627,6 +667,8 @@
 
     const type = recorder.mimeType || mimeType || 'video/webm';
     const blob = new Blob(chunks, { type });
+    const renderMs = Math.max(1, performance.now() - startedAt);
+    const effectiveFps = frameCount / (renderMs / 1000);
     state.renderedType = type;
     state.renderedBlob = blob;
     state.renderedUrl = URL.createObjectURL(blob);
@@ -642,7 +684,13 @@
       videoTrackReadyState: videoTracks[0]?.readyState || '',
       canvasFrameMode: manualCanvasFrames ? 'manual' : 'interval',
       audioTracks: mixedStream.getAudioTracks().length,
-      audioMode: state.lastAudioMode
+      audioMode: state.lastAudioMode,
+      targetFps: fps,
+      frames: frameCount,
+      expectedFrames,
+      effectiveFps: Number(effectiveFps.toFixed(2)),
+      timelineSources: new Set(timeline.map((item) => item.source.file.name)).size,
+      timelineSourceNames: Array.from(new Set(timeline.map((item) => item.source.file.name)))
     };
     elements.downloadButton.href = state.renderedUrl;
     elements.downloadButton.download = state.renderedFilename;
@@ -789,15 +837,51 @@
     };
   }
 
-  async function drawFrame(timeline, time, duration, preset, ansiIntervals) {
+  async function drawFrame(timeline, time, duration, preset, ansiIntervals, playback = null) {
     const segment = timeline.find((item) => time >= item.start && time < item.start + item.duration) || timeline[timeline.length - 1];
     const localTime = Math.max(0, time - segment.start);
     if (segment.source.kind === 'video') {
-      await seekVideo(segment.source.element, segment.sourceStart + localTime);
+      if (playback) {
+        await preparePlaybackVideo(playback, segment, localTime);
+      } else {
+        await seekVideo(segment.source.element, segment.sourceStart + localTime);
+      }
+    } else if (playback?.video) {
+      stopRenderPlayback(playback);
     }
     drawSource(segment, localTime, time, duration, preset);
     if (isAnsiTime(time, ansiIntervals)) drawAnsi(preset, time);
     applyPresetEffects(preset, time, duration);
+  }
+
+  async function preparePlaybackVideo(playback, segment, localTime) {
+    const video = segment.source.element;
+    const expected = segment.sourceStart + localTime;
+    if (playback.segment !== segment || playback.video !== video) {
+      stopRenderPlayback(playback);
+      playback.segment = segment;
+      playback.video = video;
+      video.muted = true;
+      video.playsInline = true;
+      video.loop = false;
+      await seekVideo(video, segment.sourceStart);
+      await waitForVideoFrame(video);
+      await video.play().catch(() => {});
+      return;
+    }
+    if (video.paused) await video.play().catch(() => {});
+    if (Math.abs((video.currentTime || 0) - expected) > 1.0) {
+      await seekVideo(video, expected);
+      await waitForVideoFrame(video);
+      await video.play().catch(() => {});
+    }
+  }
+
+  function stopRenderPlayback(playback) {
+    if (!playback?.video) return;
+    try { playback.video.pause(); } catch { /* video already stopped */ }
+    playback.segment = null;
+    playback.video = null;
   }
 
   function drawSource(segment, localTime, time, duration, preset) {
@@ -806,9 +890,10 @@
     const source = segment.source.element;
     const maxZoom = 0.18 + preset.punch * 0.48;
     const tunnel = (time % 4.5) / 4.5;
+    const beat = state.audio ? Math.pow(Math.max(0, Math.sin(time * Math.PI * 2 * 1.35 + segment.seed * 9)), 8) : 0;
     const punch = (Math.sin(time * 6.2 + segment.seed * 12) > 0.955) ? 0.22 : 0;
-    const zoom = 1 + tunnel * maxZoom + punch;
-    const wobbleX = Math.sin(time * 7.1 + segment.seed * 6) * preset.tape * 10;
+    const zoom = 1 + tunnel * maxZoom + punch + beat * (0.03 + preset.punch * 0.08);
+    const wobbleX = Math.sin(time * 7.1 + segment.seed * 6) * preset.tape * 10 + beat * preset.rgb * 1.2;
     const wobbleY = Math.cos(time * 5.7 + segment.seed * 8) * preset.tape * 5;
     ctx.save();
     ctx.fillStyle = '#080706';
@@ -818,8 +903,8 @@
     ctx.translate(-w / 2, -h / 2);
     drawCover(source, w, h);
     ctx.restore();
-    if (duration - time < 2.2) {
-      ctx.fillStyle = `rgba(8, 7, 6, ${1 - Math.max(0, duration - time) / 2.2})`;
+    if (duration - time < 0.7) {
+      ctx.fillStyle = `rgba(8, 7, 6, ${1 - Math.max(0, duration - time) / 0.7})`;
       ctx.fillRect(0, 0, w, h);
     }
     if (preset.profile === 'publicAccess') applyPublicAccessSource(preset, time);
@@ -836,9 +921,23 @@
     try {
       ctx.drawImage(source, x, y, drawWidth, drawHeight);
     } catch {
-      ctx.fillStyle = '#080706';
-      ctx.fillRect(0, 0, w, h);
+      drawFallbackSignal(w, h);
     }
+  }
+
+  function drawFallbackSignal(w, h) {
+    const gradient = ctx.createLinearGradient(0, 0, w, h);
+    gradient.addColorStop(0, '#20142a');
+    gradient.addColorStop(0.5, '#0c1417');
+    gradient.addColorStop(1, '#2c1833');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#a9f4cb';
+    for (let y = 0; y < h; y += 12) {
+      ctx.fillRect(0, y, w, 1);
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawAnsi(preset, time) {

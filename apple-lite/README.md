@@ -65,6 +65,7 @@ The smoke builds the app, installs it on an available iPhone simulator, launches
 - language switching to Spanish
 - 15-second duration control
 - Random clip assembly checkbox
+- random timeline coverage across multiple loaded media items
 - browser render/export surface and generated download link
 - native export bridge surface for the bundled app shell
 
@@ -83,6 +84,7 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 - Attempt a short render with local media.
 - Verify the output Save Video path. The native shell now intercepts rendered Lite blobs, validates that the temporary movie has a video track, and saves directly to Photos because WKWebView blob downloads and the generic share-sheet Save Video path were unreliable on a real device.
 - Verify audio and video together. Real-device manual testing confirmed added audio, saved video, and video playback now work. The current build seeds and requests canvas frames before recording, fixes native Blob payload transfer for MP4 codec strings, and smoke-verifies browser-side and native video/audio tracks.
+- Verify visual quality. The current Lite renderer keeps the browser-only path, targets 30 fps for Fast 480p and 24 fps for Better 720p, and has been tuned back toward the live WZRD.VID Lite visual baseline with stronger tunnel zoom, punch/wobble, hard ANSI treatment, shorter ending fade, and added-audio bump.
 - Confirm no external navigation is allowed from inside the wrapper.
 
 ## Known Gaps

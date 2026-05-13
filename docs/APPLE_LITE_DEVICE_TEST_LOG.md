@@ -1,7 +1,7 @@
 # WZRD.VID Lite Real-Device Test Log
 
 Date: 2026-05-10
-Status: real-device import, added audio, direct Photos save, and video playback pass; random source coverage remains a separate follow-up
+Status: real-device import, added audio, direct Photos save, video playback, random coverage, smoothness, and visual parity pass
 
 This is the guided manual test log for WZRD.VID Lite on a physical iPhone or iPad. It is intentionally manual because the simulator smoke can verify the bundled WKWebView surface, but it cannot prove the real iOS document/photo picker and user-facing export/share behavior.
 
@@ -114,6 +114,46 @@ Manual user results after native MP4 payload fix:
 - Saved video played with video.
 - Remaining issue: the saved video only showed a small section from a GIF and did not visibly include the other selected photo/video media.
 
+Random timeline coverage implementation result:
+
+- `docs/lite/app.js` now makes random assembly shuffle through all loaded media before reusing any one source. If more duration remains after a full pass, it refills and reshuffles the source queue.
+- Segment lengths are capped while a shuffled pass is in progress so one early source is less likely to consume the available duration before the rest of the media appears.
+- Export diagnostics now include `timelineSources` and `timelineSourceNames`.
+- Simulator smoke imports two synthetic local images and now requires `randomTimelineUsesMultipleSources: true`.
+- Physical iPhone smoke passed with `randomTimelineUsesMultipleSources: true`, `timelineSources: 2`, native MP4 validation of one video track and one audio track, and `audioMode: "webAudio"`.
+- Later manual A/B retest covered the tuned real-media output against the public Lite baseline.
+
+Visual quality/timing implementation result:
+
+- Manual user retest after the random coverage fix showed improved source coverage, but reported too much black during transitions and weaker Lite visuals than earlier web Lite output.
+- `docs/lite/app.js` now reduces the final black fade from 2.2 seconds to 0.7 seconds and uses a short pink transition flash at segment starts instead of long black transitions.
+- Video segments now play through a selected segment after one seek instead of seeking every output frame, which should reduce black frames on iOS video sources.
+- Lite visuals now include stronger Ken Burns-style drift, tunnel zoom, added-audio bump, brighter/ more saturated source treatment, and a less destructive ANSI overlay that leaves a dim source image behind the text-art layer.
+- Fallback frames now use a colored signal texture rather than pure black if a browser draw fails.
+- Simulator and physical iPhone smokes still passed with native MP4 validation, Web Audio, and multi-source random timeline coverage; later manual A/B retest judged the tuned output against the public Lite baseline.
+
+Smoothness implementation result:
+
+- Manual user retest confirmed Apple Lite now rendered and saved video/audio, but output motion still looked clipped/low-FPS.
+- Root cause found in `docs/lite/app.js`: both quality modes were effectively capped by per-preset `fps: 15`, so even the Better 720p path could not render above 15 fps.
+- Lite first moved from the old 15 fps cap to 24 fps for both quality modes, which was a large improvement but still looked slightly clipped in manual real-media testing.
+- Lite now targets 30 fps for Fast 480p exports and keeps Better 720p at 24 fps to avoid overloading the heavier 720p canvas path. Export diagnostics include `targetFps`, `frames`, `expectedFrames`, and `effectiveFps`.
+- The smoke harness now asserts the intended smoothness target through `smoothFpsTarget`; effective FPS remains diagnostic because real device load can vary.
+- Simulator smoke passed with `targetFps: 24`, `frames: 360`, `expectedFrames: 360`, and `effectiveFps: 23.99` for the 15-second Debug smoke render.
+- Physical iPhone smoke passed with `targetFps: 24`, `frames: 360`, `expectedFrames: 360`, and `effectiveFps: 23.99`; the updated app was installed and launched normally for hand retest.
+- Follow-up simulator smoke for the 30 fps Fast path passed with `targetFps: 30`, `frames: 450`, `expectedFrames: 450`, and `effectiveFps: 30`.
+- Follow-up physical iPhone smoke for the 30 fps Fast path passed with `targetFps: 30`, `frames: 450`, `expectedFrames: 450`, and `effectiveFps: 29.98`; the updated app was installed for hand retest.
+
+Live Lite visual parity follow-up:
+
+- Manual user comparison against `https://wzrdvid.com/lite/` found the public web Lite output still looked better than the Apple Lite wrapper output.
+- The live public Lite app is still effectively lower frame-rate, so the remaining quality gap was visual treatment, not FPS.
+- `docs/lite/app.js` now restores the live Lite-style tunnel ramp, stronger zoom/punch/wobble, black source bed, and harder ANSI/text-art pass while keeping the Apple-specific export/audio/random/smoothness fixes.
+- The shorter final fade and non-black draw fallback remain to avoid the earlier real-device black-frame problem.
+- Simulator smoke after the parity pass still passed with `targetFps: 30`, `frames: 450`, `expectedFrames: 450`, `effectiveFps: 30`, MP4 video/audio validation, Web Audio, and multi-source random coverage.
+- Physical iPhone smoke after the parity pass still passed with `targetFps: 30`, `frames: 450`, `expectedFrames: 450`, `effectiveFps: 29.98`, MP4 video/audio validation, Web Audio, and multi-source random coverage. The tuned build was installed for hand comparison against live Lite.
+- Manual A/B retest against `https://wzrdvid.com/lite/` using the same media/settings reported Apple Lite output is now a close match, roughly 95% of the public Lite quality baseline.
+
 ## Boundaries
 
 - Do not change desktop renderer/performance behavior during this pass.
@@ -183,7 +223,7 @@ Record each item as `pass`, `fail`, or `blocked`.
 | Random | Random clip assembly can be toggled on/off | pass | Automated device smoke toggled it on. |
 | Render | 15 second image-only render completes | pass | Automated device smoke rendered with a synthetic local image through MediaRecorder/canvas. |
 | Render | 15 second video render completes | pending | Needs hand test with real local video. |
-| Render | 15 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
+| Render | 15 second random video+photo render completes | pending | Automated smoke now verifies random timelines use multiple synthetic media sources before reuse. Needs hand test with real local video/photo/GIF media after the random coverage fix. |
 | Render | Optional 30 second random video+photo render completes | pending | Needs hand test with real local video/photo media. |
 | Audio | Optional local audio import arms audio bus | pass | Manual user retest after Web Audio fallback heard added music during preview/render. |
 | Audio | Optional audio render completes or fails clearly | pass | Added audio is audible through Web Audio in real-device manual testing. Source clip audio remains out of scope for Lite's visual timeline. |
@@ -219,4 +259,4 @@ Prefer the narrowest bridge:
 
 Current decision: native export/save bridge is needed and has been implemented for rendered blobs. Native import bridge is not needed based on this manual test.
 
-Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, generated download-link readiness, real Photos/Files import, added music, direct Photos save, and saved video playback pass on the physical iPhone. The browser blob download handoff failed by opening rendered clips for playback, and the share-sheet Save Video path later failed to add a video to Photos after added-audio playback was fixed. The narrow bridge now intercepts the rendered blob, validates that the generated movie has a video track, and saves directly to Photos with add-only Photos access. Source clip audio is not implemented for Lite's visual source timeline and remains future work.
+Reason: build, install, launch, bundled Lite load, synthetic local import, language switching, random rendering, generated download-link readiness, real Photos/Files import, added music, direct Photos save, and saved video playback pass on the physical iPhone. The browser blob download handoff failed by opening rendered clips for playback, and the share-sheet Save Video path later failed to add a video to Photos after added-audio playback was fixed. The narrow bridge now intercepts the rendered blob, validates that the generated movie has a video track, and saves directly to Photos with add-only Photos access. A follow-up random assembly coverage fix prevents shuffled timelines from reusing one source before all loaded media have had a chance to appear. A smoothness pass moved from the old 15 fps cap to 24 fps, then to a 30 fps Fast 480p target after manual testing still found slight clipping. A live Lite visual parity pass restored the public web Lite-style tunnel/punch/hard ANSI treatment while preserving Apple-specific reliability fixes. Manual A/B retest now reports Apple Lite is a close match, roughly 95% of the public Lite quality baseline. Remaining visual tuning can be iterative/non-blocking unless a specific regression appears. Source clip audio is not implemented for Lite's visual source timeline and remains future work.

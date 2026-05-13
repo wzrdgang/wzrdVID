@@ -14,7 +14,8 @@ Current export behavior:
 - Clip length is capped by the selected duration: 15, 30, or 60 seconds.
 - ANSI Coverage controls random time coverage across the final clip. It is not a gradual intensity ramp: 0% is normal video, 100% is full ANSI/text-art, and values between those build scattered ANSI intervals.
 - The PUBLIC ACCESS preset applies browser-side public-access/VHS source treatment before ANSI Coverage is applied, so 0%, 50%, and 100% ANSI remain meaningful.
-- Videos are sampled as random short clips. Images become 1-3 second held/animated segments. Sources can be reused to fill the selected length.
+- Videos are sampled as random short clips. Images become 1-3 second held/animated segments. Random assembly shuffles through all loaded media before reusing a source, then sources can repeat to fill the selected length.
+- Lite targets 30 fps browser recording for Fast 480p and 24 fps for Better 720p while applying browser-side texture: tunnel zoom, punch/wobble, tape/RGB treatment, hard ANSI overlays, short ending fade, and optional added-audio bump.
 - Added audio uses the separate local audio bus. Lite does not currently preserve source audio from visual media clips during timeline sampling/random assembly.
 - Desktop supports broader ffmpeg-backed formats. Lite depends on the browser's decoder support; HEIC/HEIF and some camera/video containers may be rejected locally with a log message.
 - The desktop app remains the full MP4 renderer with deeper timeline, audio, and export controls.

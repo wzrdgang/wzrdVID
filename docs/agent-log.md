@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Lite render coverage and smoothness bucket
+
+- Agent/task: Codex / stage and commit Bucket 2 for Lite random source coverage, render cadence/FPS smoothing, and visual parity after the direct Photos export bridge commit `1bb0033`.
+- Intent: Keep scope to Lite/Apple Lite visual/runtime parity. Preserve desktop renderer behavior, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, direct Photos export bridge behavior, and unrelated dirty worktree files.
+- Files changed this pass: `docs/lite/app.js`, `apple-lite/WZRDVIDLite/App/LiteSmokeHarness.swift`, `CHANGELOG.md`, `apple-lite/README.md`, `docs/lite/README.md`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, Lite/Apple Lite render behavior only. Random assembly now shuffles through loaded media before reuse, Fast 480p targets 30 fps while Better 720p targets 24 fps, video segments play forward after segment-start seek, and visual treatment is tuned back toward the live Lite baseline with stronger tunnel/punch/hard ANSI treatment and shorter ending fade.
+- Validation result: Apple Lite simulator smoke passed with `targetFps: 30`, `frames: 450`, `expectedFrames: 450`, `effectiveFps: 29.99`, `randomTimelineUsesMultipleSources: true`, two timeline sources, Web Audio, and native MP4 validation of one video track and one audio track.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline -15`; targeted diffs; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; full Python compile command; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Lite forbidden-network/storage grep; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript, Python, plist, forbidden-network/storage grep, bundle prep, simulator smoke, and whitespace checks passed.
+- Known gaps: Source audio from visual media remains future Lite work. HEIC/HEIF decode remains browser/WKWebView dependent. Larger/older-device stress testing remains optional unless new performance or memory issues appear.
+- Next recommended prompt: Push the Bucket 1 and Bucket 2 Apple Lite commits, then run a final real-device Apple Lite smoke and live `wzrdvid.com/lite` sanity check before deciding whether more v0.2.0 stabilization is needed.
+
 ## 2026-05-12 - Apple Lite HEIC reset manual pass
 
 - Agent/task: Codex / record user manual retest results for the freshly installed physical Apple Lite iPhone build.

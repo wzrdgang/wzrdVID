@@ -11,6 +11,10 @@
 - Added a narrow WZRD.VID Lite Apple native export/share bridge after real-device testing showed WKWebView blob downloads opened rendered clips for playback instead of giving a reliable save/share handoff.
 - Added a WZRD.VID Lite Web Audio fallback for the explicit Add Audio bus on iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable.
 - Tightened WZRD.VID Lite Apple export by seeding/requesting canvas frames before recording, fixing native Blob payload transfer for MP4 codec strings, adding export diagnostics, and saving validated MP4 exports directly to Photos from the native wrapper.
+- Improved WZRD.VID Lite random clip assembly so shuffled random timelines use all loaded media before reusing a source.
+- Restored more WZRD.VID Lite visual texture with shorter black fadeouts, stronger Ken Burns/tunnel motion, audio-reactive bump, brighter source treatment, and less destructive ANSI overlay.
+- Raised WZRD.VID Lite render cadence from the old 15 fps cap to a 30 fps target for Fast 480p exports, while keeping Better 720p at 24 fps to avoid overloading iPhone renders.
+- Tuned Apple Lite's browser renderer back toward the live WZRD.VID Lite visual baseline with stronger tunnel zoom, punch/wobble, and harder ANSI treatment while preserving iPhone export/audio fixes.
 - Fixed a hue-shift overflow crash that could appear during long desktop renders.
 - Prototyped an experimental direct ffmpeg frame-pipe renderer behind `WZRDVID_EXPERIMENTAL_FRAME_PIPE=1`; PNG frame staging remains the default and fallback while validation continues.
 - Added explicit frame-pipe startup logging and a local desktop developer toggle so packaged-app tests do not depend on macOS `open` propagating shell environment variables.

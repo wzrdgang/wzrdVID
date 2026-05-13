@@ -145,15 +145,17 @@ enum LiteSmokeHarness {
           const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
           const bytes = Uint8Array.from(atob(pngBase64), (char) => char.charCodeAt(0));
           const file = new File([bytes], 'lite-smoke.png', { type: 'image/png' });
+          const secondFile = new File([bytes], 'lite-smoke-second.png', { type: 'image/png' });
           const transfer = new DataTransfer();
           transfer.items.add(file);
+          transfer.items.add(secondFile);
           mediaInput.files = transfer.files;
           mediaInput.dispatchEvent(new Event('change', { bubbles: true }));
           for (let index = 0; index < 80; index += 1) {
-            if ((fileList.textContent || '').includes('lite-smoke.png')) break;
+            if ((fileList.textContent || '').includes('lite-smoke.png') && (fileList.textContent || '').includes('lite-smoke-second.png')) break;
             await sleep(100);
           }
-          check('localFileImportSynthetic', (fileList.textContent || '').includes('lite-smoke.png'), text('#fileList'));
+          check('localFileImportSynthetic', (fileList.textContent || '').includes('lite-smoke.png') && (fileList.textContent || '').includes('lite-smoke-second.png'), text('#fileList'));
           const audioTransfer = new DataTransfer();
           audioTransfer.items.add(makeToneWavFile());
           audioInput.files = audioTransfer.files;
@@ -182,8 +184,10 @@ enum LiteSmokeHarness {
           check('audioPipelineReady', ['captureStream', 'webAudio'].includes(audioMode), audioMode || 'no audio mode');
           const diagnostics = window.WZRDVID_LITE_EXPORT?.diagnostics?.() || {};
           result.exportDiagnostics = diagnostics;
+          check('smoothFpsTarget', Number(diagnostics.targetFps || 0) >= 30, JSON.stringify(diagnostics));
           check('exportHasVideoTrack', Number(diagnostics.videoTracks || 0) > 0, JSON.stringify(diagnostics));
           check('exportBlobHasBytes', Number(diagnostics.blobSize || 0) > 1024, JSON.stringify(diagnostics));
+          check('randomTimelineUsesMultipleSources', Number(diagnostics.timelineSources || 0) >= 2, JSON.stringify(diagnostics));
           window.__wzrdvidNativeExportValidation = null;
           const nativeExportSent = await window.WZRDVID_LITE_EXPORT?.shareRenderedClip?.();
           result.nativeExportSent = Boolean(nativeExportSent);
@@ -200,8 +204,10 @@ enum LiteSmokeHarness {
           check('exportDownloadReady', false, 'Render did not produce a download link');
           check('nativeRenderedClipReady', false, 'Render did not produce a native export payload');
           check('audioPipelineReady', false, 'Render did not run');
+          check('smoothFpsTarget', false, 'Render did not run');
           check('exportHasVideoTrack', false, 'Render did not run');
           check('exportBlobHasBytes', false, 'Render did not run');
+          check('randomTimelineUsesMultipleSources', false, 'Render did not run');
           check('nativeExportSent', false, 'Render did not run');
           check('nativeExportValidatedVideo', false, 'Render did not run');
         }
@@ -220,8 +226,10 @@ enum LiteSmokeHarness {
           'nativeExportBridgeSurface',
           'nativeRenderedClipReady',
           'audioPipelineReady',
+          'smoothFpsTarget',
           'exportHasVideoTrack',
           'exportBlobHasBytes',
+          'randomTimelineUsesMultipleSources',
           'nativeExportSent',
           'nativeExportValidatedVideo'
         ];
