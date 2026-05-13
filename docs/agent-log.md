@@ -189,6 +189,18 @@ Entries are reverse chronological: newest entry near the top.
 - Known gaps: No automated Safari desktop, iOS Safari, or Apple Lite WKWebView real-HEIC decode profile was run with actual HEIC files in this pass. HEIC files can still fail in browsers that cannot decode them. Source audio from visual media remains future Lite work.
 - Next recommended prompt: Run a real Safari and Apple Lite WKWebView HEIC batch profile with the new import timing logs, then decide whether a memory-only still proxy is justified.
 
+## 2026-05-12 - Lite and Apple portability audit for desktop HEIC/frame-pipe work
+
+- Agent/task: Codex / audit whether desktop HEIC/photo performance improvements and default frame-pipe transport should be integrated into web Lite, Apple Lite, or a native Apple app path.
+- Intent: Make no risky renderer/platform changes, preserve unrelated dirty Apple Lite/Lite/site worktree edits, and document what is already shared versus platform-specific.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`.
+- Behavior changed: No. This is a documentation/decision pass only.
+- Platform findings: Desktop HEIC/HEIF picker acceptance, deferred decode, app-managed `StillCache` proxies, warm-cache render reuse, and default raw RGB ffmpeg frame pipe are already in the desktop path. Web Lite already accepts `.heic`/`.heif` by extension and records Canvas frames directly through MediaRecorder, so there is no PNG/frame-file staging equivalent to remove. Apple Lite inherits the same browser Lite runtime in WKWebView and adds only native local payload validation/Photos save. No separate full native Apple renderer exists in repo.
+- Decision: Do not copy desktop ffmpeg/still-cache code into Lite or Apple Lite. The portable future idea is a measured per-session still proxy for Lite using browser primitives, but that needs Safari/WKWebView profiling and visual QA before implementation. A true native Apple renderer would need a separate AVFoundation/Core Image/Metal design.
+- Commands/tools run: `git status --short --branch`; `git log --oneline -12`; required repo docs reads; memory lookup for prior Apple Lite public-baseline parity; targeted greps/reads across `app.py`, `renderer.py`, `still_cache.py`, `docs/lite/index.html`, `docs/lite/app.js`, `apple-lite/WZRDVIDLite/App/*.swift`, `docs/lite/README.md`, `apple-lite/README.md`, and `docs/APPLE_LITE_APP_RESEARCH.md`; native-path `find`; Lite forbidden-network/storage grep.
+- Known gaps: No browser or device render smoke was run because source behavior did not change. Large HEIC/HEIF import performance in Safari/WKWebView remains unmeasured and should be profiled before adding a browser proxy cache.
+- Next recommended prompt: Profile WZRD.VID Lite large-still/HEIC import on Safari and Apple Lite WKWebView, then decide whether a memory-only per-session still proxy is worth implementing.
+
 ## 2026-05-12 - Frame pipe default transport
 
 - Agent/task: Codex / make the direct ffmpeg frame pipe the default desktop render transport while preserving automatic PNG fallback and a local emergency opt-out.
