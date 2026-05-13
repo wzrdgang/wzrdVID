@@ -305,7 +305,7 @@ def render_project(
         f"{ffmpeg_utils.format_duration(playback.source_duration)} selected.",
     )
     if settings.max_video_length is None:
-        _emit(log, f"Max video length: auto/full timeline ({ffmpeg_utils.format_duration(render_duration)}).")
+        _emit(log, f"Max video length: auto/full selected timeline ({ffmpeg_utils.format_duration(render_duration)}).")
         if settings.random_clip_assembly:
             _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for the selected timeline duration.")
     elif settings.random_clip_assembly:
@@ -333,13 +333,13 @@ def render_project(
         placement_end = "auto/output end" if settings.audio_timeline_end is None else ffmpeg_utils.format_duration(settings.audio_timeline_end)
         _emit(
             log,
-            "External audio source trim: "
+            "Requested external audio source trim: "
             f"{ffmpeg_utils.format_duration(audio_start)} to {trim_end}.",
         )
         _emit(
             log,
-            "External audio placement in video: "
-            f"{ffmpeg_utils.format_duration(settings.audio_timeline_start)} to {placement_end}.",
+            "Requested external audio output placement: "
+            f"video {ffmpeg_utils.format_duration(settings.audio_timeline_start)} to {placement_end}.",
         )
     if external_audio and settings.worky_music_mode:
         _emit(log, "worky_music_profile_v1: external audio becomes tiny mono broadcast texture.")
@@ -525,6 +525,7 @@ def render_project(
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
                 fade_out_duration=0.0,
+                audio_label="Mixed audio",
                 log=log,
             )
             _emit_elapsed(log, "Audio mux stage", audio_mux_started)
@@ -544,6 +545,7 @@ def render_project(
                 audio_offset=settings.audio_timeline_start,
                 audio_output_end=settings.audio_timeline_end,
                 worky_music_mode=settings.worky_music_mode,
+                audio_label="External audio",
                 log=log,
             )
             _emit_elapsed(log, "External audio mux stage", audio_mux_started)
@@ -560,6 +562,7 @@ def render_project(
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
                 fade_out_duration=0.0,
+                audio_label="Source audio",
                 log=log,
             )
             _emit_elapsed(log, "Source audio mux stage", audio_mux_started)

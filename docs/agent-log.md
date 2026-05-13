@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Desktop max length saved-state and audio read-window follow-up
+
+- Agent/task: Codex / fix remaining desktop Max Video Length saved-state regression and validate external music placement from final rendered MP4 audio, not just ffmpeg command strings.
+- Intent: Keep scope to desktop `app.py`, `renderer.py`, `ffmpeg_utils.py`, and directly related docs. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Files changed this pass: `app.py`, `renderer.py`, `ffmpeg_utils.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes for Max Video Length saved state. Fresh launch, Project Reset, missing/blank recipes, support report, settings save/load, and old no-op local settings now preserve blank/auto instead of inventing a fake explicit cap. Explicit typed/project-imported caps still remain explicit and still cap output. Audio placement behavior was not changed in this follow-up; only log labels were clarified.
+- Audio validation result: synthetic final-MP4 tone analysis under `/tmp` checked source timeline audio at 440 Hz and external music at 880 Hz with Music start in video at 2s. External-only, external-only with worky mode, external + selected source audio, and external + selected source audio with worky mode all produced final MP4s with no 880 Hz before the 2s placement point and audible 880 Hz after placement. A separate debug mux kept `mixed_*.m4a` and final MP4 outputs under `/tmp/wzrdvid-audio-placement-probe` so intermediate and final audio could be compared.
+- Log wording result: render startup now says `Max video length: auto/full selected timeline` for blank/auto max. External music logs distinguish `Requested external audio source trim`, `Requested external audio output placement`, `External audio read window`, and `External audio output placement`. Final mux logs label mixed/source/external audio separately.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline --decorate -15`; targeted max/audio greps; targeted code reads; `python3 -m py_compile app.py renderer.py ffmpeg_utils.py`; Qt offscreen max-length saved-state smoke with temp settings; synthetic direct ffmpeg_utils audio placement probe; synthetic renderer final-MP4 audio placement probe with `.venv/bin/python`; ffprobe stream checks; ffmpeg WAV extraction plus 440/880 Hz tone analysis.
+- Known gaps: Synthetic tone tests did not reproduce the user's real report that external music is audible at the beginning. If the real project still has music before the placement point, compare extracted final-output audio and check whether selected source audio from the timeline is the audible music before the external track begins.
+- Next recommended prompt: Rebuild/relaunch the desktop app, leave Max Video Length blank, render the real External + selected source audio/worky project with Music start in video at 0:24, then extract the final MP4 audio and confirm whether the pre-0:24 music is selected source audio or the external track.
+
 ## 2026-05-12 - Desktop max length auto and music placement fix
 
 - Agent/task: Codex / fix desktop Max Video Length optional/default behavior and external music placement semantics before more v0.2.0 stabilization.

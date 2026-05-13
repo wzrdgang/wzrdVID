@@ -21,7 +21,7 @@
 - Added automatic and manual cleanup for WZRD.VID-managed preview/cache files.
 - Improved desktop random-normal/ANSI-bypass frame selection for long renders with many normal sections.
 - Improved HEIC/HEIF and photo slideshow import/render performance with deferred decode, reusable still proxies, and detailed still-frame timing logs.
-- Fixed desktop Max Video Length auto/default handling and clarified external music source trim versus output placement.
+- Fixed desktop Max Video Length auto/default saved-state handling and clarified external music requested trim, read window, and output placement logs.
 
 ## v0.1.9 — 2026-05-10
 

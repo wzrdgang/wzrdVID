@@ -927,6 +927,7 @@ class MainWindow(QMainWindow):
         self.last_render_error = ""
         self.active_task = "render"
         self._chunky_auto = False
+        self._max_video_length_user_edited = False
         self.signal_status_label: QLabel | None = None
         self.ui_language = "system"
         self._updating_language_combo = False
@@ -1311,6 +1312,9 @@ class MainWindow(QMainWindow):
         self._apply_translations()
         self._save_settings()
         self.append_log(self.tr("log.language_changed", selected_language=language_label(code, self.active_language())))
+
+    def _mark_max_video_length_user_edited(self) -> None:
+        self._max_video_length_user_edited = True
 
     def _apply_timeline_headers(self) -> None:
         self.timeline_table.setHorizontalHeaderLabels(
@@ -2051,6 +2055,7 @@ class MainWindow(QMainWindow):
         self.max_video_length.textChanged.connect(self._update_coverage_summary)
         self.max_video_length.textChanged.connect(self._update_output_size_estimate)
         self.max_video_length.textChanged.connect(self._update_optimize_estimate)
+        self.max_video_length.textEdited.connect(lambda _text: self._mark_max_video_length_user_edited())
         self.max_video_length.textChanged.connect(lambda _text: self._save_settings())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._update_coverage_summary())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._update_output_size_estimate())
@@ -2932,6 +2937,60 @@ class MainWindow(QMainWindow):
                 raise ValueError(self.tr("dialog.max_video_length_invalid")) from exc
             return None
 
+    def _render_duration_without_max_video_length(self, strict: bool) -> float | None:
+        total_duration = self._timeline_total_duration(strict=strict)
+        if total_duration is None:
+            return None
+        start = ffmpeg_utils.parse_timecode(self.video_start.text()) or 0.0
+        end = ffmpeg_utils.parse_timecode(self.video_end.text())
+        resolved_end = total_duration if end is None else end
+        if resolved_end <= start:
+            raise ValueError("timeline end must be after timeline start")
+        timeline_duration = max(0.0, min(resolved_end, total_duration) - start)
+        if (
+            self.match_timeline_to_audio.isChecked()
+            and self.audio_mode.currentText() in {AUDIO_EXTERNAL, AUDIO_MIX}
+            and self.audio_path.text().strip()
+        ):
+            audio_duration = self._selected_audio_duration(strict=strict)
+            if audio_duration and audio_duration > 0:
+                if self.match_timeline_mode.currentText() == MATCH_TRIM:
+                    timeline_duration = min(timeline_duration, audio_duration)
+                else:
+                    timeline_duration = audio_duration
+        return timeline_duration
+
+    def _is_noop_max_video_length(self, seconds: float | None) -> bool:
+        if seconds is None or self.random_clip_assembly.isChecked():
+            return False
+        try:
+            duration = self._render_duration_without_max_video_length(strict=False)
+        except Exception:  # noqa: BLE001 - settings/report normalization must fail soft.
+            return False
+        return bool(duration and seconds >= max(0.0, duration - 0.05))
+
+    def _max_video_length_state_text(self, *, normalize_noop: bool = False) -> str:
+        raw = self.max_video_length.text().strip()
+        if not raw or raw.lower() == "auto":
+            return ""
+        if normalize_noop and not self._max_video_length_user_edited:
+            seconds = self._selected_max_video_length(strict=False)
+            if self._is_noop_max_video_length(seconds):
+                return ""
+        return raw
+
+    def _max_video_length_report_text(self) -> str:
+        raw = self.max_video_length.text().strip()
+        seconds = self._selected_max_video_length(strict=False)
+        if (
+            not raw
+            or raw.lower() == "auto"
+            or seconds is None
+            or (not self._max_video_length_user_edited and self._is_noop_max_video_length(seconds))
+        ):
+            return "auto/full timeline"
+        return raw
+
     def _update_coverage_controls(self) -> None:
         mode = self.bypass_mode.currentText()
         random_enabled = "Random" in mode
@@ -3750,27 +3809,10 @@ class MainWindow(QMainWindow):
         return blocks
 
     def _current_render_duration(self, strict: bool) -> float | None:
-        total_duration = self._timeline_total_duration(strict=strict)
-        if total_duration is None:
-            return None
         try:
-            start = ffmpeg_utils.parse_timecode(self.video_start.text()) or 0.0
-            end = ffmpeg_utils.parse_timecode(self.video_end.text())
-            resolved_end = total_duration if end is None else end
-            if resolved_end <= start:
-                raise ValueError("timeline end must be after timeline start")
-            timeline_duration = max(0.0, min(resolved_end, total_duration) - start)
-            if (
-                self.match_timeline_to_audio.isChecked()
-                and self.audio_mode.currentText() in {AUDIO_EXTERNAL, AUDIO_MIX}
-                and self.audio_path.text().strip()
-            ):
-                audio_duration = self._selected_audio_duration(strict=strict)
-                if audio_duration and audio_duration > 0:
-                    if self.match_timeline_mode.currentText() == MATCH_TRIM:
-                        timeline_duration = min(timeline_duration, audio_duration)
-                    else:
-                        timeline_duration = audio_duration
+            timeline_duration = self._render_duration_without_max_video_length(strict=strict)
+            if timeline_duration is None:
+                return None
             max_video_length = self._selected_max_video_length(strict=strict)
             if max_video_length is not None:
                 if self.random_clip_assembly.isChecked():
@@ -3852,9 +3894,7 @@ class MainWindow(QMainWindow):
         ]
         if len(self.timeline_items) > len(timeline_names):
             timeline_names.append(f"... {len(self.timeline_items) - len(timeline_names)} more")
-        max_length_text = self.max_video_length.text().strip()
-        if not max_length_text or max_length_text.lower() == "auto":
-            max_length_text = "auto/full timeline"
+        max_length_text = self._max_video_length_report_text()
         music_trim_start = self.audio_start.text().strip() or "0:00"
         music_trim_end = self.audio_end.text().strip() or "auto"
         music_video_start = self.audio_timeline_start.text().strip() or "0:00"
@@ -4071,6 +4111,7 @@ class MainWindow(QMainWindow):
         self.audio_timeline_start.setText("0:00")
         self.audio_timeline_end.setText("auto")
         self.max_video_length.clear()
+        self._max_video_length_user_edited = False
         self._set_combo_text(self.audio_mode, AUDIO_SILENT)
         self.worky_music_mode.setChecked(False)
         self.match_timeline_to_audio.setChecked(False)
@@ -4173,7 +4214,7 @@ class MainWindow(QMainWindow):
         if not isinstance(data, dict):
             QMessageBox.warning(self, APP_NAME, self.tr("dialog.recipe_invalid"))
             return
-        self._apply_project_state(data)
+        self._apply_project_state(data, mark_explicit_max_length=True)
         if self.audio_path.text().strip() and Path(self.audio_path.text().strip()).exists():
             self._probe_duration(self.audio_path.text().strip(), self.audio_duration, "audio")
         self._after_timeline_changed(save=False)
@@ -4210,24 +4251,49 @@ class MainWindow(QMainWindow):
             self.append_log(f"Could not load settings: {exc}")
             return
 
-        self._apply_project_state(data)
+        self._apply_project_state(data, mark_explicit_max_length=False)
         if "force_legacy_png_staging" in data:
             self.force_legacy_png_staging.setChecked(bool(data.get("force_legacy_png_staging", False)))
+        normalized_max_length = self._clear_noop_loaded_max_video_length()
 
         if self.audio_path.text().strip() and Path(self.audio_path.text().strip()).exists():
             self._probe_duration(self.audio_path.text().strip(), self.audio_duration, "audio")
         self._after_timeline_changed(save=False)
+        if normalized_max_length:
+            self.append_log("Loaded Max Video Length matched the full selected timeline; reset it to auto/full timeline.")
+            self._save_settings()
 
     def _save_settings(self) -> None:
         try:
             SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            data = self._project_state()
+            data = self._project_state(normalize_noop_max=True)
             data["force_legacy_png_staging"] = self.force_legacy_png_staging.isChecked()
             SETTINGS_PATH.write_text(json.dumps(data, indent=2))
         except OSError as exc:
             self.append_log(f"Could not save settings: {exc}")
 
-    def _project_state(self) -> dict:
+    def _clear_noop_loaded_max_video_length(self) -> bool:
+        raw = self.max_video_length.text().strip()
+        if not raw or raw.lower() == "auto":
+            return False
+        seconds = self._selected_max_video_length(strict=False)
+        if not self._is_noop_max_video_length(seconds):
+            return False
+        was_blocked = self.max_video_length.blockSignals(True)
+        self.max_video_length.clear()
+        self.max_video_length.blockSignals(was_blocked)
+        self._max_video_length_user_edited = False
+        return True
+
+    def _max_video_length_text_from_state(self, value: object) -> str:
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if text.lower() in {"", "auto", "none", "null"}:
+            return ""
+        return text
+
+    def _project_state(self, *, normalize_noop_max: bool = False) -> dict:
         self._sync_timeline_from_table()
         output_values = self._output_size_values()
         return {
@@ -4244,7 +4310,7 @@ class MainWindow(QMainWindow):
             "audio_end": self.audio_end.text().strip(),
             "audio_timeline_start": self.audio_timeline_start.text().strip(),
             "audio_timeline_end": self.audio_timeline_end.text().strip(),
-            "max_video_length": self.max_video_length.text().strip(),
+            "max_video_length": self._max_video_length_state_text(normalize_noop=normalize_noop_max),
             "random_clip_assembly": self.random_clip_assembly.isChecked(),
             "audio_mode": self.audio_mode.currentText(),
             "worky_music_mode": self.worky_music_mode.isChecked(),
@@ -4293,7 +4359,7 @@ class MainWindow(QMainWindow):
             ],
         }
 
-    def _apply_project_state(self, data: dict) -> None:
+    def _apply_project_state(self, data: dict, *, mark_explicit_max_length: bool = False) -> None:
         language = str(data.get("ui_language", self.ui_language or "system"))
         self.ui_language = language if language in {code for code, _name in SUPPORTED_LANGUAGES} else "system"
         self.video_path.setText(str(data.get("video_path", "")))
@@ -4307,7 +4373,9 @@ class MainWindow(QMainWindow):
         self.audio_end.setText(str(data.get("audio_end", "auto")))
         self.audio_timeline_start.setText(str(data.get("audio_timeline_start", "0:00")))
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
-        self.max_video_length.setText(str(data.get("max_video_length", "")))
+        loaded_max_video_length = self._max_video_length_text_from_state(data.get("max_video_length", ""))
+        self._max_video_length_user_edited = bool(mark_explicit_max_length and loaded_max_video_length)
+        self.max_video_length.setText(loaded_max_video_length)
         self.random_clip_assembly.setChecked(bool(data.get("random_clip_assembly", False)))
         loaded_audio_mode = self._canonical_audio_mode(
             str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))

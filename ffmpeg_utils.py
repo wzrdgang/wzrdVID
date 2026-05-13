@@ -592,6 +592,7 @@ def mux_audio(
     audio_offset: float = 0.0,
     audio_output_end: float | None = None,
     worky_music_mode: bool = False,
+    audio_label: str = "Audio",
     log: LogCallback = None,
 ) -> None:
     """Mux trimmed audio with an already encoded video.
@@ -610,7 +611,7 @@ def mux_audio(
         audio_output_end,
     )
     source_span = max(0.001, source_span)
-    _log_audio_source_placement(log, "Audio", audio_start, source_span, offset, placement_end, output_duration)
+    _log_audio_source_placement(log, audio_label, audio_start, source_span, offset, placement_end, output_duration)
 
     delay_ms = max(0, int(round(offset * 1000)))
     duration_text = f"{output_duration:.6f}"
@@ -854,18 +855,18 @@ def _log_audio_source_placement(
 ) -> None:
     source_end = source_start + source_span
     audible_end = min(output_duration, placement_start + source_span)
+    placement_note = "constrained by source trim and output placement/end"
+    if placement_end < output_duration:
+        placement_note += f"; requested placement cap {format_duration(placement_end)}"
     _log(
         log,
-        f"{label} source trim resolved: "
-        f"{format_duration(source_start)} to {format_duration(source_end)} "
-        f"({format_duration(source_span)} active).",
+        f"{label} read window: source {format_duration(source_start)} to "
+        f"{format_duration(source_end)} ({format_duration(source_span)} active; {placement_note}).",
     )
     _log(
         log,
-        f"{label} output placement resolved: "
-        f"{format_duration(placement_start)} to {format_duration(audible_end)} "
-        f"inside {format_duration(output_duration)} output"
-        f"{' (placement cap ' + format_duration(placement_end) + ')' if placement_end < output_duration else ''}.",
+        f"{label} output placement: video {format_duration(placement_start)} to "
+        f"{format_duration(audible_end)} inside {format_duration(output_duration)} output.",
     )
 
 
