@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-13 - v0.2.0 release-candidate package validation
+
+- Agent/task: Codex / rebuild and package the local v0.2.0 release candidate from commit `488eae8` without publishing, pushing, tagging, creating a GitHub Release, or changing App Store/DUNS/GitHub Pages config.
+- Intent: Release-candidate validation only. Preserve source behavior, Lite, Apple Lite, website content, release tags, and deployment config.
+- Files changed this pass: `docs/agent-log.md` only. Generated build outputs and `WZRD.VID-macOS.zip` were not committed.
+- Behavior changed: No source/runtime behavior changed in this pass.
+- Desktop result: pre-build syntax/static checks passed, `./build_app.sh` rebuilt `dist/WZRD.VID.app`, bundle plist reports `CFBundleShortVersionString=0.2.0` and `CFBundleVersion=0.2.0`, and the packaged app launched with window title `WZRD.VID v0.2.0`. The support report showed `Version: v0.2.0`, ffmpeg/ffprobe paths, and `Max video length: auto/full timeline`. UI/source markers confirmed the default frame-pipe/legacy PNG toggle path and HEIC still-cache path are present.
+- Package result: `scripts/package_release.sh` created `WZRD.VID-macOS.zip`; exact size `79,840,291` bytes (`ls -lh`: `76M`; disk usage: `81M`); SHA256 `84534d15124aadd9564f9b71bb573555b349ab1d86a9093c0231b5c41314baf9`. Unzipping into `/tmp/wzrdvid-v020-zipcheck` confirmed the contained app plist reports `0.2.0` for both bundle version fields.
+- Lite/Apple Lite result: live `https://wzrdvid.com/lite/app.js` and `https://wzrdvid.com/i18n.js` matched local committed files. Live Lite markers confirmed HEIC/HEIF accept, Clear Project/reset strings, input-value clearing, Fast 480p 30 fps target, multi-source random coverage, and native export bridge API surface. `python3 apple-lite/scripts/run_simulator_smoke.py` passed with Web Audio, native export bridge, native MP4 video/audio validation, `targetFps: 30`, 450 frames, and `randomTimelineUsesMultipleSources: true`.
+- Commands/tools run: required repo docs/script reads; memory lookup; Computer Use packaged-app UI smoke; `git status --short --branch`; `git log --oneline --decorate -8`; `git rev-parse --short HEAD`; version metadata checks; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; Lite forbidden-network/storage grep; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`; `./build_app.sh`; plist checks; packaged-app launch/support-report smoke; `scripts/package_release.sh`; ZIP size/SHA; ZIP unzip plist check; live Lite `curl`/marker/hash checks.
+- Known gaps: No GitHub Release, tag, publish, or push was done. Physical iPhone Apple Lite smoke was not rerun in this packaging pass; rely on the latest committed physical-device manual pass unless another real-device check is requested before release.
+- Next recommended prompt: Push the v0.2.0 metadata and release-candidate package-log commits, then publish v0.2.0 on GitHub Releases with `WZRD.VID-macOS.zip` and SHA256 `84534d15124aadd9564f9b71bb573555b349ab1d86a9093c0231b5c41314baf9` after final human review.
+
 ## 2026-05-13 - v0.2.0 desktop release metadata bump
 
 - Agent/task: Codex / bump desktop release metadata after the release-candidate package pass correctly stopped on `VERSION` still being `0.1.9`.
