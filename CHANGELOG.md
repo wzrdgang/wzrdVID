@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0 — Unreleased
+## v0.2.0 — 2026-05-13
 
 - Started v0.2.0 performance hardening with in-process ffprobe metadata caching for repeated duration and stream helper calls.
 - Added render-stage timing logs and long-media warnings for 30+ minute source video/audio inputs.
@@ -23,6 +23,7 @@
 - Improved HEIC/HEIF and photo slideshow import/render performance with deferred decode, reusable still proxies, and detailed still-frame timing logs.
 - Fixed desktop Max Video Length auto/default saved-state handling and clarified external music requested trim, read window, and output placement logs.
 - Fixed delayed external music placement when worky music mode is enabled.
+- Bumped app/release metadata to v0.2.0.
 
 ## v0.1.9 — 2026-05-10
 

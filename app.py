@@ -87,7 +87,7 @@ RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
 UPDATE_CHECK_TIMEOUT_SECONDS = 6
 RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
-APP_VERSION_FALLBACK = "0.1.9"
+APP_VERSION_FALLBACK = "0.2.0"
 
 
 def _resource_path(name: str) -> Path:

@@ -17,6 +17,16 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-13 - v0.2.0 desktop release metadata bump
+
+- Agent/task: Codex / bump desktop release metadata after the release-candidate package pass correctly stopped on `VERSION` still being `0.1.9`.
+- Intent: Metadata-only release prep. Do not package, publish, tag, create a GitHub Release, change DUNS/App Store metadata, change GitHub Pages deployment config, or alter unrelated files.
+- Files changed this pass: `VERSION`, `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: No renderer, Lite, Apple Lite, website, packaging script, or runtime behavior changed. Desktop version metadata now reports `0.2.0`; `build_app.sh` will stamp the bundle plist from `VERSION` during the separate package pass.
+- Commands/tools run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline --decorate -8`; targeted version grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `git diff --check`.
+- Known gaps: The v0.2.0 release-candidate app has not been rebuilt or packaged yet after this metadata bump.
+- Next recommended prompt: Rebuild/package v0.2.0, verify the final ZIP and SHA256, then manually review the packaged desktop app, live Lite, and Apple Lite before release.
+
 ## 2026-05-12 - Packaged worky audio hand-listen pass
 
 - Agent/task: Codex / record the packaged-app manual hand-listen result for delayed external audio placement after the worky audio fix.
