@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-12 - Apple Lite Bucket 1/2 deploy and final smoke
+
+- Agent/task: Codex / push Bucket 1 direct Photos export and Bucket 2 Lite render coverage/smoothness commits, then verify live Lite and Apple Lite smoke status.
+- Intent: Push committed `main` history only, preserve desktop renderer behavior, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, and unrelated dirty worktree files.
+- Pushed commits: `1bb0033 Add Apple Lite direct Photos export` and `fcfb150 Improve Lite render coverage and smoothness`, moving remote `main` from `f6fe96c` to `fcfb150`.
+- Live Pages result: `https://wzrdvid.com/lite/`, `/lite/app.js`, and `/i18n.js` now hash-match local committed files. Live markers confirm Clear Project/HEIC reset behavior, native export handoff, `LITE_FAST_FPS = 30`, `LITE_BETTER_FPS = 24`, `targetFps`, `effectiveFps`, `timelineSources`, `timelineSourceNames`, and shuffled `sourceQueue` random coverage are deployed.
+- Apple Lite result: `python3 apple-lite/scripts/prepare_lite_web_bundle.py` refreshed the ignored `LiteWeb/` bundle, and `python3 apple-lite/scripts/run_simulator_smoke.py` passed with `targetFps: 30`, 450 frames, two timeline sources, `randomTimelineUsesMultipleSources: true`, Web Audio, native export bridge, and native MP4 validation of one video track and one audio track.
+- Physical device result: physical iPhone smoke was blocked. `devicectl` listed `iPhone14` and `rivers’ iPhone` as unavailable, `xcodebuild -showdestinations` exposed only simulators plus the generic iOS placeholder, and device details for `iPhone14` showed Developer Mode enabled but `ddiServicesAvailable: false` and `tunnelState: unavailable`.
+- Commands/tools run: required repo docs reads; memory lookup for Apple Lite public-baseline parity context; `git status --short --branch`; `git log --oneline --decorate -15`; `git log --oneline origin/main..HEAD`; SSH `git fetch` attempt blocked by public-key auth; HTTPS fetch/push through GitHub CLI credential helper; live `curl` fetch/hash/marker checks; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; full Python compile command; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Lite forbidden-network/storage grep; `python3 apple-lite/scripts/run_simulator_smoke.py`; `xcrun devicectl list devices --timeout 30`; `xcrun xcdevice list --timeout 10`; `xcodebuild -showdestinations`; `xcrun devicectl device info details`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: push, live hash/marker checks, JS/Python/plist checks, forbidden-network/storage grep, bundle prep, simulator smoke, and whitespace checks passed.
+- Known gaps: physical iPhone reinstall/smoke could not run until CoreDevice/Xcode can see an available iPhone destination. Source audio from visual media remains future Lite work.
+- Next recommended prompt: Reconnect/unlock the physical iPhone until Xcode lists it as available, then rebuild/reinstall Apple Lite from current `main` and run the physical `WZRDVID_LITE_SMOKE=1` smoke before any TestFlight/App Store setup.
+
 ## 2026-05-12 - Lite render coverage and smoothness bucket
 
 - Agent/task: Codex / stage and commit Bucket 2 for Lite random source coverage, render cadence/FPS smoothing, and visual parity after the direct Photos export bridge commit `1bb0033`.
