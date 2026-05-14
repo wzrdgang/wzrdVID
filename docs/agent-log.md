@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - Desktop PUBLIC ACCESS hotfix package validation
+
+- Agent/task: Codex / rebuild and package a desktop hotfix from `9d55355` after the PUBLIC ACCESS read-only array crash fix, then verify the rebuilt app and crash regression matrix before deciding release handling.
+- Intent: Desktop hotfix validation only. Preserve Lite, Apple Lite, website, DUNS/App Store metadata, GitHub Pages config, release publishing state, and unrelated files.
+- Files changed this pass: `docs/agent-log.md` only. Generated build outputs and `WZRD.VID-macOS.zip` were not committed.
+- Behavior changed: No source/runtime behavior changed in this pass beyond the already-committed `9d55355` renderer fix. Version metadata remains `0.2.0` in `VERSION`, app fallback, and bundle plist.
+- Package result: `./build_app.sh` rebuilt `dist/WZRD.VID.app`; `scripts/package_release.sh` created `WZRD.VID-macOS.zip`. ZIP exact size `79,839,178` bytes (`ls -lh`: `76M`; package script: `80M`); SHA256 `cfce9bb930b3b51b5f460c556e4feeefed37015670fa6030dbd37a28179f96a7`. Unzipping into `/tmp/wzrdvid-hotfix-zip-check` confirmed `CFBundleShortVersionString=0.2.0` and `CFBundleVersion=0.2.0`.
+- Packaged-app result: rebuilt app launched successfully from `dist/WZRD.VID.app`; the ZIP-extracted app also launched successfully from `/tmp/wzrdvid-hotfix-zip-check/WZRD.VID.app` with window title `WZRD.VID v0.2.0`.
+- Regression matrix result: synthetic high-resolution JPEG stills, short MP4 video, external AAC audio, and generated HEIC media under `/tmp/wzrdvid-public-access-hotfix-smoke` all passed without `ValueError: assignment destination is read-only`. PUBLIC ACCESS + Smart Portrait + Random transition + CRT Shutdown + loop-friendly passed with Pocket Camera dither, Newspaper halftone dither, and no dither; default frame pipe and forced legacy PNG staging both produced valid H.264/yuv420p MP4s with AAC where external audio was enabled. PUBLIC ACCESS video, mixed JPEG/video/HEIC, Classic ANSI shared effects, and WZRD Blocks/chunky still cases also passed.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline --decorate -12`; `cat VERSION`; targeted version grep; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `git diff --check`; `git diff --cached --check`; `./build_app.sh`; plist checks; Computer Use packaged-app launch smoke; synthetic render/ffprobe matrix; `scripts/package_release.sh`; ZIP size/SHA; ZIP unzip plist and launch check.
+- Known gaps: Did not run the user's exact private JPEG stills, and the package does not expose a CLI render harness, so the automated render matrix was run against the same hotfix renderer source included in the just-built app after packaged GUI launch checks. No publish, push, tag, or GitHub Release edit was done.
+- Recommendation: publish a `v0.2.1` patch release instead of replacing the already-published `v0.2.0` ZIP, so public release artifacts remain immutable and update checks can communicate a new patch version cleanly.
+- Next recommended prompt: Bump release metadata to v0.2.1, rebuild/package from the PUBLIC ACCESS read-only array crash fix, then publish v0.2.1 with the verified ZIP and SHA256.
+
 ## 2026-05-14 - Desktop PUBLIC ACCESS read-only array crash fix
 
 - Agent/task: Codex / fix the v0.2.0 desktop preview/render crash `ValueError: assignment destination is read-only` reported by a public v0.2.0 user with JPEG stills, PUBLIC ACCESS, Smart Portrait framing, random transitions, CRT Shutdown + loop-friendly, and both frame pipe and PNG fallback.
