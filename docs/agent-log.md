@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - Desktop PUBLIC ACCESS read-only array crash fix
+
+- Agent/task: Codex / fix the v0.2.0 desktop preview/render crash `ValueError: assignment destination is read-only` reported by a public v0.2.0 user with JPEG stills, PUBLIC ACCESS, Smart Portrait framing, random transitions, CRT Shutdown + loop-friendly, and both frame pipe and PNG fallback.
+- Intent: Desktop renderer crash fix only. Preserve Lite, Apple Lite, website, packaging, versioning, DUNS/App Store metadata, GitHub Pages config, release metadata, and unrelated files.
+- Files changed this pass: `renderer.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, crash handling for ANSI/PUBLIC ACCESS output effects. Visual output is intended to stay the same; the renderer now makes effect-frame arrays writable before in-place scanline/RGB/glitch mutations when Pillow/NumPy returns a read-only view.
+- Root cause: `_apply_ansi_output_effects()` converted the scanline-processed PIL image back with `np.asarray(..., dtype=np.uint8)`. That array can be read-only, and later in-place glitch/RGB writes could raise `ValueError: assignment destination is read-only`. Frame pipe was not the root cause because PNG fallback uses the same shared frame/effect path.
+- Validation result: direct writable-array guard smoke passed for a read-only scanline array. Synthetic JPEG still renders passed for PUBLIC ACCESS + Smart Portrait + Random transition + CRT Shutdown + loop-friendly with default frame pipe using Pocket Camera dither, Newspaper halftone dither, and no dither; the Pocket Camera case also passed with forced legacy PNG staging. A Classic ANSI video+still pipe smoke also passed. ffprobe confirmed valid H.264/yuv420p MP4s with expected short durations and AAC where external audio was enabled.
+- Commands/tools run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline --decorate -12`; targeted `rg`/`nl` inspections around `_render_frames`, `render_text_art_frame`, `_apply_ansi_output_effects`, PUBLIC ACCESS, dither, and NumPy array conversions; direct read-only-array smoke; synthetic JPEG render matrix under `/tmp/wzrdvid-readonly-crash-smoke`; ffprobe validation.
+- Known gaps: Did not rerun the user's exact nine private JPEGs or rebuild/repackage the public v0.2.0 app in this pass. This fix should be included in the next desktop patch package after validation.
+- Next recommended prompt: Rebuild/package a v0.2.0 desktop hotfix after the PUBLIC ACCESS read-only array crash fix, then verify the user’s JPEG preview/render scenario from the packaged app.
+
 ## 2026-05-13 - v0.2.0 GitHub Release published
 
 - Agent/task: Codex / push the v0.2.0 metadata and package-validation commits, then publish the verified local release ZIP on GitHub Releases.

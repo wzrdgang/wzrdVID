@@ -23,6 +23,7 @@
 - Improved HEIC/HEIF and photo slideshow import/render performance with deferred decode, reusable still proxies, and detailed still-frame timing logs.
 - Fixed desktop Max Video Length auto/default saved-state handling and clarified external music requested trim, read window, and output placement logs.
 - Fixed delayed external music placement when worky music mode is enabled.
+- Fixed a desktop PUBLIC ACCESS preview/render crash caused by read-only image arrays after scanline processing.
 - Bumped app/release metadata to v0.2.0.
 
 ## v0.1.9 — 2026-05-10

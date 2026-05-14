@@ -2355,6 +2355,13 @@ def _shift_hue(color: np.ndarray, amount: float) -> tuple[int, int, int]:
     return tuple(int(channel * 255) for channel in shifted)
 
 
+def _ensure_writable_frame_array(frame_arr: np.ndarray) -> np.ndarray:
+    arr = np.asarray(frame_arr, dtype=np.uint8)
+    if not arr.flags.writeable:
+        arr = arr.copy()
+    return arr
+
+
 def _apply_ansi_output_effects(
     image: Image.Image,
     preset: dict[str, Any],
@@ -2371,12 +2378,14 @@ def _apply_ansi_output_effects(
     if _effect_on(effects, "color_drift"):
         image = _hue_shift_image(image, frame_index * 0.35 * intensity)
 
-    arr = np.array(image, dtype=np.uint8)
+    arr = _ensure_writable_frame_array(np.asarray(image, dtype=np.uint8))
 
     if _effect_on(effects, "scanlines"):
         gap = max(2, layout.line_height // 2)
         strength = min(0.78, float(preset.get("scanline_strength", 0.2)) * max(0.2, intensity))
-        arr = np.asarray(_apply_scanlines(Image.fromarray(arr), gap, strength), dtype=np.uint8)
+        arr = _ensure_writable_frame_array(
+            np.asarray(_apply_scanlines(Image.fromarray(arr), gap, strength), dtype=np.uint8)
+        )
 
     if _effect_on(effects, "rgb_split"):
         amount = int(round((float(preset.get("rgb_split", 2)) + 2.5 * intensity)))
