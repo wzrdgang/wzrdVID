@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - v0.2.1 package validation
+
+- Agent/task: Codex / rebuild, package, and validate v0.2.1 after the PUBLIC ACCESS read-only array crash fix and metadata bump.
+- Intent: Package-validation only before publishing a new patch release. Preserve Lite, Apple Lite, website, DUNS/App Store metadata, GitHub Pages config, and v0.2.0 release assets.
+- Files changed this pass: `docs/agent-log.md` only. Generated build outputs and `WZRD.VID-macOS.zip` were not committed.
+- Behavior changed: No new source behavior changed in this pass. The package includes `9d55355` and version metadata from `f47a198`.
+- Package result: `./build_app.sh` rebuilt `dist/WZRD.VID.app`; bundle plist and bundled `VERSION` report `0.2.1`; `scripts/package_release.sh` created `WZRD.VID-macOS.zip`. ZIP exact size `79,839,730` bytes (`ls -lh`: `76M`; package script: `80M`); SHA256 `d1535c08ed71791afb3351d25c164711d8d9cb406b545bc8e93488176db7a61a`. Unzipping into `/tmp/wzrdvid-v021-zip-check` confirmed the archived app plist and bundled `VERSION` report `0.2.1`.
+- Packaged-app result: `dist/WZRD.VID.app` launched successfully with window title `WZRD.VID v0.2.1`; the header reported current `v0.2.1`, and the copied support report included `Version: v0.2.1`.
+- Regression matrix result: synthetic high-resolution JPEG stills, short MP4 video, external AAC audio, and generated HEIC media under `/tmp/wzrdvid-v021-public-access-smoke` all passed without `ValueError: assignment destination is read-only`. PUBLIC ACCESS + Smart Portrait + Random transition + CRT Shutdown + loop-friendly passed with Pocket Camera dither, Newspaper halftone dither, and no dither across default frame pipe and forced legacy PNG staging. PUBLIC ACCESS video, mixed JPEG/video/HEIC, and Classic ANSI shared-effect cases also passed. ffprobe confirmed valid H.264/yuv420p MP4s with expected short durations and AAC where external audio was enabled.
+- Commands/tools run: `./build_app.sh`; plist and bundled `VERSION` checks; Computer Use app launch/support-report smoke; `scripts/package_release.sh`; ZIP size/SHA; ZIP unzip plist checks; synthetic render/ffprobe matrix; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `git diff --check`; `git diff --cached --check`.
+- Known gaps: Did not rerun the user's exact private JPEG stills. No push, tag, or GitHub Release publish was done in this validation entry.
+- Next recommended prompt: Push the v0.2.1 commits, create GitHub Release `v0.2.1` with `WZRD.VID-macOS.zip`, then download the release asset and verify SHA256 `d1535c08ed71791afb3351d25c164711d8d9cb406b545bc8e93488176db7a61a`.
+
 ## 2026-05-14 - v0.2.1 desktop release metadata bump
 
 - Agent/task: Codex / bump desktop release metadata for the PUBLIC ACCESS read-only array crash hotfix after `9d55355` and hotfix package validation.
