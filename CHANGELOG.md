@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1 — 2026-05-14
+
+- Fixed a desktop PUBLIC ACCESS preview/render crash that could occur with JPEG stills and ANSI output effects when image arrays were read-only. This patch keeps v0.2.0 behavior intact and only hardens the desktop render effect path.
+- Bumped app/release metadata to v0.2.1.
+
 ## v0.2.0 — 2026-05-13
 
 - Started v0.2.0 performance hardening with in-process ffprobe metadata caching for repeated duration and stream helper calls.

@@ -17,6 +17,15 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - v0.2.1 desktop release metadata bump
+
+- Agent/task: Codex / bump desktop release metadata for the PUBLIC ACCESS read-only array crash hotfix after `9d55355` and hotfix package validation.
+- Intent: Metadata-only patch release prep. Preserve Lite, Apple Lite, website, DUNS/App Store metadata, GitHub Pages config, and unrelated files.
+- Files changed this pass: `VERSION`, `app.py`, `CHANGELOG.md`, `docs/agent-log.md`.
+- Behavior changed: No renderer/runtime behavior changed in this metadata pass. `VERSION` and `APP_VERSION_FALLBACK` now report `0.2.1`, and `CHANGELOG.md` has a `v0.2.1 — 2026-05-14` patch heading for the desktop PUBLIC ACCESS read-only array crash fix.
+- Known gaps: v0.2.1 has not yet been rebuilt, packaged, pushed, or published in this metadata pass.
+- Next recommended prompt: Rebuild/package v0.2.1 from the PUBLIC ACCESS read-only array crash fix, verify the ZIP and crash matrix, then publish v0.2.1 without modifying the v0.2.0 release asset.
+
 ## 2026-05-14 - Desktop PUBLIC ACCESS hotfix package validation
 
 - Agent/task: Codex / rebuild and package a desktop hotfix from `9d55355` after the PUBLIC ACCESS read-only array crash fix, then verify the rebuilt app and crash regression matrix before deciding release handling.
