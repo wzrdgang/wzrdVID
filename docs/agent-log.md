@@ -17,6 +17,21 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - v0.2.1 shared-effect hotfix validation
+
+- Agent/task: Codex / rebuild and package the desktop v0.2.1 hotfix, then validate the read-only frame-effects fix against a broader shared ANSI/PUBLIC ACCESS effect matrix.
+- Intent: Desktop validation/package pass only. Preserve Lite, Apple Lite, website, DUNS/App Store metadata, GitHub Pages config, release publishing state, and unrelated files.
+- Files changed this pass: `docs/agent-log.md` only. Generated build outputs, `/tmp` smoke media, and `WZRD.VID-macOS.zip` are not committed.
+- Behavior changed: No source/runtime behavior changed in this pass. Current `HEAD` includes `9d55355 Fix read-only frame effects crash`; `VERSION`, app fallback, bundle plist, archived app plist, and bundled `VERSION` all report `0.2.1`.
+- Packaged-app result: `./build_app.sh` rebuilt `dist/WZRD.VID.app`; the app launched successfully with window title `WZRD.VID v0.2.1`.
+- Regression matrix result: generated high-resolution JPEG stills, short MP4 video, generated HEIC, and external AAC media under `/tmp/wzrdvid-v021-shared-effects-smoke` all passed. Covered PUBLIC ACCESS + JPEG stills + Smart Portrait + Random transitions + CRT Shutdown loop-friendly with Pocket Camera dither using default frame pipe and forced legacy PNG staging; PUBLIC ACCESS JPEG stills with Newspaper halftone and no dither using both transports; PUBLIC ACCESS mixed JPEG/video/HEIC; Classic ANSI shared scanline/glitch/RGB split/color drift/VHS wobble cases using default pipe and forced PNG; and WZRD Blocks chunky stills. No case logged `assignment destination is read-only`; default-pipe cases did not fall back to PNG or log `frame_%06d.png`; forced-PNG cases staged PNG frames as expected.
+- Output validation: ffprobe confirmed every smoke output as valid H.264/yuv420p MP4 with expected short duration and AAC audio where external audio was enabled.
+- Package result: `scripts/package_release.sh` created `WZRD.VID-macOS.zip`. ZIP exact size `79,839,637` bytes (`ls -lh`: `76M`; package script: `81M`); SHA256 `6d8618d0d571c91584455f610aba72852bd9cd9582b5e25a076bf050628fa68e`. Unzipping into `/tmp/wzrdvid-v021-shared-zip-check` confirmed the archived app reports `CFBundleShortVersionString=0.2.1`, `CFBundleVersion=0.2.1`, and bundled `VERSION=0.2.1`.
+- Commands/tools run: required repo docs reads; `git status --short --branch`; `git log --oneline --decorate -10`; `git merge-base --is-ancestor 9d55355 HEAD`; version metadata checks; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `git diff --check`; `git diff --cached --check`; `./build_app.sh`; plist and bundled `VERSION` checks; Computer Use packaged-app launch smoke; generated-media render/ffprobe matrix; `scripts/package_release.sh`; ZIP size/SHA; ZIP unzip plist checks.
+- Known gaps: Did not rerun the user's exact private JPEG stills. The automated render matrix used the source renderer included in the freshly built app after packaged GUI launch/version verification. No publish, push, tag, or GitHub Release edit was done.
+- Recommendation: hold on additional desktop fixes; the broader shared-effect matrix supports the v0.2.1 hotfix. If release artifacts need to reflect this rebuilt ZIP, update the release only after a separate explicit publish/asset-replacement decision.
+- Next recommended prompt: Verify the public v0.2.1 release page and decide whether to leave the already-published ZIP in place or replace it with the broader-matrix-validated rebuilt ZIP and SHA256 `6d8618d0d571c91584455f610aba72852bd9cd9582b5e25a076bf050628fa68e`.
+
 ## 2026-05-14 - v0.2.1 GitHub Release published
 
 - Agent/task: Codex / push the v0.2.1 hotfix commits, publish GitHub Release `v0.2.1`, and verify the uploaded ZIP from a fresh download.
