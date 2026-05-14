@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-14 - v0.2.1 GitHub Release published
+
+- Agent/task: Codex / push the v0.2.1 hotfix commits, publish GitHub Release `v0.2.1`, and verify the uploaded ZIP from a fresh download.
+- Intent: Patch release publication only. Preserve Lite, Apple Lite, website, DUNS/App Store metadata, GitHub Pages config, and existing v0.2.0 release asset.
+- Files changed this pass: `docs/agent-log.md` only after publication. `WZRD.VID-macOS.zip` was uploaded as a GitHub Release asset, not committed to git.
+- Behavior changed: No source/runtime behavior changed in this publication pass.
+- Push result: pushed `9d55355 Fix read-only frame effects crash`, `dc09187 Document hotfix package validation`, `f47a198 Bump version metadata for v0.2.1`, and `2f520a9 Document v0.2.1 package validation` to `main`.
+- Release result: created GitHub Release `v0.2.1` titled `WZRD.VID v0.2.1` at `https://github.com/wzrdgang/wzrdVID/releases/tag/v0.2.1`; release is not draft and not prerelease. The `WZRD.VID-macOS.zip` asset is attached with size `79,839,730` bytes.
+- Artifact verification: local SHA256 matched `d1535c08ed71791afb3351d25c164711d8d9cb406b545bc8e93488176db7a61a`; GitHub asset metadata reported the same `sha256:` digest; a fresh release download to `/tmp/wzrdvid-v021-release-download/WZRD.VID-macOS.zip` also matched that SHA256. Unzipping the downloaded asset confirmed `CFBundleShortVersionString=0.2.1`, `CFBundleVersion=0.2.1`, and bundled `VERSION=0.2.1`.
+- Commands/tools run: `git status --short --branch`; `git log --oneline --decorate`; `git log --oneline origin/main..HEAD`; `git diff --check`; `git diff --cached --check`; SSH fetch attempt blocked by public-key auth; one-off HTTPS/GitHub CLI credential-helper fetch and push without rewriting `origin`; `gh release create`; `gh release view`; `gh release download`; downloaded ZIP SHA and plist checks.
+- Known gaps: Did not edit or replace the v0.2.0 release asset. Did not run a post-publication manual install smoke from the downloaded ZIP in this publication pass.
+- Next recommended prompt: Verify the public v0.2.1 release page, download/install the published ZIP manually, and confirm the PUBLIC ACCESS JPEG crash path no longer reproduces in the released app.
+
 ## 2026-05-14 - v0.2.1 package validation
 
 - Agent/task: Codex / rebuild, package, and validate v0.2.1 after the PUBLIC ACCESS read-only array crash fix and metadata bump.
