@@ -19,6 +19,8 @@ Current repo evidence:
 - Current wrapper behavior: `WKWebView` loads bundled `LiteWeb` files, cancels non-local navigation, and uses a native export bridge to validate and save rendered clips to Photos.
 - Current automated status: bundle prep, simulator smoke, JavaScript syntax checks, Python compile checks, Info.plist lint, forbidden Lite API grep, and git diff whitespace checks passed on 2026-05-22.
 
+App Store metadata, App Privacy, privacy policy, App Review notes, screenshot checklist, and asset-gap drafts now live in `docs/APPLE_LITE_APP_STORE_PREP.md`. They are preparation drafts only: no App Store Connect record, archive, upload, submission, website deployment, signing change, or Bundle ID change has been made.
+
 Blockers before a real TestFlight path:
 
 - Apple Developer organization enrollment for AMPYX LLC still needs to be completed in Apple systems.

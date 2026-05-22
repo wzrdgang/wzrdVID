@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite App Store metadata and privacy prep
+
+- Agent/task: Codex / prepare WZRD.VID Lite App Store Connect metadata, App Privacy, privacy-policy, App Review notes, screenshot checklist, and asset-gap draft assets while Apple Developer organization enrollment is pending.
+- Intent: Docs-only preparation. Preserve desktop renderer behavior, Lite runtime, Apple Lite source/runtime behavior, signing IDs, Bundle IDs, App Store/DUNS account metadata, GitHub Releases, GitHub Pages deployment config, and unrelated files.
+- Files changed this pass: `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/agent-log.md`.
+- Behavior changed: No. No Swift, Python app code, Lite runtime code, desktop renderer code, signing/team setting, Bundle ID, release asset, website route, or deployment config was changed.
+- Source facts recorded: current display name is `WZRD.VID Lite`; current local/dev Bundle ID evidence is `com.samhowell.wzrdvid.lite`; preferred production Bundle ID candidate remains `com.worky.wzrdvid.lite`; current team setting evidence remains `JKSWZ8682X`; D-U-N-S is available/received without repeating the exact number; Photos usage strings are present; the bundled `WKWebView` cancels non-local navigation; the native export bridge validates rendered video and saves to Photos with add-only permission.
+- Drafts added: App Store name, subtitle, promotional text, description, keywords, Photo & Video category recommendation, age-rating notes, support URL needs, privacy policy URL needs, App Privacy no-collection/no-tracking posture, public privacy-policy draft text, App Review notes, review flow, screenshot checklist, and required asset gaps.
+- Commands run: required repo docs reads; Apple Lite README, plist, Xcode project, WebView wrapper, native export bridge, Lite bundle prep script, smoke harness, and Lite runtime inspections; official Apple App Store Connect/App Privacy docs checks; public metadata grep; draft field byte/character checks; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; unstaged diff whitespace check passed; staged diff whitespace check passed before commit.
+- Checks failed: None.
+- Known gaps: Apple Developer organization enrollment is still pending. App icon/App Store marketing icon, optional launch screen decision, production screenshots, public support page, public privacy policy page, final AMPYX Team ID, final production Bundle ID registration, App Store Connect app record, privacy manifest/archive validation, physical-device rerun under AMPYX signing, TestFlight archive, upload, and submission remain undone.
+- Next recommended prompt: Create the public WZRD.VID Lite support and privacy pages from `docs/APPLE_LITE_APP_STORE_PREP.md` as GitHub Pages docs-only routes, without changing Lite runtime, signing IDs, Bundle IDs, release assets, or Apple account metadata.
+
 ## 2026-05-22 - Apple Lite Developer/TestFlight readiness audit
 
 - Agent/task: Codex / audit WZRD.VID Apple Lite for Apple Developer organization enrollment and TestFlight readiness after AMPYX LLC received D-U-N-S availability.
