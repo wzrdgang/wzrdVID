@@ -17,6 +17,21 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite temporary icon preview matrix
+
+- Agent/task: Codex / generate a temporary WZRD.VID Lite app-icon preview matrix from `assets/branding/wzrdvid_app_icon_source.png` and alternates without committing generated icon assets.
+- Intent: Temporary `/tmp` preview outputs plus docs-only findings. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, Apple Lite source assets, signing IDs, Bundle IDs, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, and unrelated files.
+- Files changed this pass: `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/agent-log.md`.
+- Behavior changed: No.
+- Temporary outputs: flattened masters, context previews, manifest, report, and preview sheets were generated under `/tmp/wzrdvid-lite-icon-preview-aj7wvv3c/` only. No generated PNG/icon/`.appiconset` files were added to the repo.
+- Preview findings: `assets/branding/wzrdvid_app_icon_source.png` remains the recommended source. `assets/branding/wzrdvid_compact.png` and `assets/logo/wzrdvid_logo_square.png` are viable but did not show a meaningful advantage. `assets/branding/wzrdvid_compact_dark.png` loses too much contrast at 20, 29, and 40 px contexts for the first Apple Lite icon pass.
+- Icon implementation direction: final generation should flatten the selected source to an opaque dark 1024 x 1024 master, test a 4-8% safe-area inset, and treat tiny `wzrd VID` lettering as texture unless a simplified/readable small-size mark is explicitly desired.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; `file`, `ls -lh`, and `sips` inspections for the four 1024 x 1024 candidate assets; temporary Pillow preview generation through `.venv/bin/python`; visual inspection of the normal and iOS-masked preview sheets.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; unstaged diff whitespace check passed. Staged diff whitespace check passed before commit.
+- Checks failed: None.
+- Known gaps: No production app icon, asset catalog, launch screen, screenshots, AMPYX signing update, production Bundle ID registration, App Store Connect record, archive/upload, or committed Apple Lite source asset exists yet.
+- Next recommended prompt: Draft the Apple Lite `AppIcon.appiconset` implementation patch from `assets/branding/wzrdvid_app_icon_source.png` using an opaque 1024 x 1024 master and a tested 4-8% safe-area inset, without changing signing IDs, Bundle IDs, App Store Connect records, release assets, GitHub Pages config, or runtime behavior.
+
 ## 2026-05-22 - Apple Lite app icon and screenshot asset plan
 
 - Agent/task: Codex / prepare Apple Lite app icon and screenshot asset plan while preserving signing, Bundle ID, App Store Connect, release assets, GitHub Pages config, and runtime behavior.
