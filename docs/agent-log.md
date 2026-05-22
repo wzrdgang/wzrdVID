@@ -17,6 +17,21 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite app icon and screenshot asset plan
+
+- Agent/task: Codex / prepare Apple Lite app icon and screenshot asset plan while preserving signing, Bundle ID, App Store Connect, release assets, GitHub Pages config, and runtime behavior.
+- Intent: Docs-only asset planning. No icon files, screenshot files, asset catalog, launch screen, signing ID, Bundle ID, App Store/DUNS account metadata, GitHub Release asset, GitHub Pages config, desktop renderer behavior, Lite runtime behavior, or Apple Lite runtime behavior changed.
+- Files changed this pass: `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-log.md`.
+- Behavior changed: No.
+- Asset findings: Apple Lite currently has no `Assets.xcassets`, `.appiconset`, `AppIcon.appiconset`, launch storyboard, app-icon asset-catalog build setting, or `CFBundleIcons` plist key. `Info.plist` uses an empty `UILaunchScreen` dictionary. Current repo evidence still shows local/dev Bundle ID `com.samhowell.wzrdvid.lite` and team setting `JKSWZ8682X`; preferred production Bundle ID candidate remains `com.worky.wzrdvid.lite`, pending AMPYX-controlled Apple setup.
+- Brand source findings: `assets/branding/wzrdvid_app_icon_source.png` is the recommended Apple Lite icon source candidate because it is a 1024 x 1024 branding source used by existing desktop icon generation. Other 1024 x 1024 candidates are `assets/branding/wzrdvid_compact.png`, `assets/branding/wzrdvid_compact_dark.png`, and `assets/logo/wzrdvid_logo_square.png`. Existing desktop/macOS generated icon outputs should not be reused directly as the iOS asset catalog.
+- Live route verification: `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` returned HTTP 200 and passed the App Store prep content checks for no exact D-U-N-S number, no personal email, no scripts/forms/network APIs, and required support/privacy coverage.
+- Commands run: required repo docs reads; Apple Lite Xcode project/Info.plist asset inspection; `find` checks for `Assets.xcassets`, app icon sets, and launch storyboards; WZRD.VID branding asset inspection with `file` and `sips`; official Apple app-icon and screenshot-spec references checked; live support/privacy `curl` and content checks; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; unstaged diff whitespace check passed; live support/privacy routes returned 200 and matched the expected prep content.
+- Checks failed: None.
+- Known gaps: No generated app icon files, screenshot files, asset catalog, launch assets, AMPYX signing update, production Bundle ID registration, App Store Connect record, TestFlight archive, upload, or App Review submission exists yet. Final AMPYX LLC support/privacy contact details and any legal review remain pending.
+- Next recommended prompt: Generate a temporary WZRD.VID Lite app-icon preview matrix from `assets/branding/wzrdvid_app_icon_source.png` and draft the Apple Lite `AppIcon.appiconset` implementation patch without changing signing IDs, Bundle IDs, App Store Connect records, release assets, GitHub Pages config, or runtime behavior.
+
 ## 2026-05-22 - Apple Lite public support/privacy page drafts
 
 - Agent/task: Codex / create GitHub Pages-ready WZRD.VID Lite support and privacy page drafts from the App Store prep memo.

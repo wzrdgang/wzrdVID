@@ -21,6 +21,7 @@ This document prepares App Store Connect and TestFlight review materials for WZR
 - Lite runtime evidence remains local-only: no accounts, analytics, uploads, backend calls, tracking SDKs, remote config, or unrestricted web browsing.
 - `docs/i18n.js` uses `localStorage` only for the UI language preference.
 - No `Assets.xcassets`, app icon set, launch storyboard, or `PrivacyInfo.xcprivacy` file is present under `apple-lite/` as of this draft.
+- App icon and screenshot planning is now captured in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; no icon files, screenshots, launch assets, signing settings, Bundle IDs, App Store Connect records, or runtime files were changed for that planning pass.
 
 ## Apple Source Notes
 
@@ -28,6 +29,7 @@ This document prepares App Store Connect and TestFlight review materials for WZR
 - Promotional text is limited to 170 characters; description is required and limited to 4000 characters; keywords allow up to 100 bytes and should not duplicate the app/company name. Source: <https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information>
 - App Privacy can be answered as no data collection only if the implementation remains no-collection/no-tracking; Apple notes that data processed only on device and never sent to a server is not collected for App Privacy disclosure. Sources: <https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy/> and <https://developer.apple.com/app-store/app-privacy-details/>
 - App Store Connect requires one to ten screenshots per supported display set, with iPad screenshots required if the app runs on iPad. Source: <https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications>
+- App icons should be added through Icon Composer or an Xcode asset catalog before uploading a build to App Store Connect. Source: <https://developer.apple.com/help/app-store-connect/manage-app-information/add-an-app-icon/>
 - Apple generates age ratings from the App Store Connect age-rating questionnaire. Source: <https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions>
 
 ## App Store Connect Metadata Draft
@@ -101,7 +103,7 @@ Need a public support URL before App Store Connect submission. Draft candidate:
 
 `https://wzrdvid.com/support/`
 
-Draft route added: `docs/support/index.html`. It is GitHub Pages-ready once pushed to the Pages branch, but AMPYX LLC support contact details still need to be finalized before App Store submission.
+Draft route added: `docs/support/index.html`. The live route returned HTTP 200 on 2026-05-22 and is suitable as an App Store prep reference, but AMPYX LLC support contact details still need to be finalized before App Store submission.
 
 Required content for that page:
 
@@ -119,7 +121,7 @@ Need a public privacy policy URL before App Store Connect submission. Draft cand
 
 `https://wzrdvid.com/privacy/`
 
-Draft route added: `docs/privacy/index.html`. It is GitHub Pages-ready once pushed to the Pages branch, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
+Draft route added: `docs/privacy/index.html`. The live route returned HTTP 200 on 2026-05-22 and is suitable as an App Store prep reference, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
 
 This prep does not submit the privacy URL in App Store Connect.
 
@@ -211,6 +213,8 @@ Suggested review flow:
 
 ## Screenshot Checklist
 
+Detailed icon source, screenshot, sample media, and simulator/device planning is recorded in `docs/APPLE_LITE_APP_ASSET_PLAN.md`.
+
 Capture clean, production-signed screenshots after final AMPYX signing and Bundle ID setup. Use non-private sample media created or licensed for screenshots.
 
 - Launch/import screen: app open to bundled WZRD.VID Lite with Add Media visible.
@@ -244,6 +248,7 @@ Device-class checklist:
 - Apple Developer organization enrollment is still pending.
 - No App Store Connect app record has been created.
 - No archive, upload, TestFlight distribution, App Review submission, website deployment, release publication, signing change, or Bundle ID change was made for this prep pass.
-- Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`, but they still need a pushed Pages deployment, final AMPYX LLC contact details, and live URL verification before App Store Connect use.
+- Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`; live `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` returned HTTP 200 on 2026-05-22, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
+- Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`, but no generated icon files, screenshot files, asset catalog, or launch assets have been created or committed yet.
 - Privacy manifest requirements still need an archive/upload validation pass. No `PrivacyInfo.xcprivacy` file is present in the current Apple Lite source.
 - Physical-device testing should be rerun after AMPYX signing and the final production Bundle ID are configured.
