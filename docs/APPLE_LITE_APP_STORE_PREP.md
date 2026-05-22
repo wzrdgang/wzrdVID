@@ -101,6 +101,8 @@ Need a public support URL before App Store Connect submission. Draft candidate:
 
 `https://wzrdvid.com/support/`
 
+Draft route added: `docs/support/index.html`. It is GitHub Pages-ready once pushed to the Pages branch, but AMPYX LLC support contact details still need to be finalized before App Store submission.
+
 Required content for that page:
 
 - Contact path for app issues and feedback.
@@ -109,7 +111,7 @@ Required content for that page:
 - Current limitations: Lite is not full desktop parity; source clip audio is not preserved from visual timeline sources; output saves to Photos.
 - Legal/company contact information appropriate for AMPYX LLC once account setup is finalized.
 
-This task does not create or deploy the support page.
+This prep does not submit the support URL in App Store Connect.
 
 ### Privacy Policy URL Needs
 
@@ -117,7 +119,9 @@ Need a public privacy policy URL before App Store Connect submission. Draft cand
 
 `https://wzrdvid.com/privacy/`
 
-This task does not create or deploy the privacy page.
+Draft route added: `docs/privacy/index.html`. It is GitHub Pages-ready once pushed to the Pages branch, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
+
+This prep does not submit the privacy URL in App Store Connect.
 
 ## App Privacy Draft
 
@@ -227,8 +231,8 @@ Device-class checklist:
 - App Store marketing icon/source asset suitable for Apple's current icon workflow.
 - Optional branded launch screen or decision to keep the current empty `UILaunchScreen` dictionary for first TestFlight.
 - Production screenshots for each required device class.
-- Public support page and URL.
-- Public privacy policy page and URL.
+- Final AMPYX LLC support contact details and post-push verification for the public support URL.
+- Final AMPYX LLC privacy contact details, legal review if needed, and post-push verification for the public privacy policy URL.
 - Final review-note package with real signed-build behavior.
 - Final AMPYX organization Team ID after Apple Developer enrollment.
 - Final production Bundle ID registration, preferably `com.worky.wzrdvid.lite` unless Apple/account setup requires a different AMPYX-controlled reverse-DNS identity.
@@ -240,5 +244,6 @@ Device-class checklist:
 - Apple Developer organization enrollment is still pending.
 - No App Store Connect app record has been created.
 - No archive, upload, TestFlight distribution, App Review submission, website deployment, release publication, signing change, or Bundle ID change was made for this prep pass.
+- Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`, but they still need a pushed Pages deployment, final AMPYX LLC contact details, and live URL verification before App Store Connect use.
 - Privacy manifest requirements still need an archive/upload validation pass. No `PrivacyInfo.xcprivacy` file is present in the current Apple Lite source.
 - Physical-device testing should be rerun after AMPYX signing and the final production Bundle ID are configured.

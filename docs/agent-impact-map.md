@@ -46,8 +46,8 @@ This map describes the current repository so future agents can edit with context
 
 ### GitHub Pages Landing Site
 
-- Owning files/directories: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/CNAME`, `docs/assets/`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/RELEASE_CHECKLIST.md`.
-- Purpose: Static landing/download page for `wzrdvid.com` and GitHub Pages, with release links, demo media, screenshots, Lite link, and source/download guidance.
+- Owning files/directories: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/CNAME`, `docs/assets/`, `docs/support/index.html`, `docs/privacy/index.html`, `docs/RELEASE_DOWNLOAD_HELP.md`, `docs/RELEASE_CHECKLIST.md`.
+- Purpose: Static landing/download/support/privacy pages for `wzrdvid.com` and GitHub Pages, with release links, demo media, screenshots, Lite link, App Store support/privacy routes, and source/download guidance.
 - Inbound dependencies: GitHub Pages configured to deploy branch `main` folder `/docs`, custom domain DNS, static assets copied under `docs/assets/` or referenced from repository paths that resolve on Pages.
 - Outbound dependencies: browser rendering, GitHub Releases latest URL, GitHub repo URL, `docs/CNAME` custom domain.
 - High-risk notes: `docs/CNAME`, root-relative paths, and release links can break the public site. Do not change Pages config or domain copy without deployment-related intent.
@@ -129,16 +129,16 @@ This map describes the current repository so future agents can edit with context
 - Failure/empty behavior: Missing referenced media, invalid recipe JSON, or older project preset JSON should be reported through GUI/log.
 - Files likely involved in changes: `app.py`, docs.
 
-### GitHub Pages Landing/Homepage
+### GitHub Pages Landing/Homepage And Static Support/Privacy Pages
 
-- Entry point: `docs/index.html` at GitHub Pages root or `wzrdvid.com`.
+- Entry point: `docs/index.html` at GitHub Pages root or `wzrdvid.com`; `docs/support/index.html` at `/support/`; `docs/privacy/index.html` at `/privacy/`.
 - UI/component path: static HTML/CSS in `docs/index.html` and `docs/styles.css`.
 - Data/state path: none; all static.
 - Localization path: `docs/i18n.js` applies `data-i18n` text and stores only the UI language preference in localStorage.
 - Asset/media path: `docs/assets/` and release/repo links.
-- Success behavior: Users see hero, demo, screenshots, download links, Lite link, rights/source notes, and footer.
+- Success behavior: Users see hero, demo, screenshots, download links, Lite link, rights/source notes, footer, and App Store-prep support/privacy pages for WZRD.VID Lite.
 - Failure/empty behavior: Missing relative assets show broken images/video; bad release links send users to wrong downloads.
-- Files likely involved in changes: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/assets/`, `docs/CNAME`.
+- Files likely involved in changes: `docs/index.html`, `docs/styles.css`, `docs/i18n.js`, `docs/support/index.html`, `docs/privacy/index.html`, `docs/assets/`, `docs/CNAME`.
 
 ### WZRD.VID Lite Import, Render, and Download
 
@@ -182,7 +182,7 @@ This map describes the current repository so future agents can edit with context
 - Apple Lite simulator smoke: `python3 apple-lite/scripts/run_simulator_smoke.py` builds `apple-lite/WZRDVIDLite.xcodeproj`, installs the app on an available iPhone simulator, and runs the debug-only WKWebView smoke harness, including native export bridge surface checks.
 - GitHub Actions workflow: Not present in repo.
 - Output directories: `dist/`, `build/`, `.pyinstaller-cache/`, `.venv/`, caches, temp folders, and release zip are generated/local outputs unless explicitly being packaged outside source control.
-- Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html` and `docs/lite/*`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
+- Files that can break deployment: `docs/CNAME`, relative paths in `docs/index.html`, `docs/lite/*`, `docs/support/index.html`, `docs/privacy/index.html`, `docs/assets/*`, GitHub Release URLs/copy, `VERSION`, `build_app.sh`, `requirements.txt`, icon/asset generation scripts.
 
 ## 4. High-Risk Files
 

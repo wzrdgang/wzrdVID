@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite public support/privacy page drafts
+
+- Agent/task: Codex / create GitHub Pages-ready WZRD.VID Lite support and privacy page drafts from the App Store prep memo.
+- Intent: Static docs/pages only. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite source/signing IDs, Bundle IDs, App Store/DUNS account metadata, GitHub Releases, GitHub Pages deployment config, and unrelated files.
+- Files changed this pass: `docs/support/index.html`, `docs/privacy/index.html`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: No app/runtime behavior changed. Added static Pages-ready routes only; no scripts, forms, backend endpoints, analytics, tracking, network calls, release assets, signing settings, or deployment config were changed.
+- Routes added: future support URL path `https://wzrdvid.com/support/`; future privacy URL path `https://wzrdvid.com/privacy/` after push/deploy.
+- Content decisions: Support page covers local-only import/render/export, Photos permission, desktop parity boundary, source clip audio limitation, and AMPYX LLC contact placeholder without personal email. Privacy page covers local media processing, no account, no uploads, no analytics, no tracking, no sale of personal information, user-directed Photos save, and local UI language preference storage.
+- Commands run: required repo docs reads; current Pages structure/routing inspection; static page creation; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; forbidden Lite/site API grep for `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `indexedDB`, `caches`, and `serviceWorker`; local static server curl checks for `/support/` and `/privacy/`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; forbidden API grep returned no matches; local static server returned `200` for `/support/` and `/privacy/`; unstaged and staged diff whitespace checks passed.
+- Checks failed: None.
+- Known gaps: Pages routes are not deployed until pushed. AMPYX LLC final support contact details, privacy/legal review if needed, App Store Connect metadata entry, TestFlight archive/upload, and live URL verification remain pending.
+- Next recommended prompt: Push the Apple Lite App Store prep and support/privacy docs commits to main, then verify `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` after GitHub Pages updates.
+
 ## 2026-05-22 - Apple Lite App Store metadata and privacy prep
 
 - Agent/task: Codex / prepare WZRD.VID Lite App Store Connect metadata, App Privacy, privacy-policy, App Review notes, screenshot checklist, and asset-gap draft assets while Apple Developer organization enrollment is pending.
