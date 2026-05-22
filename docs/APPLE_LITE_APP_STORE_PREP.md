@@ -215,7 +215,15 @@ Suggested review flow:
 
 Detailed icon source, screenshot, sample media, and simulator/device planning is recorded in `docs/APPLE_LITE_APP_ASSET_PLAN.md`.
 
-Capture clean, production-signed screenshots after final AMPYX signing and Bundle ID setup. Use non-private sample media created or licensed for screenshots.
+Capture clean, production-signed screenshots after final AMPYX signing and Bundle ID setup if simulator-only captures do not reflect the final app identity or behavior. Use non-private sample media created or licensed for screenshots.
+
+Current prep-only sample media/workflow status:
+
+- Temporary generated sample media exists under `/tmp/wzrdvid-lite-screenshot-sample-20260522/` only and is not committed.
+- The generated still and video imported successfully into the booted iPhone 17 simulator Photos library with `xcrun simctl addmedia`.
+- Simulator screenshot capture wrote a tooling-smoke PNG under `/tmp`; no generated screenshots are committed.
+- Current tooling has an available `iPhone 17 Pro Max` simulator for the 6.9-inch iPhone set and an available `iPad Pro 13-inch (M5)` simulator for the 13-inch iPad set.
+- The first screenshot package should use the existing app and manual Simulator interaction. Do not add Lite runtime hooks or forced screenshot states.
 
 - Launch/import screen: app open to bundled WZRD.VID Lite with Add Media visible.
 - Selected media state: at least one local photo/video loaded in the Lite media list.
@@ -233,7 +241,7 @@ Device-class checklist:
 
 - Final archive/App Store Connect validation of the committed AppIcon catalog under AMPYX signing.
 - Optional branded launch screen or decision to keep the current empty `UILaunchScreen` dictionary for first TestFlight.
-- Production screenshots for each required device class.
+- Production screenshots for each required device class; a simulator workflow and temporary `/tmp` sample media are now documented, but no final screenshot files are committed.
 - Final AMPYX LLC support contact details and post-push verification for the public support URL.
 - Final AMPYX LLC privacy contact details, legal review if needed, and post-push verification for the public privacy policy URL.
 - Final review-note package with real signed-build behavior.
@@ -248,6 +256,6 @@ Device-class checklist:
 - No App Store Connect app record has been created.
 - No archive, upload, TestFlight distribution, App Review submission, website deployment, release publication, signing change, or Bundle ID change was made for this prep pass.
 - Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`; live `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` returned HTTP 200 on 2026-05-22, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
-- Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; the AppIcon asset catalog is now committed, but no screenshot files or launch assets have been created or committed yet.
+- Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; the AppIcon asset catalog is now committed, temporary screenshot sample media exists under `/tmp` only, and no final screenshot files or launch assets have been created or committed yet.
 - Privacy manifest requirements still need an archive/upload validation pass. No `PrivacyInfo.xcprivacy` file is present in the current Apple Lite source.
 - Physical-device testing should be rerun after AMPYX signing and the final production Bundle ID are configured.

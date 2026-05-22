@@ -17,6 +17,21 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite screenshot sample media and simulator capture workflow
+
+- Agent/task: Codex / prepare Apple Lite App Store screenshot sample media and simulator screenshot capture workflow.
+- Intent: Docs/workflow only, with generated sample media and screenshot tooling smoke kept under `/tmp`. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, release assets, and unrelated files.
+- Files changed this pass: `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-log.md`.
+- Behavior changed: No. No app source, runtime, signing, Bundle ID, App Store Connect, release, or GitHub Pages config changed.
+- Sample media: generated `/tmp/wzrdvid-lite-screenshot-sample-20260522/wzrdvid-lite-sample-video.mp4`, `/tmp/wzrdvid-lite-screenshot-sample-20260522/wzrdvid-lite-sample-still.png`, and `/tmp/wzrdvid-lite-screenshot-sample-20260522/wzrdvid-lite-sample-audio.m4a`. Metadata/string safety checks found no exact D-U-N-S number, personal names, current local/dev Bundle ID, current team ID, or private `/Users` paths.
+- Screenshot workflow findings: current tooling can dry-run the 6.9-inch iPhone set with `iPhone 17 Pro Max` and the 13-inch iPad set with `iPad Pro 13-inch (M5)`. The generated still/video imported successfully into the booted iPhone 17 simulator Photos library with `xcrun simctl addmedia`; `xcrun simctl io` wrote a tooling-smoke screenshot under `/tmp`.
+- Docs cleanup: corrected stale asset-plan wording that still described the AppIcon catalog and build setting as absent; the docs now distinguish the current local/dev Bundle ID from the preferred production direction and keep screenshot media/screenshots out of git.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline origin/main..HEAD`; sample media generation with Pillow/ffmpeg; `file`, `ffprobe`, and strings safety checks for generated media; `xcrun simctl list devicetypes`; `xcrun simctl list devices available`; `xcrun simctl addmedia`; `xcrun simctl io ... screenshot`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination 'platform=iOS Simulator,name=iPhone 17' build`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; Info.plist lint passed; Xcode simulator build passed; Apple Lite simulator smoke passed with MP4 export, Web Audio, native export bridge, native video/audio validation, and multi-source random coverage; unstaged and staged diff whitespace checks passed.
+- Checks failed: None.
+- Known gaps: No final App Store screenshots are committed. Manual Simulator UI capture still needs to be run for the launch/import, selected media, render settings, render/export, and saved output states. Optional audio screenshot coverage depends on making the generated `.m4a` available through the simulator Files picker without runtime changes. Final AMPYX signing, production Bundle ID, App Store Connect record, privacy manifest/archive validation, physical-device screenshot pass, TestFlight archive/upload, and launch-screen decision remain pending.
+- Next recommended prompt: Capture WZRD.VID Lite App Store screenshot dry-runs on `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)` using the `/tmp` sample media workflow, keeping screenshots under `/tmp` and without changing runtime, signing, Bundle IDs, App Store Connect records, release assets, GitHub Pages config, or committed source files.
+
 ## 2026-05-22 - Apple Lite AppIcon asset catalog implementation
 
 - Agent/task: Codex / implement the Apple Lite `AppIcon.appiconset` from `assets/branding/wzrdvid_app_icon_source.png`.
