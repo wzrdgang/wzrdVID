@@ -20,8 +20,8 @@ This document prepares App Store Connect and TestFlight review materials for WZR
 - Native export bridge transfers the rendered Lite blob to Swift, validates a video track with AVFoundation, and saves to Photos with add-only `PHPhotoLibrary` permission.
 - Lite runtime evidence remains local-only: no accounts, analytics, uploads, backend calls, tracking SDKs, remote config, or unrestricted web browsing.
 - `docs/i18n.js` uses `localStorage` only for the UI language preference.
-- No `Assets.xcassets`, app icon set, launch storyboard, or `PrivacyInfo.xcprivacy` file is present under `apple-lite/` as of this draft.
-- App icon and screenshot planning is now captured in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; no icon files, screenshots, launch assets, signing settings, Bundle IDs, App Store Connect records, or runtime files were changed for that planning pass.
+- Apple Lite now has an `Assets.xcassets/AppIcon.appiconset` with iPhone/iPad/iOS marketing icon slots. No launch storyboard or `PrivacyInfo.xcprivacy` file is present under `apple-lite/` as of this draft.
+- App icon and screenshot planning is captured in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; the app icon catalog is implemented, but no screenshots, launch assets, signing settings, Bundle IDs, App Store Connect records, or runtime files were changed for that pass.
 
 ## Apple Source Notes
 
@@ -231,8 +231,7 @@ Device-class checklist:
 
 ## Required Asset Gaps
 
-- App icon asset catalog for the Xcode app target.
-- App Store marketing icon/source asset suitable for Apple's current icon workflow.
+- Final archive/App Store Connect validation of the committed AppIcon catalog under AMPYX signing.
 - Optional branded launch screen or decision to keep the current empty `UILaunchScreen` dictionary for first TestFlight.
 - Production screenshots for each required device class.
 - Final AMPYX LLC support contact details and post-push verification for the public support URL.
@@ -249,6 +248,6 @@ Device-class checklist:
 - No App Store Connect app record has been created.
 - No archive, upload, TestFlight distribution, App Review submission, website deployment, release publication, signing change, or Bundle ID change was made for this prep pass.
 - Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`; live `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` returned HTTP 200 on 2026-05-22, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
-- Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`, but no generated icon files, screenshot files, asset catalog, or launch assets have been created or committed yet.
+- Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; the AppIcon asset catalog is now committed, but no screenshot files or launch assets have been created or committed yet.
 - Privacy manifest requirements still need an archive/upload validation pass. No `PrivacyInfo.xcprivacy` file is present in the current Apple Lite source.
 - Physical-device testing should be rerun after AMPYX signing and the final production Bundle ID are configured.

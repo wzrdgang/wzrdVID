@@ -84,9 +84,33 @@ Visual findings:
 Manual `.appiconset` slot checklist if not using Xcode/Icon Composer automation:
 
 - iPhone notification/settings/Spotlight/app slots: 20pt, 29pt, 40pt, 60pt at the required 2x/3x scales.
-- iPad notification/settings/Spotlight/app slots: 20pt, 29pt, 40pt, 76pt at the required 1x/2x scales.
+- iPad notification/settings/Spotlight/app slots: 20pt, 29pt, 40pt at the required 1x/2x scales, plus 76pt at 2x for current iPad app icon coverage. The 76pt 1x slot is legacy-only for this iOS 17+ target and is intentionally omitted from the implemented catalog.
 - iPad Pro app slot: 83.5pt at 2x.
 - App Store marketing slot: 1024 x 1024.
+
+## Implemented AppIcon Catalog
+
+Implementation date: 2026-05-22
+
+Implemented path:
+
+`apple-lite/WZRDVIDLite/App/Assets.xcassets/AppIcon.appiconset/`
+
+Implementation summary:
+
+- Source: `assets/branding/wzrdvid_app_icon_source.png`.
+- Chosen inset: 6%, after comparing 4%, 6%, and 8% temporary preview candidates.
+- Master treatment: opaque dark 1024 x 1024 PNG derived from the source image, with no alpha.
+- Generated slots: 17 PNG slots plus `Contents.json`.
+- Xcode project change: added `Assets.xcassets` as an Apple Lite target resource and set `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` for both Debug and Release.
+- Omitted slot: iPad `76x76@1x`, because Xcode 26 reports that slot only applies to iPad apps targeting releases before iOS 10. The Apple Lite deployment target remains iOS 17.0.
+- Scope not changed: no signing ID, Bundle ID, App Store Connect record, App Store/DUNS account metadata, GitHub Release asset, GitHub Pages config, Info.plist privacy string, Swift runtime behavior, Lite runtime behavior, or desktop renderer behavior changed.
+
+Generated slot set:
+
+- iPhone: 20x20 @2x/@3x, 29x29 @2x/@3x, 40x40 @2x/@3x, 60x60 @2x/@3x.
+- iPad: 20x20 @1x/@2x, 29x29 @1x/@2x, 40x40 @1x/@2x, 76x76 @2x, 83.5x83.5 @2x.
+- Marketing: 1024x1024 @1x.
 
 ## Screenshot Capture Checklist
 
@@ -144,7 +168,7 @@ Recommended screenshot sets:
 
 ## Known Gaps
 
-- No Apple Lite icon assets were generated or committed in this pass.
+- Apple Lite app icon assets are now generated and committed, but final archive/App Store Connect validation under AMPYX signing remains pending.
 - No screenshots were captured or committed in this pass.
 - No launch screen asset was added.
 - No AMPYX signing, production Bundle ID, App Store Connect, TestFlight archive, release asset, GitHub Pages config, or runtime behavior changed.

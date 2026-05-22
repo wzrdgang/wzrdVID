@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite AppIcon asset catalog implementation
+
+- Agent/task: Codex / implement the Apple Lite `AppIcon.appiconset` from `assets/branding/wzrdvid_app_icon_source.png`.
+- Intent: Apple Lite icon asset catalog only. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, Info.plist privacy strings, Swift runtime behavior, and unrelated files.
+- Files changed this pass: `apple-lite/WZRDVIDLite/App/Assets.xcassets/Contents.json`, `apple-lite/WZRDVIDLite/App/Assets.xcassets/AppIcon.appiconset/Contents.json`, 17 generated Apple Lite app-icon PNG slots under `AppIcon.appiconset/`, `apple-lite/WZRDVIDLite.xcodeproj/project.pbxproj`, `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-log.md`.
+- Behavior changed: No runtime behavior changed. The Apple Lite target now has a compiled app icon asset catalog.
+- Implementation details: chose 6% safe-area inset after temporary `/tmp` comparison of 4%, 6%, and 8%; generated an opaque dark 1024 x 1024 source-derived master with no alpha; generated iPhone 20/29/40/60 point slots, iPad 20/29/40 point slots, iPad 76 @2x, iPad Pro 83.5 @2x, and iOS marketing 1024 @1x. Omitted iPad 76 @1x after Xcode reported it as legacy-only for apps targeting before iOS 10.
+- Xcode project setting changed: added `Assets.xcassets` as a target resource and set `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` in Debug and Release. `PRODUCT_BUNDLE_IDENTIFIER`, `DEVELOPMENT_TEAM`, signing style, version/build, entitlements, Info.plist privacy strings, Swift runtime files, LiteWeb runtime, website files, release assets, and Pages config were not changed.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline origin/main..HEAD`; source asset and Xcode project inspections; temporary 4%/6%/8% inset preview generation and visual inspection; Apple Lite app icon PNG generation; JSON validation; `sips` icon-size/no-alpha verification; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination 'platform=iOS Simulator,name=iPhone 17' build`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; Info.plist lint passed; asset catalog JSON validation passed; Xcode simulator build passed; Apple Lite simulator smoke passed with native export validation; unstaged and staged diff whitespace checks passed.
+- Checks failed: None.
+- Known gaps: AMPYX Apple Developer enrollment, final AMPYX Team ID, production Bundle ID registration, App Store Connect app record, privacy manifest/archive validation, production screenshots, physical-device rerun under AMPYX signing, TestFlight archive/upload, and launch-screen decision remain pending.
+- Next recommended prompt: Prepare WZRD.VID Lite App Store screenshot sample media and simulator screenshot capture workflow without changing signing IDs, Bundle IDs, App Store Connect records, release assets, GitHub Pages config, or runtime behavior.
+
 ## 2026-05-22 - Apple Lite temporary icon preview matrix
 
 - Agent/task: Codex / generate a temporary WZRD.VID Lite app-icon preview matrix from `assets/branding/wzrdvid_app_icon_source.png` and alternates without committing generated icon assets.
