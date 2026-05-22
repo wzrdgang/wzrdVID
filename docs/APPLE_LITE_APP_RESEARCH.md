@@ -4,6 +4,32 @@ Date: 2026-05-10
 
 This began as a research memo for post-D-U-N-S work. The repo now also includes first-pass Apple Lite packaging groundwork under `apple-lite/`. It does not create an App Store submission, change release packaging, or change WZRD.VID Lite browser behavior.
 
+## 2026-05-22 Readiness Update
+
+AMPYX LLC now has D-U-N-S available/received, so Apple Developer Program organization enrollment can move forward outside the repo. The local Apple Lite project is still groundwork only: no App Store Connect record, TestFlight archive, upload, release, tag, website deployment change, or production signing change has been made.
+
+Current repo evidence:
+
+- Xcode target display name: `WZRD.VID Lite`.
+- Current local/dev bundle identifier: `com.samhowell.wzrdvid.lite`. Treat this as current repo evidence only, not the desired production identity.
+- Preferred production Bundle ID direction: `com.worky.wzrdvid.lite`, unless Apple/account setup later requires a different AMPYX-controlled reverse-DNS identity.
+- Current project team setting: `DEVELOPMENT_TEAM = JKSWZ8682X`.
+- Current app version/build: `0.2.0` / `1`.
+- Current privacy usage strings: Photos read/select copy for local media import and Photos add-only copy for saving rendered clips.
+- Current wrapper behavior: `WKWebView` loads bundled `LiteWeb` files, cancels non-local navigation, and uses a native export bridge to validate and save rendered clips to Photos.
+- Current automated status: bundle prep, simulator smoke, JavaScript syntax checks, Python compile checks, Info.plist lint, forbidden Lite API grep, and git diff whitespace checks passed on 2026-05-22.
+
+Blockers before a real TestFlight path:
+
+- Apple Developer organization enrollment for AMPYX LLC still needs to be completed in Apple systems.
+- Decide and register the production Bundle ID under the Apple Developer organization team. The current `com.samhowell.wzrdvid.lite` identifier is local/dev evidence only; the preferred production candidate is `com.worky.wzrdvid.lite`, unless Apple/account setup later requires a different AMPYX-controlled reverse-DNS identity.
+- Confirm or replace the committed `DEVELOPMENT_TEAM = JKSWZ8682X` with the actual AMPYX organization Team ID in Xcode after enrollment.
+- Add production app icon assets and App Store marketing icon assets. No `Assets.xcassets` or app icon set is present in `apple-lite/` as of this audit.
+- Decide whether the empty `UILaunchScreen` dictionary is sufficient for first TestFlight or whether a branded launch screen should be added before review.
+- Create and publish a privacy policy URL suitable for App Store Connect, then answer App Privacy with the current no-collection/no-tracking implementation if that remains true.
+- Recheck privacy manifest requirements during archive/upload validation. No `PrivacyInfo.xcprivacy` is present, and no required-reason API use was identified in the current Apple Lite source beyond temporary local file writes and Photos add-only access, but Xcode/App Store Connect validation is the authoritative check.
+- Run a Release archive/export/upload validation with the iOS 26 SDK or later; do not submit for review until metadata and review notes are ready.
+
 ## Recommendation
 
 Start with a free WZRD.VID Lite app built as a small native shell around bundled local Lite assets. The first practical path is a SwiftUI app with a `WKWebView` that loads the static Lite experience from the app bundle, plus native file import/export affordances only where the browser runtime needs platform help.

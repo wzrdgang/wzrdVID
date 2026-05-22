@@ -5,59 +5,86 @@ Status: real-device import, added audio, direct Photos save, video playback, ran
 
 This is the guided manual test log for WZRD.VID Lite on a physical iPhone or iPad. It is intentionally manual because the simulator smoke can verify the bundled WKWebView surface, but it cannot prove the real iOS document/photo picker and user-facing export/share behavior.
 
+## 2026-05-22 Apple Developer/TestFlight Readiness Audit
+
+No new physical-device hand test was run in this audit. The current goal was Apple Developer organization enrollment and TestFlight readiness prep after AMPYX LLC received D-U-N-S availability.
+
+Current app identity/signing evidence:
+
+- `Info.plist` display name is `WZRD.VID Lite`.
+- Xcode project local/dev bundle identifier is `com.samhowell.wzrdvid.lite`; this is current repo evidence only, not the desired production identity.
+- Preferred production Bundle ID candidate is `com.worky.wzrdvid.lite`, unless Apple/account setup later requires a different AMPYX-controlled reverse-DNS identity.
+- Xcode project team setting is `DEVELOPMENT_TEAM = JKSWZ8682X`.
+- `Info.plist` includes `NSPhotoLibraryUsageDescription` and `NSPhotoLibraryAddUsageDescription`.
+- `Info.plist` includes `ITSAppUsesNonExemptEncryption = false`.
+- No `Assets.xcassets`, app icon set, launch storyboard, or `PrivacyInfo.xcprivacy` file is present under `apple-lite/`.
+
+2026-05-22 automated checks:
+
+- `python3 apple-lite/scripts/prepare_lite_web_bundle.py` prepared 18 bundled files.
+- `python3 apple-lite/scripts/run_simulator_smoke.py` passed on iPhone 17 simulator. Smoke verified bundled Lite load, synthetic local media and audio import, Spanish language switching, 15-second render, random multi-source timeline, MP4 export, Web Audio mode, native export bridge, and native video/audio-track validation.
+- `node --check docs/lite/app.js`, `node --check docs/i18n.js`, Python compile checks, `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`, forbidden Lite API grep, `git diff --check`, and `git diff --cached --check` passed. The forbidden API grep returned no matches for `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `indexedDB`, `caches`, or `serviceWorker`.
+
+Readiness decision:
+
+- Ready for Apple Developer organization enrollment prep: yes, outside the repo.
+- Ready for physical-device install: technically yes with a valid local development team/profile, based on prior physical-device pass; needs rerun under the final AMPYX team/profile after enrollment.
+- Ready for TestFlight archive/upload: not yet. Blockers are final AMPYX team signing, final registered production bundle ID decision, App Store Connect app record, app icon assets, privacy policy/App Privacy metadata, and archive/upload validation.
+- Ready for App Store Connect metadata preparation: yes, with local-only/no-upload/no-account/no-analytics positioning, but screenshots, app icon, category, age rating, privacy policy URL, support URL, review notes, and privacy responses still need to be produced.
+
 ## Current Device Availability
 
-Initial checks saw the previously paired `rivers' iPhone`, model `iPhone 14`, but the device state was `unavailable`.
+Initial checks saw a previously paired iPhone 14, but the device state was `unavailable`.
 
 Follow-up checks after the phone was connected by USB found two device records:
 
-- Stale CoreDevice record: `rivers' iPhone`, iOS `26.3`, identifier `47F38D01-B5D9-5F4F-8976-808134B26783`, still `unavailable`.
-- USB-connected physical record: `iPhone14`, iOS `26.4.2`, UDID `00008110-001C4D410C85401E`, reported as available by `xcrun xcdevice list`.
+- Stale CoreDevice record: previously paired iPhone, iOS `26.3`, identifier redacted, still `unavailable`.
+- USB-connected physical record: `iPhone14`, iOS `26.4.2`, UDID redacted, reported as available by `xcrun xcdevice list`.
 
 Evidence collected:
 
-- `xcrun devicectl list devices --timeout 30` still showed `rivers' iPhone` as `unavailable`.
-- `xcrun xctrace list devices` listed `rivers' iPhone (26.3)` under `Devices Offline`.
-- `xcrun devicectl device info details --device 47F38D01-B5D9-5F4F-8976-808134B26783` reported `developerModeStatus: disabled`, `ddiServicesAvailable: false`, and `tunnelState: unavailable` for the stale record.
-- `xcrun devicectl manage pair --device 47F38D01-B5D9-5F4F-8976-808134B26783 --timeout 30` failed with CoreDevice error `4000`.
+- `xcrun devicectl list devices --timeout 30` still showed the previously paired iPhone as `unavailable`.
+- `xcrun xctrace list devices` listed the previously paired iPhone under `Devices Offline`.
+- `xcrun devicectl device info details --device <stale-device-id>` reported `developerModeStatus: disabled`, `ddiServicesAvailable: false`, and `tunnelState: unavailable` for the stale record.
+- `xcrun devicectl manage pair --device <stale-device-id> --timeout 30` failed with CoreDevice error `4000`.
 - `ioreg -p IOUSB -l -w0` showed a physical `iPhone` USB device.
-- `xcrun xcdevice list --timeout 10` showed USB device `iPhone14` as available with UDID `00008110-001C4D410C85401E`.
-- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=00008110-001C4D410C85401E' -derivedDataPath apple-lite/DerivedData build` did not build because Xcode reported: `Developer Mode disabled To use iPhone14 for development, enable Developer Mode in Settings -> Privacy & Security.`
+- `xcrun xcdevice list --timeout 10` showed USB device `iPhone14` as available with UDID redacted.
+- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=<device-udid>' -derivedDataPath apple-lite/DerivedData build` did not build because Xcode reported: `Developer Mode disabled To use iPhone14 for development, enable Developer Mode in Settings -> Privacy & Security.`
 
 No real-device WZRD.VID Lite app launch, import, render, random clip, or export/share pass was executed from that attempt because Xcode could not use the physical phone as a development destination.
 
 Latest recheck after Developer Mode was enabled:
 
 - `xcrun devicectl list devices --timeout 30` showed `iPhone14`, model `iPhone 14`, as `connected`.
-- `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30` listed the physical destination `{ platform:iOS, arch:arm64, id:00008110-001C4D410C85401E, name:iPhone14 }`.
-- `xcrun devicectl device info details --device E3AA485E-F6D0-51A3-848F-9143BA1FC07E` reported `developerModeStatus: enabled`, `ddiServicesAvailable: true`, `transportType: wired`, `tunnelState: connected`, plus install and launch capabilities.
-- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=00008110-001C4D410C85401E' -derivedDataPath apple-lite/DerivedData -allowProvisioningUpdates DEVELOPMENT_TEAM=3367V5767A build` failed before install with signing/provisioning errors: `No Account for Team "3367V5767A"` and `No profiles for 'com.samhowell.wzrdvid.lite' were found`.
-- `~/Library/MobileDevice/Provisioning Profiles` contained zero `.mobileprovision` files.
+- `xcodebuild -showdestinations -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -destination-timeout 30` listed the physical iPhone destination.
+- `xcrun devicectl device info details --device <connected-device-id>` reported `developerModeStatus: enabled`, `ddiServicesAvailable: true`, `transportType: wired`, `tunnelState: connected`, plus install and launch capabilities.
+- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=<device-udid>' -derivedDataPath apple-lite/DerivedData -allowProvisioningUpdates DEVELOPMENT_TEAM=<local-personal-team-id> build` failed before install with signing/provisioning errors: no configured account/profile for the local personal team and current local/dev bundle ID.
+- The local provisioning profile directory contained zero `.mobileprovision` files.
 
 Signing/provisioning recheck:
 
-- Xcode Signing & Capabilities was set to `Samuel Howell (Personal Team)` for the `WZRDVIDLite` target, with automatic signing enabled.
-- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=00008110-001C4D410C85401E' -derivedDataPath apple-lite/DerivedData build` succeeded.
-- Xcode created an Xcode-managed iOS Team Provisioning Profile for `com.samhowell.wzrdvid.lite`.
-- `xcrun devicectl device install app --device E3AA485E-F6D0-51A3-848F-9143BA1FC07E apple-lite/DerivedData/Build/Products/Debug-iphoneos/WZRDVIDLite.app` installed the app successfully.
-- `xcrun devicectl device info apps --device E3AA485E-F6D0-51A3-848F-9143BA1FC07E` listed `WZRD.VID Lite`, bundle ID `com.samhowell.wzrdvid.lite`, version `0.2.0`, build `1`.
-- Launching `com.samhowell.wzrdvid.lite` with the debug smoke harness failed before app startup because iOS reported the profile has not been explicitly trusted by the user.
+- Xcode Signing & Capabilities was set to a local Personal Team for the `WZRDVIDLite` target, with automatic signing enabled.
+- `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS,id=<device-udid>' -derivedDataPath apple-lite/DerivedData build` succeeded.
+- Xcode created an Xcode-managed iOS Team Provisioning Profile for the current local/dev bundle ID.
+- `xcrun devicectl device install app --device <connected-device-id> apple-lite/DerivedData/Build/Products/Debug-iphoneos/WZRDVIDLite.app` installed the app successfully.
+- `xcrun devicectl device info apps --device <connected-device-id>` listed `WZRD.VID Lite`, the current local/dev bundle ID, version `0.2.0`, build `1`.
+- Launching the current local/dev bundle ID with the debug smoke harness failed before app startup because iOS reported the profile has not been explicitly trusted by the user.
 
 The developer profile was trusted on-device after the first blocked launch.
 
 Physical-device launch/smoke result:
 
-- `xcrun devicectl device process launch --device E3AA485E-F6D0-51A3-848F-9143BA1FC07E --terminate-existing --console --environment-variables '{"WZRDVID_LITE_SMOKE":"1"}' com.samhowell.wzrdvid.lite` launched the app, ran the Debug smoke harness, and exited with code `0`.
+- `xcrun devicectl device process launch --device <connected-device-id> --terminate-existing --console --environment-variables '{"WZRDVID_LITE_SMOKE":"1"}' <current-local-dev-bundle-id>` launched the app, ran the Debug smoke harness, and exited with code `0`.
 - Smoke result passed with no errors or warnings.
 - Smoke capabilities on the physical iPhone WKWebView: `Blob`, `URL.createObjectURL`, `File`, `DataTransfer`, `MediaRecorder`, `canvas.captureStream`, and `navigator.share` were available.
 - Smoke checks passed: bundled Lite load, file input surface, export blob surface, Spanish language switching, 15-second duration control, Random clip assembly checkbox, synthetic local file import, random render completion, and generated `wzrdvid-lite-15s` download link readiness.
-- A normal non-smoke `devicectl` launch of `com.samhowell.wzrdvid.lite` also succeeded.
+- A normal non-smoke `devicectl` launch of the current local/dev bundle ID also succeeded.
 
 Current blocker: added-audio output needs one more manual iPhone retest after the Web Audio fallback. The manual device test confirmed real Photos/Files import, visual preview, and post-bridge download/export worked. It also confirmed rendered/previewed clips were still silent before the Web Audio fallback.
 
 Manual interaction attempt:
 
-- A normal non-smoke launch of `com.samhowell.wzrdvid.lite` succeeded again for this pass.
+- A normal non-smoke launch of the current local/dev bundle ID succeeded again for this pass.
 - Xcode Devices `Take Screenshot` captured the running WZRD.VID Lite UI on the physical iPhone, confirming the native shell was open to bundled Lite rather than a remote website.
 - CoreDevice/Xcode tooling available in this session supports launch, install, process inspection, app listing, display info, and screenshots, but it did not expose remote tap/gesture control for the physical iPhone.
 - Because the remaining checks require interacting with the iOS Photos/Files picker and tapping the rendered blob download/export link, they still require hand testing on the unlocked iPhone.
