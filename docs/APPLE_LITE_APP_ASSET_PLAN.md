@@ -205,11 +205,41 @@ Manual capture states:
 
 Optional audio note: the generated `.m4a` is available under `/tmp`, but `simctl addmedia` is intended for Photos media. Use the audio clip only if it can be made available through the simulator Files picker without changing runtime behavior, or skip audio in the first screenshot set.
 
+## Manual Simulator Screenshot Dry-Run
+
+Dry-run date: 2026-05-22
+
+Screenshots were captured under `/tmp/wzrdvid-lite-appstore-screenshots-20260522/` only and were not committed.
+
+Devices used:
+
+- `iPhone 17 Pro Max` simulator, screenshot output `1320 x 2868`.
+- `iPad Pro 13-inch (M5)` simulator, screenshot output `2064 x 2752`.
+
+Captured states:
+
+- Launch/import screen with updated hero copy: `//wzrdVID Lite` and `Pocket Chaos Cuts`.
+- Selected-media state using generated sample media imported into simulator Photos.
+- Render settings state.
+- Rendering/progress state.
+- Completed render/export state with `Download MP4` available.
+- Saved-output state showing the native `Saved Video` confirmation after tapping Download.
+
+Photos-save result:
+
+- The native Apple Lite save path worked on both simulators. Each device showed `Saved Video` with the message that the rendered clip was saved to Photos.
+
+Current usability:
+
+- These screenshots are useful workflow proof and near-final composition references.
+- Treat them as dry-run only for App Store submission until the AMPYX Team ID, production Bundle ID, final signed build, and final screenshot approval are complete.
+- The simulator files remain outside git. Do not commit `/tmp` screenshots unless a later prompt explicitly approves a screenshot asset package.
+
 ## Can Proceed Before AMPYX Enrollment
 
 - Refine future icon revisions with temporary preview matrices before changing the committed AppIcon catalog.
 - Regenerate or refine clean sample media for screenshots under `/tmp`.
-- Dry-run simulator screenshots for layout and content only, using the existing app and generated sample media.
+- Refine dry-run simulator screenshots for layout and content only, using the existing app and generated sample media.
 - Keep validating the live support/privacy routes as App Store prep references.
 - Decide whether the empty `UILaunchScreen` dictionary is acceptable for first TestFlight or whether a minimal branded launch screen should be added later.
 
@@ -235,6 +265,6 @@ Optional audio note: the generated `.m4a` is available under `/tmp`, but `simctl
 ## Known Gaps
 
 - Apple Lite app icon assets are now generated and committed, but final archive/App Store Connect validation under AMPYX signing remains pending.
-- No screenshots were captured or committed in this pass.
+- Manual simulator screenshot dry-runs now exist under `/tmp` only; no screenshot files are committed.
 - No launch screen asset was added.
 - No AMPYX signing, production Bundle ID, App Store Connect, TestFlight archive, release asset, GitHub Pages config, or runtime behavior changed.

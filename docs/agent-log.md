@@ -17,6 +17,23 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite manual App Store screenshot dry-runs
+
+- Agent/task: Codex / manually complete WZRD.VID Lite media selection, render, Download, and Photos-save screenshot capture on `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)` simulators.
+- Intent: Simulator capture and docs-only evidence. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, release assets, and committed source files.
+- Files changed this pass: `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-log.md`. Screenshot files stayed under `/tmp/wzrdvid-lite-appstore-screenshots-20260522/` and were not committed.
+- Behavior changed: No.
+- Git state: started clean on `main...origin/main [ahead 5]` with expected local commits `615394d`, `db9a570`, `52bc52c`, `3f161dc`, and `e7b9fdc`.
+- Devices used: `iPhone 17 Pro Max` simulator and `iPad Pro 13-inch (M5)` simulator. Apple Lite was rebuilt from the current LiteWeb bundle, installed on both simulators, and launched as current local/dev ID `com.samhowell.wzrdvid.lite`.
+- Hero verification: both devices showed the updated screenshot hero copy, line 1 `//wzrdVID Lite` and line 2 `Pocket Chaos Cuts`, before capture continued.
+- Screenshot result: captured launch/import, selected-media, render-settings, rendering/progress, completed-render/export, and saved-video confirmation states. iPhone outputs are `1320 x 2868`; iPad outputs are `2064 x 2752`.
+- Photos-save result: Download showed the native `Saved Video` confirmation on both simulators.
+- Commands/tools run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline origin/main..HEAD`; sample-media and screenshot directory inspections; `xcrun simctl list`; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `xcodebuild -project apple-lite/WZRDVIDLite.xcodeproj -scheme WZRDVIDLite -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' -derivedDataPath apple-lite/DerivedData build CODE_SIGNING_ALLOWED=NO`; `xcrun simctl boot`; `xcrun simctl install`; `xcrun simctl addmedia`; `xcrun simctl launch`; manual Simulator UI interaction; `xcrun simctl io ... screenshot`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; Info.plist lint passed; unstaged and staged diff whitespace checks passed; screenshot files were written under `/tmp`; final git state stayed clean apart from the docs-only evidence commit.
+- Checks failed: None.
+- Known gaps: Screenshots are dry-run evidence only, not committed App Store assets. Final screenshots should be recaptured or approved after AMPYX signing, production Bundle ID, final signed build identity, App Store Connect record, privacy manifest/archive validation, and physical-device rerun. No launch screen asset exists yet.
+- Next recommended prompt: Review the `/tmp/wzrdvid-lite-appstore-screenshots-20260522/` dry-run screenshots for visual approval, then decide whether to refine screenshot composition or proceed with AMPYX signing and production Bundle ID setup before final App Store screenshot capture.
+
 ## 2026-05-22 - Apple Lite screenshot hero tagline update
 
 - Agent/task: Codex / update WZRD.VID Lite hero copy before App Store screenshot capture.
