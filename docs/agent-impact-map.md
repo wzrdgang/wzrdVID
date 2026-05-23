@@ -15,10 +15,10 @@ This map describes the current repository so future agents can edit with context
 ### Render Engine
 
 - Owning files/directories: `renderer.py`, `presets.py`.
-- Purpose: Builds a virtual media timeline from videos/photos, samples frames, prepares cached still/HEIC proxies, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output. The direct raw RGB ffmpeg frame pipe is the default video transport before the same audio/finalization stages. Legacy PNG frame staging remains available through the local desktop developer opt-out or `WZRDVID_FORCE_PNG_STAGING=1`, and is still used automatically if pipe encoding fails before audio muxing.
+- Purpose: Builds a virtual media timeline from videos/photos, samples frames, prepares cached still/HEIC proxies, applies framing/effects/bypass/ANSI/chunky rendering, writes frames, and coordinates final video output. ASCII ANSI presets use per-render glyph masks to avoid repeated `ImageDraw.text` glyph rasterization while preserving text-art pixels; chunky/Unicode glyph rendering stays on the direct text path. The direct raw RGB ffmpeg frame pipe is the default video transport before the same audio/finalization stages. Legacy PNG frame staging remains available through the local desktop developer opt-out or `WZRDVID_FORCE_PNG_STAGING=1`, and is still used automatically if pipe encoding fails before audio muxing.
 - Inbound dependencies: `app.py` render settings, timeline items, user selected output path, source media files.
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
-- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, still proxy cache behavior, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
+- High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, still proxy cache behavior, temp cleanup, EXIF photo orientation, bypass intervals, text glyph-mask caching, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
 
 ### Still Image Cache
 

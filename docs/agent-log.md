@@ -31,6 +31,23 @@ Entries are reverse chronological: newest entry near the top.
 - Known gaps: Existing unrelated dirty renderer/performance WIP remains in the worktree. No runtime tests were run because this pass intentionally did not change app behavior.
 - Next recommended prompt: Review the existing `renderer.py`/`CHANGELOG.md` Glitch Hell performance WIP separately, then decide whether to finish, test, commit, or revert that unrelated renderer work.
 
+## 2026-05-23 - v0.2.1 desktop Glitch Hell render slowdown investigation and fix
+
+- Agent/task: Codex / investigate and fix the WZRD.VID v0.2.1 desktop renderer slowdown reported from a real support log.
+- Intent: Desktop renderer performance only. Preserve visual output, Lite, Apple Lite, website, signing, release assets, and deployment config.
+- Files changed this pass: `renderer.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. ASCII ANSI/text presets now use a per-render glyph-mask cache for drawing text-art frames, avoiding repeated glyph rasterization while preserving ASCII output pixels. Chunky/Unicode glyph rendering remains on the direct text path. Render logs now include more targeted hot-path timing.
+- Reproduction media: generated synthetic local media under `/tmp/wzrdvid-v021-render-slowdown-synth` with 75 timeline items: 52 JPG, 11 HEIC/HEIF, 12 MOV, plus external AAC audio and worky mode. No generated media was committed.
+- Baseline before fix: 540x304/18fps Glitch Hell cold-cache run rendered 175 frames in 44.11s; frame timing was source/still 6.53s, ANSI prep 2.26s, text render 34.69s. 1280x720/24fps cold-cache run rendered 234 frames in 91.61s; frame timing was source/still 10.55s, ANSI prep 16.60s, text render 61.87s. Full Quality still proxies reached 2560x1920 on the synthetic 4:3 stills.
+- After fix: same 540x304/18fps run completed in 16.13s with text render 6.61s. Same 1280x720/24fps run completed in 44.80s with text render 15.50s. The new hot-path timing split showed the 1280x720 run at resize/framing 5.41s, ANSI prep effects 10.89s, text sample/luma 0.67s, ImageDraw.text/glyph draw 10.44s, ANSI output effects 4.10s.
+- Findings: per-frame still reloading was not reproduced; each still loaded once per render. Cold HEIC proxy misses were expected because the cache was isolated and proxy keys differ by output proxy size. Excessive 2560x1920 still proxies amplify Full Quality source/framing cost, but the largest safe fix was text glyph caching because it preserves ASCII pixels. No unintended bypass/text-render behavior was found in the full-ANSI repro.
+- Validation: direct pixel comparison confirmed cached ASCII glyph-mask rendering matched the old direct `ImageDraw.text` path for a representative Glitch Hell frame. Tiny optimized render smoke produced `/tmp/wzrdvid-v021-render-slowdown-synth/tiny_smoke_optimized_29mb.mp4`; ffprobe confirmed H.264/yuv420p video and AAC audio for the after benchmark outputs and the tiny smoke.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; renderer/app/preset/performance-note inspections with `rg`, `sed`, and `nl`; synthetic media generation with `.venv/bin/python`, `ffmpeg`, and `magick`; before/after render timing harnesses with isolated `WZRDVID_STILL_CACHE_DIR`; direct Glitch Hell pixel-equality check; tiny optimized render smoke; `.venv/bin/python -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; ffprobe video/audio checks.
+- Checks passed: Python compile passed; direct glyph-mask pixel equality passed; tiny render smoke passed; ffprobe confirmed valid H.264/yuv420p MP4s at 540x304/18fps and 1280x720/24fps plus AAC audio; optimization smoke stayed under 29 MB.
+- Checks failed: initial multi-file ffprobe invocation used an invalid ffprobe command shape and was rerun successfully as a per-file loop.
+- Known gaps: Did not run the user's exact private media or the full 3360-frame support timeline. Still proxy dimensions remain intentionally unchanged in this pass to avoid visual-quality risk without a separate guarded setting or broader quality review. An unrelated untracked `docs/agent-system-audit.md` appeared after the initial clean baseline and was left untouched.
+- Next recommended prompt: Audit still proxy sizing quality/performance tradeoffs for Full Quality portrait and landscape stills, and only change proxy dimensions behind an explicit setting or after pixel-quality comparison.
+
 ## 2026-05-23 - Apple Lite AMPYX signing setup checklist
 
 - Agent/task: Codex / prepare AMPYX Apple Developer signing and production Bundle ID setup for WZRD.VID Lite without changing runtime behavior or submitting to App Store Connect.

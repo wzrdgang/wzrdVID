@@ -167,6 +167,15 @@ class TextLayout:
     y_positions: tuple[int, ...]
 
 
+@dataclass
+class _FrameTimingDetail:
+    resize_framing_seconds: float = 0.0
+    ansi_effect_seconds: float = 0.0
+    text_prepare_seconds: float = 0.0
+    image_draw_text_seconds: float = 0.0
+    ansi_output_effect_seconds: float = 0.0
+
+
 class RenderError(RuntimeError):
     """Raised when the ANSI render cannot be completed."""
 
@@ -661,6 +670,7 @@ def _render_silent_video_with_png_frames(
         frame_count=frame_count,
         bypass_intervals=bypass_intervals,
         write_frame=write_png_frame,
+        write_frame_label="PNG frame save",
         progress=progress,
         log=log,
     )
@@ -720,6 +730,7 @@ def _render_silent_video_with_pipe(
             frame_count=frame_count,
             bypass_intervals=bypass_intervals,
             write_frame=write_raw_frame,
+            write_frame_label="frame pipe write",
             progress=progress,
             log=log,
         )
@@ -1235,10 +1246,10 @@ class _TimelineFrameSource:
         if self.photo_load_count <= 0 and self.heic_motion_frames <= 0:
             return None
         return (
-            f"Still source prep: loaded {self.photo_load_count} still(s), "
+            f"Still/proxy load detail: loaded {self.photo_load_count} still(s), "
             f"{self.heic_count} HEIC/HEIF, {self.photo_cache_hits} cache hit(s), "
-            f"load/decode {self.photo_load_seconds:.2f}s, "
-            f"HEIC motion {self.heic_motion_frames} frame(s) in {self.heic_motion_seconds:.2f}s."
+            f"load/decode/proxy {self.photo_load_seconds:.2f}s, "
+            f"HEIC motion frame generation {self.heic_motion_frames} frame(s) in {self.heic_motion_seconds:.2f}s."
         )
 
 
@@ -1269,6 +1280,7 @@ def _render_frames(
     frame_count: int,
     bypass_intervals: list[Interval],
     write_frame: FrameWriter,
+    write_frame_label: str,
     progress: ProgressCallback,
     log: LogCallback,
 ) -> None:
@@ -1282,6 +1294,9 @@ def _render_frames(
     framing_kwargs = _frame_framing_kwargs(settings)
     public_access_profile = preset.get("profile") == "public_access_v1"
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
+    glyph_masks = _glyph_masks_for_layout(layout, str(preset["charset"])) if not chunky_blocks else None
+    if glyph_masks is not None:
+        _emit(log, f"Text glyph mask cache: enabled for {len(glyph_masks)} ASCII glyph(s).")
     bypass_index = 0
     bypass_count = len(bypass_intervals)
     held_frame: np.ndarray | Image.Image | None = None
@@ -1296,6 +1311,7 @@ def _render_frames(
     text_render_seconds = 0.0
     transition_seconds = 0.0
     write_seconds = 0.0
+    timing_detail = _FrameTimingDetail()
 
     try:
         for index in range(frame_count):
@@ -1341,6 +1357,7 @@ def _render_frames(
                     fps=settings.fps,
                     framing=framing_kwargs,
                     seed=settings.weird_seed or settings.random_seed,
+                    timing=timing_detail,
                 )
                 public_source_seconds += max(0.0, time.perf_counter() - public_started)
 
@@ -1357,6 +1374,7 @@ def _render_frames(
                         frame_index=index,
                         fps=settings.fps,
                         framing=framing_kwargs,
+                        timing=timing_detail,
                     )
                     normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
             else:
@@ -1372,6 +1390,7 @@ def _render_frames(
                         frame_index=index,
                         fps=settings.fps,
                         framing=framing_kwargs,
+                        timing=timing_detail,
                     )
                     ansi_prepare_seconds += max(0.0, time.perf_counter() - ansi_started)
                 text_started = time.perf_counter()
@@ -1386,6 +1405,8 @@ def _render_frames(
                     fps=settings.fps,
                     chunky_blocks=chunky_blocks,
                     dither_mode=settings.dither_mode,
+                    glyph_masks=glyph_masks,
+                    timing=timing_detail,
                 )
                 text_render_seconds += max(0.0, time.perf_counter() - text_started)
 
@@ -1443,8 +1464,17 @@ def _render_frames(
             f"public source {public_source_seconds:.2f}s, "
             f"ANSI prep {ansi_prepare_seconds:.2f}s, "
             f"text render {text_render_seconds:.2f}s, "
-            f"transitions/endings {transition_seconds:.2f}s, "
-            f"frame write {write_seconds:.2f}s.",
+            f"transitions/effects/endings {transition_seconds:.2f}s, "
+            f"{write_frame_label} {write_seconds:.2f}s.",
+        )
+        _emit(
+            log,
+            "Frame timing hot paths: "
+            f"resize/framing {timing_detail.resize_framing_seconds:.2f}s, "
+            f"ANSI prep effects {timing_detail.ansi_effect_seconds:.2f}s, "
+            f"text sample/luma {timing_detail.text_prepare_seconds:.2f}s, "
+            f"ImageDraw.text/glyph draw {timing_detail.image_draw_text_seconds:.2f}s, "
+            f"ANSI output effects {timing_detail.ansi_output_effect_seconds:.2f}s.",
         )
         source.close()
 
@@ -1834,6 +1864,20 @@ def make_text_layout(
     )
 
 
+def _glyph_masks_for_layout(layout: TextLayout, charset: str) -> dict[str, Image.Image] | None:
+    if not charset.isascii():
+        return None
+    mask_width = max(8, layout.char_width * 3)
+    mask_height = max(8, layout.line_height * 3)
+    masks: dict[str, Image.Image] = {}
+    for character in set(charset):
+        mask = Image.new("L", (mask_width, mask_height), 0)
+        ImageDraw.Draw(mask).text((0, 0), character, font=layout.font, fill=255)
+        if mask.getbbox() is not None:
+            masks[character] = mask
+    return masks
+
+
 def prepare_ansi_source(
     frame_rgb: np.ndarray | Image.Image,
     output_size: tuple[int, int],
@@ -1842,8 +1886,13 @@ def prepare_ansi_source(
     frame_index: int,
     fps: int,
     framing: dict[str, Any] | None = None,
+    timing: _FrameTimingDetail | None = None,
 ) -> Image.Image:
+    framing_started = time.perf_counter()
     image = fit_frame_to_output(frame_rgb, output_size, **(framing or {}))
+    if timing is not None:
+        timing.resize_framing_seconds += max(0.0, time.perf_counter() - framing_started)
+    effects_started = time.perf_counter()
     intensity = max(0.0, float(intensity))
 
     zoom = 1.0
@@ -1879,6 +1928,8 @@ def prepare_ansi_source(
     if _effect_on(effects, "vhs_wobble"):
         angle = math.sin(frame_index * 0.09) * 0.42 * intensity
         image = image.rotate(angle, resample=Image.Resampling.BICUBIC, fillcolor=(0, 0, 0))
+    if timing is not None:
+        timing.ansi_effect_seconds += max(0.0, time.perf_counter() - effects_started)
     return image
 
 
@@ -1892,6 +1943,7 @@ def prepare_public_access_source(
     fps: int,
     framing: dict[str, Any] | None = None,
     seed: int | None = None,
+    timing: _FrameTimingDetail | None = None,
 ) -> Image.Image:
     """Prepare the shared PUBLIC ACCESS source frame for normal and ANSI sections."""
     image = render_normal_frame(
@@ -1902,6 +1954,7 @@ def prepare_public_access_source(
         frame_index=frame_index,
         fps=fps,
         framing=framing,
+        timing=timing,
     )
     amount = max(0.0, min(2.0, float(preset.get("public_access_amount", 1.0)) * (0.72 + 0.34 * intensity)))
     return _apply_public_access_treatment(image, frame_index, fps, amount, seed)
@@ -2021,8 +2074,12 @@ def render_normal_frame(
     frame_index: int,
     fps: int,
     framing: dict[str, Any] | None = None,
+    timing: _FrameTimingDetail | None = None,
 ) -> Image.Image:
+    framing_started = time.perf_counter()
     image = fit_frame_to_output(frame_rgb, output_size, **(framing or {}))
+    if timing is not None:
+        timing.resize_framing_seconds += max(0.0, time.perf_counter() - framing_started)
     intensity = max(0.0, float(intensity))
     zoom = 1.0
     if _effect_on(effects, "tunnel_zoom"):
@@ -2058,10 +2115,13 @@ def render_text_art_frame(
     fps: int = 24,
     chunky_blocks: bool = False,
     dither_mode: str = "None",
+    glyph_masks: dict[str, Image.Image] | None = None,
+    timing: _FrameTimingDetail | None = None,
 ) -> Image.Image:
     effects = effects or {}
     intensity = max(0.0, float(intensity))
     rng = random.Random((frame_index + 1) * 7919)
+    prepare_started = time.perf_counter()
     resample = Image.Resampling.BOX if chunky_blocks else Image.Resampling.BICUBIC
     sample = Image.fromarray(frame_rgb).resize((layout.cols, layout.rows), resample)
 
@@ -2079,6 +2139,8 @@ def render_text_art_frame(
         + pixels[:, :, 2].astype(np.float32) * 0.0722
     ) / 255.0
     luma = _apply_dither_mode(luma, dither_mode, frame_index)
+    if timing is not None:
+        timing.text_prepare_seconds += max(0.0, time.perf_counter() - prepare_started)
 
     image = Image.new("RGB", output_size, tuple(preset["background"]))
     draw = ImageDraw.Draw(image)
@@ -2091,6 +2153,7 @@ def render_text_art_frame(
     if _effect_on(effects, "char_noise"):
         noise += 0.035 * intensity
 
+    draw_started = time.perf_counter()
     for row in range(layout.rows):
         row_shift = rng.randint(-row_jitter, row_jitter) if row_jitter else 0
         for col in range(layout.cols):
@@ -2112,9 +2175,21 @@ def render_text_art_frame(
                 effects,
                 intensity,
             )
-            draw.text((x, y), character, font=layout.font, fill=color)
+            mask = glyph_masks.get(character) if glyph_masks is not None else None
+            if mask is not None:
+                draw.bitmap((x, y), mask, fill=color)
+            else:
+                if glyph_masks is None:
+                    draw.text((x, y), character, font=layout.font, fill=color)
 
-    return _apply_ansi_output_effects(image, preset, frame_index, rng, layout, effects, intensity, fps)
+    if timing is not None:
+        timing.image_draw_text_seconds += max(0.0, time.perf_counter() - draw_started)
+
+    output_effect_started = time.perf_counter()
+    image = _apply_ansi_output_effects(image, preset, frame_index, rng, layout, effects, intensity, fps)
+    if timing is not None:
+        timing.ansi_output_effect_seconds += max(0.0, time.perf_counter() - output_effect_started)
+    return image
 
 
 def fit_frame_to_output(

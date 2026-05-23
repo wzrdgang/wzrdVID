@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Improved desktop Glitch Hell/ASCII text render performance by caching per-render glyph masks before drawing ANSI frames. This preserves ASCII text-art pixels while avoiding repeated glyph rasterization in `ImageDraw.text`.
+- Added more detailed desktop renderer timing logs for still/proxy loading, HEIC motion frame generation, resize/framing, ANSI prep effects, text sampling, glyph drawing, ANSI output effects, transitions/effects/endings, and frame-pipe writes.
+
 ## v0.2.1 — 2026-05-14
 
 - Fixed a desktop PUBLIC ACCESS preview/render crash that could occur with JPEG stills and ANSI output effects when image arrays were read-only. This patch keeps v0.2.0 behavior intact and only hardens the desktop render effect path.
