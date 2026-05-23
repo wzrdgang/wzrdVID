@@ -17,6 +17,23 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Apple Lite refined screenshot baseline approval
+
+- Agent/task: Codex / approve the refined WZRD.VID Lite dry-run screenshot candidate set and record docs-only evidence.
+- Intent: Docs-only approval record. Preserve desktop renderer behavior, Lite runtime, Apple Lite source/runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, release assets, and screenshot files.
+- Files changed this pass: `docs/APPLE_LITE_APP_ASSET_PLAN.md`, `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/agent-log.md`.
+- Behavior changed: No. No runtime, signing, Bundle ID, App Store Connect, release, GitHub Pages config, source, or screenshot file changed.
+- Git state: started clean on `main...origin/main [ahead 6]` with expected local commits `3f85f0c`, `615394d`, `db9a570`, `52bc52c`, `3f161dc`, and `e7b9fdc`.
+- Approved dry-run baseline: `/tmp/wzrdvid-lite-appstore-screenshots-20260522/refined-candidates/`.
+- Approved files: iPhone `01-launch-import.png`, `02-selected-media.png`, `03-render-settings.png`, `04-rendering.png`, `05-render-complete.png`, and `06-saved-video-alert.png`; iPad `01-launch-import.png`, `02-selected-media-and-settings.png`, `04-rendering.png`, `05-render-complete.png`, and `06-saved-video-alert.png`.
+- Approval decision: the refined candidate set is visually approved as the near-final simulator composition baseline. It is still dry-run evidence only, not final App Store screenshot assets.
+- Exclusions: the diagnostic/private-UI `iphone-17-pro-max/03-media-picker-selection-blocked.png`, stale/partial `iphone-17-pro-max/02-render-settings.png`, and duplicate/stale iPad render-settings captures remain excluded from the approved baseline.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; `git log --oneline origin/main..HEAD`; refined screenshot directory/file checks; `sips` dimension checks; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: all expected refined candidate files were present; iPhone candidates are `1320 x 2868`; iPad candidates are `2064 x 2752`; JavaScript syntax checks passed; Python compile checks passed; Info.plist lint passed; unstaged and staged diff whitespace checks passed.
+- Checks failed: None.
+- Known gaps: Final App Store screenshots still require AMPYX signing, production Bundle ID, final signed build identity, final screenshot approval, App Store Connect record, privacy manifest/archive validation, and physical-device rerun. No screenshot files are committed.
+- Next recommended prompt: Prepare AMPYX Apple Developer signing and production Bundle ID setup for WZRD.VID Lite without changing runtime behavior or submitting to App Store Connect.
+
 ## 2026-05-22 - Apple Lite manual App Store screenshot dry-runs
 
 - Agent/task: Codex / manually complete WZRD.VID Lite media selection, render, Download, and Photos-save screenshot capture on `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)` simulators.

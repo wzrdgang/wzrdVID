@@ -235,11 +235,43 @@ Current usability:
 - Treat them as dry-run only for App Store submission until the AMPYX Team ID, production Bundle ID, final signed build, and final screenshot approval are complete.
 - The simulator files remain outside git. Do not commit `/tmp` screenshots unless a later prompt explicitly approves a screenshot asset package.
 
+## Refined Dry-Run Baseline Approval
+
+Baseline path:
+
+`/tmp/wzrdvid-lite-appstore-screenshots-20260522/refined-candidates/`
+
+Approval summary:
+
+- The refined candidate set is visually approved as the near-final simulator composition baseline.
+- The baseline remains dry-run evidence only, not final App Store screenshot assets.
+- Final App Store screenshots still need AMPYX signing, the production Bundle ID, final signed build identity, and final screenshot approval.
+- The refined iPhone render-settings shot shows Random Clip Assembly enabled.
+- The refined iPhone rendering, completed render, and saved-video states show more of the preview/output area.
+- Stale or diagnostic screenshots remain excluded from the baseline, especially `iphone-17-pro-max/03-media-picker-selection-blocked.png`, older partial `iphone-17-pro-max/02-render-settings.png`, and duplicate/stale iPad render-settings captures.
+
+Approved iPhone 17 Pro Max dry-run baseline:
+
+- `iphone-17-pro-max/01-launch-import.png`
+- `iphone-17-pro-max/02-selected-media.png`
+- `iphone-17-pro-max/03-render-settings.png`
+- `iphone-17-pro-max/04-rendering.png`
+- `iphone-17-pro-max/05-render-complete.png`
+- `iphone-17-pro-max/06-saved-video-alert.png`
+
+Approved iPad Pro 13-inch (M5) dry-run baseline:
+
+- `ipad-pro-13-m5/01-launch-import.png`
+- `ipad-pro-13-m5/02-selected-media-and-settings.png`
+- `ipad-pro-13-m5/04-rendering.png`
+- `ipad-pro-13-m5/05-render-complete.png`
+- `ipad-pro-13-m5/06-saved-video-alert.png`
+
 ## Can Proceed Before AMPYX Enrollment
 
 - Refine future icon revisions with temporary preview matrices before changing the committed AppIcon catalog.
 - Regenerate or refine clean sample media for screenshots under `/tmp`.
-- Refine dry-run simulator screenshots for layout and content only, using the existing app and generated sample media.
+- Preserve the approved refined dry-run screenshot baseline under `/tmp` as composition evidence, or regenerate an equivalent clean set if `/tmp` is cleared.
 - Keep validating the live support/privacy routes as App Store prep references.
 - Decide whether the empty `UILaunchScreen` dictionary is acceptable for first TestFlight or whether a minimal branded launch screen should be added later.
 
@@ -265,6 +297,6 @@ Current usability:
 ## Known Gaps
 
 - Apple Lite app icon assets are now generated and committed, but final archive/App Store Connect validation under AMPYX signing remains pending.
-- Manual simulator screenshot dry-runs now exist under `/tmp` only; no screenshot files are committed.
+- Manual simulator screenshot dry-runs now exist under `/tmp` only; the refined candidate baseline is visually approved as near-final simulator composition evidence, but no screenshot files are committed.
 - No launch screen asset was added.
 - No AMPYX signing, production Bundle ID, App Store Connect, TestFlight archive, release asset, GitHub Pages config, or runtime behavior changed.

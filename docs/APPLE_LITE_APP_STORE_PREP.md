@@ -226,7 +226,9 @@ Current prep-only sample media/workflow status:
 - Manual Simulator interaction captured dry-run screenshots under `/tmp/wzrdvid-lite-appstore-screenshots-20260522/` for both `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)`.
 - The screenshots show the updated `//wzrdVID Lite` / `Pocket Chaos Cuts` hero, selected sample media, render settings, rendering/progress, completed render/export, and the native `Saved Video` confirmation after tapping Download.
 - The native Photos-save confirmation worked on both simulators.
-- Treat the current screenshots as dry-run only until final AMPYX signing, production Bundle ID, final build identity, and final screenshot approval are complete.
+- The refined baseline under `/tmp/wzrdvid-lite-appstore-screenshots-20260522/refined-candidates/` is visually approved as the near-final simulator composition baseline.
+- Excluded stale or diagnostic captures remain outside the approved baseline, especially the iPhone media-picker/private-UI screenshot and older partial or duplicate render-settings screenshots.
+- Treat the current screenshots as dry-run only until final AMPYX signing, production Bundle ID, final signed build identity, and final screenshot approval are complete.
 - Do not add Lite runtime hooks or forced screenshot states for future screenshot refinements.
 
 - Launch/import screen: app open to bundled WZRD.VID Lite with Add Media visible.
@@ -261,6 +263,6 @@ Device-class checklist:
 - No archive, upload, TestFlight distribution, App Review submission, website deployment, release publication, signing change, or Bundle ID change was made for this prep pass.
 - Support and privacy page drafts exist under `docs/support/` and `docs/privacy/`; live `https://wzrdvid.com/support/` and `https://wzrdvid.com/privacy/` returned HTTP 200 on 2026-05-22, but final AMPYX LLC contact details and any legal review still need to be completed before App Store submission.
 - Apple Lite app icon/screenshot planning exists in `docs/APPLE_LITE_APP_ASSET_PLAN.md`; the AppIcon asset catalog is now committed, temporary screenshot sample media exists under `/tmp` only, and no final screenshot files or launch assets have been created or committed yet.
-- Manual simulator screenshot dry-runs now exist under `/tmp` only for iPhone 17 Pro Max and iPad Pro 13-inch (M5), including saved-video confirmation after Download. These are not committed and are still dry-run evidence rather than final App Store assets.
+- Manual simulator screenshot dry-runs now exist under `/tmp` only for iPhone 17 Pro Max and iPad Pro 13-inch (M5), including saved-video confirmation after Download. The refined candidate set is visually approved as near-final simulator composition evidence, but it is not committed and is still dry-run evidence rather than final App Store assets.
 - Privacy manifest requirements still need an archive/upload validation pass. No `PrivacyInfo.xcprivacy` file is present in the current Apple Lite source.
 - Physical-device testing should be rerun after AMPYX signing and the final production Bundle ID are configured.
