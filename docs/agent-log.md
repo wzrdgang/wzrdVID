@@ -17,6 +17,19 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-22 - Apple Lite screenshot hero tagline update
+
+- Agent/task: Codex / update WZRD.VID Lite hero copy before App Store screenshot capture.
+- Intent: Copy/localization only for the Lite/Apple Lite hero text used by screenshot capture. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, release assets, and unrelated files.
+- Files changed this pass: `docs/lite/index.html`, `docs/i18n.js`, `docs/agent-log.md`.
+- Behavior changed: No. Display copy changed only; render/import/export behavior, native bridge behavior, signing, Bundle ID, app icon, release metadata, and deployment config were not changed.
+- Copy decision: kept the hero kicker as `//wzrdVID Lite` and replaced the hero title/fallback plus localized `lite.title` and `lite.meta.title` values with `Pocket Chaos Cuts`.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; Lite hero/i18n/bundle-prep source inspections; `rg` checks for the old and new Lite title copy; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `python3 apple-lite/scripts/run_simulator_smoke.py`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: JavaScript syntax checks passed; Python compile checks passed; Apple Lite bundle prep passed; Apple Lite simulator smoke passed with MP4 export, Web Audio, native export bridge, native video/audio validation, and multi-source random coverage; unstaged and staged diff whitespace checks passed.
+- Checks failed: None.
+- Known gaps: The App Store screenshot dry-run still needs to be recaptured on `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)` after this hero copy update. Final AMPYX signing, production Bundle ID, App Store Connect record, privacy manifest/archive validation, physical-device screenshot pass, TestFlight archive/upload, and launch-screen decision remain pending.
+- Next recommended prompt: Capture WZRD.VID Lite App Store screenshot dry-runs on `iPhone 17 Pro Max` and `iPad Pro 13-inch (M5)` using the `/tmp` sample media workflow, keeping screenshots under `/tmp` and without changing runtime, signing, Bundle IDs, App Store Connect records, release assets, GitHub Pages config, or committed source files.
+
 ## 2026-05-22 - Apple Lite screenshot sample media and simulator capture workflow
 
 - Agent/task: Codex / prepare Apple Lite App Store screenshot sample media and simulator screenshot capture workflow.
