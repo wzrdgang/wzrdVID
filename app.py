@@ -25,7 +25,7 @@ from pathlib import Path
 from app_i18n import SUPPORTED_LANGUAGES, language_label, resolve_language, translate
 import cv2
 from PIL import Image
-from PySide6.QtCore import QThread, QTimer, QUrl, Signal, Qt
+from PySide6.QtCore import QFile, QThread, QTimer, QUrl, Signal, Qt
 from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -694,10 +694,78 @@ def copy_protected_heic_source_to_cache(source: str | Path, *, cache_dir: Path |
     source_path = Path(source).expanduser()
     target = internalized_heic_cache_path(source_path, cache_dir=cache_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
+    expected_size = _file_size_or_none(source_path)
+    if _cached_import_copy_is_valid(target, expected_size):
         return target
-    shutil.copy2(source_path, target)
+    if target.exists():
+        target.unlink(missing_ok=True)
+    last_error: OSError | None = None
+    for copy_method in (_copy_import_with_metadata, _copy_import_content_only, _copy_import_with_qfile):
+        temp_target = _temporary_import_copy_path(target)
+        try:
+            copy_method(source_path, temp_target)
+            _validate_import_copy_size(temp_target, expected_size)
+            os.replace(temp_target, target)
+            return target
+        except OSError as exc:
+            last_error = exc
+            temp_target.unlink(missing_ok=True)
+    if last_error is not None:
+        raise last_error
     return target
+
+
+def _cached_import_copy_is_valid(target: Path, expected_size: int | None) -> bool:
+    if not target.exists():
+        return False
+    try:
+        actual_size = target.stat().st_size
+    except OSError:
+        return False
+    if expected_size is None:
+        return actual_size > 0
+    return actual_size == expected_size
+
+
+def _file_size_or_none(path: Path) -> int | None:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
+
+
+def _temporary_import_copy_path(target: Path) -> Path:
+    handle, temp_name = tempfile.mkstemp(prefix=f".{target.stem}.", suffix=target.suffix, dir=target.parent)
+    os.close(handle)
+    temp_path = Path(temp_name)
+    temp_path.unlink(missing_ok=True)
+    return temp_path
+
+
+def _copy_import_with_metadata(source: Path, target: Path) -> None:
+    shutil.copy2(source, target)
+
+
+def _copy_import_content_only(source: Path, target: Path) -> None:
+    shutil.copyfile(source, target)
+
+
+def _copy_import_with_qfile(source: Path, target: Path) -> None:
+    source_file = QFile(str(source))
+    if not source_file.copy(str(target)):
+        detail = source_file.errorString()
+        raise OSError(detail or f"Qt could not copy {source.name}")
+
+
+def _validate_import_copy_size(target: Path, expected_size: int | None) -> None:
+    if expected_size is None:
+        return
+    actual_size = target.stat().st_size
+    if actual_size != expected_size:
+        raise OSError(
+            f"Copied protected HEIC/HEIF size mismatch for {target.name}: "
+            f"expected {expected_size} bytes, got {actual_size} bytes"
+        )
 
 
 def _safe_import_stem(stem: str) -> str:
@@ -2194,10 +2262,10 @@ class MainWindow(QMainWindow):
             if kind not in {"video", "photo"}:
                 skipped.append(Path(path).name or path)
                 continue
-            if Path(path).suffix.lower() in HEIC_EXTENSIONS:
-                heic_count += 1
             if self._append_timeline_item(path, kind):
                 added += 1
+                if Path(path).suffix.lower() in HEIC_EXTENSIONS:
+                    heic_count += 1
         if added:
             self._refresh_timeline_table()
             self.timeline_table.selectRow(start_index)
@@ -2260,7 +2328,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_photo_only", path=path))
                 return False
             original_source = source
-            source, display_name = self._maybe_internalize_protected_heic_source(source)
+            internalized_source = self._maybe_internalize_protected_heic_source(source)
+            if internalized_source is None:
+                return False
+            source, display_name = internalized_source
             try:
                 self._validate_photo_source(str(source))
             except ValueError as exc:
@@ -2295,17 +2366,20 @@ class MainWindow(QMainWindow):
             self._set_combo_text(self.audio_mode, AUDIO_SOURCE)
         return True
 
-    def _maybe_internalize_protected_heic_source(self, source: Path) -> tuple[Path, str]:
+    def _maybe_internalize_protected_heic_source(self, source: Path) -> tuple[Path, str] | None:
         if not is_likely_protected_heic_source(source):
             return source, ""
         try:
             cached = copy_protected_heic_source_to_cache(source)
-        except OSError as exc:
-            self.append_log(
-                "Could not copy protected HEIC/HEIF source into WZRD.VID media cache: "
-                f"{source.name} ({exc})"
+        except OSError:
+            message = (
+                f"Could not import {source.name} because macOS denied access to the "
+                "Messages/Photos attachment. Export or drag the image to Desktop/Pictures "
+                "first, then add that copy."
             )
-            return source, ""
+            self.append_log(message)
+            QMessageBox.warning(self, APP_NAME, message)
+            return None
         self.append_log(f"Copied protected HEIC/HEIF source into WZRD.VID media cache: {source.name}")
         return cached, source.name
 

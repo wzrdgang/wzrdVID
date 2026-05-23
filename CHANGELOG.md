@@ -6,6 +6,8 @@
 - Added more detailed desktop renderer timing logs for still/proxy loading, HEIC motion frame generation, resize/framing, ANSI prep effects, text sampling, glyph drawing, ANSI output effects, transitions/effects/endings, and frame-pipe writes.
 - Fixed desktop HEIC/HEIF render failure handling so macOS privacy/access-denied source errors fail during preflight with the exact file path and copy/export guidance instead of being mislabeled as missing HEIC support or retried through PNG staging.
 - Improved desktop HEIC/HEIF photo import from protected macOS Messages/Photos containers by copying readable protected sources into WZRD.VID's app-owned `ImportedMedia` cache while keeping the original filename visible in the timeline.
+- Changed protected HEIC/HEIF import copy failures to fail at import time instead of adding unreadable protected paths to the timeline, while leaving renderer preflight as fallback safety for recipes and older timelines.
+- Hardened protected HEIC/HEIF import caching with staged copies and content-only/Qt copy fallbacks so readable user-selected files can still import if metadata-preserving copy fails.
 
 ## v0.2.1 — 2026-05-14
 

@@ -17,6 +17,34 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Protected HEIC native access investigation
+
+- Agent/task: Codex follow-up to investigate whether desktop WZRD.VID can use Qt/macOS native file-dialog copy semantics, NSFileCoordinator, or security-scoped bookmarks to make user-selected protected HEIC/HEIF imports work more often.
+- Intent: Desktop protected HEIC/HEIF import/internalization only. Preserve current import rejection fallback, renderer preflight safety, Lite, Apple Lite, website, signing, release assets, Bundle IDs, and deployment config.
+- Research findings: Qt documents that `QFileDialog.getOpenFileNames()` uses the native file dialog on macOS, and PySide6 exposes `getOpenFileUrls()` but not `getOpenFileContent()`. Apple documents user-selected file access/security-scoped bookmarks as an App Sandbox entitlement model around `NSOpenPanel`/`NSSavePanel` and `startAccessingSecurityScopedResource()`. Current WZRD.VID packaging is ad-hoc signed with no sandbox/user-selected-file/bookmark entitlements, and the local Python environments do not include PyObjC `AppKit`, `Foundation`, or `objc`, so a real NSOpenPanel/NSFileCoordinator/security-scoped bookmark implementation would require a packaging/dependency/signing design outside this narrow desktop import task.
+- Local copy tests: On a chmod-denied synthetic HEIC, Python `Path.read_bytes`, `shutil.copy2`, `/bin/cp`, and Qt `QFile.copy` all failed or returned false; Qt did not bypass source access denial. This supports keeping the existing import rejection when the source data itself is inaccessible.
+- Files changed: `app.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes, narrowly. Protected HEIC/HEIF internalization now stages cache writes and tries `shutil.copy2`, content-only `shutil.copyfile`, and Qt `QFile.copy` before rejecting. This can recover cases where metadata-preserving copy fails but source bytes are readable. It still rejects import, adds no timeline item, and keeps renderer preflight as fallback when all copy methods fail.
+- Validation: Synthetic protected-path HEIC tests covered normal metadata-preserving copy, forced `copy2` failure with content-only fallback, forced Python copy failure with Qt fallback, unreadable source failure with no partial cache file left behind, readable protected import adding from `ImportedMedia`, and unreadable protected import rejecting with the exact guidance message.
+- Commands run: `git status --short --branch`; required repo docs reads; memory lookup; official Qt/Apple documentation research; local PySide/PyObjC capability checks; `build_app.sh` signing/entitlement inspection; denied-copy method probe for Python, Qt, and `/bin/cp`; `.venv/bin/python -m py_compile app.py`; synthetic protected-copy and offscreen import validation.
+- Checks passed: compile passed; staged copy fallbacks copied readable HEIC bytes correctly; failed copies left no partial cache artifacts; unreadable protected HEIC still rejected and did not add to the timeline.
+- Checks failed: None.
+- Known gaps: No real macOS Messages/Photos TCC-denied user-selected file was available, and no sandboxed/notarized build with user-selected-file/bookmark entitlements was created. Security-scoped bookmark support remains a future packaging/signing design, not a safe narrow patch here.
+- Next recommended prompt: Build a sandboxed/notarized macOS test harness with user-selected-file read entitlement and PyObjC/AppKit access, then compare NSOpenPanel URL copy, security-scoped bookmark resolution, and child ffmpeg access on real Messages/Photos HEIC selections.
+
+## 2026-05-23 - Protected HEIC import copy-failure rejection
+
+- Agent/task: Codex follow-up for protected HEIC/HEIF import UX.
+- Intent: Keep scope to desktop app import handling and prevent unreadable protected Messages/Photos HEIC paths from being added to the timeline when app-owned `ImportedMedia` copying fails.
+- Files changed: `app.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. Likely protected HEIC/HEIF imports that cannot be copied into `ImportedMedia` now fail at import time, log/show `Could not import IMG_3237.HEIC because macOS denied access to the Messages/Photos attachment. Export or drag the image to Desktop/Pictures first, then add that copy.`, return a skipped/failed import result, and continue importing other selected files. Renderer preflight remains fallback safety for recipes and older timelines.
+- Validation: Used synthetic normal HEIC/JPG/MP4 files plus simulated Messages-path HEIC files under `/tmp/wzrdvid-protected-import-ux`. Readable protected HEIC copied into `ImportedMedia` and added with the original display filename; unreadable protected HEIC did not add and produced the exact log/warning; a mixed batch added only the readable protected HEIC, normal HEIC, and normal JPG; normal HEIC/JPG/MP4 paths were unchanged; a tiny render smoke produced a valid MP4.
+- Commands run: `git status --short --branch`; targeted `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`, and `app.py` inspections; `.venv/bin/python -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; `git diff --check`; synthetic offscreen PySide import validation with readable/unreadable protected HEIC, normal HEIC, JPG, and MP4; tiny render smoke; `ffprobe` on the smoke output.
+- Checks passed: import-time failure did not add unreadable protected HEIC; batch import continued after the failed protected HEIC; readable protected HEIC internalization still worked; normal HEIC/JPG/MP4 import behavior stayed unchanged; tiny render output was H.264 160x90 at 2 fps.
+- Checks failed: None.
+- Known gaps: No real macOS Messages/Photos private container was available in this run, so denial was simulated with file permissions/path classification.
+- Next recommended prompt: Run a packaged-app GUI import smoke with one real Messages/Photos HEIC that is readable and one that macOS denies, confirming only the readable/cached item appears in the timeline.
+
 ## 2026-05-23 - Protected HEIC import internalization
 
 - Agent/task: Codex / make desktop HEIC/HEIF imports from likely macOS Messages/Photos protected paths render without manual copy/export when WZRD.VID can read the selected file.
