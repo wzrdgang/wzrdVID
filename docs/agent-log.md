@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Agent system audit P0 docs drift remediation
+
+- Agent/task: Codex / review the unexpected dirty `renderer.py` diff, then apply only the P0 docs-only remediation from `docs/agent-system-audit.md`.
+- Intent: Docs-only agent-system drift fix. Preserve app behavior and leave unrelated renderer/performance WIP untouched.
+- Files changed this pass: `AGENTS.md`, `docs/agent-impact-map.md`, `docs/agent-change-playbook.md`, `docs/agent-log.md`, `docs/agent-system-audit.md`.
+- Behavior changed: No. This pass only updates agent documentation and audit notes.
+- Dirty worktree finding: `renderer.py` was already dirty at the start of this task and contains intentional-looking Glitch Hell/ANSI render performance instrumentation and glyph-mask caching work. Companion dirty changes already existed in `CHANGELOG.md`, `docs/agent-impact-map.md`, and `docs/agent-log.md`. `renderer.py` and `CHANGELOG.md` were not edited, staged, reverted, or committed in this pass.
+- Docs remediation: added `still_cache.py` to the agent repo structure, high-risk guidance, impact-map module map, high-risk table, playbook inspect/check commands, and relevant syntax/static verification commands. Added `app_i18n.py` and `docs/i18n.js` to the check guidance where they were missing.
+- Commands run: required `git status --short --branch`; `git diff -- renderer.py`; `git diff --name-status`; dirty companion diff inspections; targeted `sed`/`rg` inspections; docs-only edits; `git diff --check`; targeted `rg` checks for `still_cache.py`, `StillCache`, `app_i18n.py`, `docs/i18n.js`, `P0 remediation applied`, and `renderer.py`; final `git diff --name-status`.
+- Checks passed: docs-only whitespace check passed; targeted `rg` coverage checks passed.
+- Checks failed: None.
+- Known gaps: Existing unrelated dirty renderer/performance WIP remains in the worktree. No runtime tests were run because this pass intentionally did not change app behavior.
+- Next recommended prompt: Review the existing `renderer.py`/`CHANGELOG.md` Glitch Hell performance WIP separately, then decide whether to finish, test, commit, or revert that unrelated renderer work.
+
 ## 2026-05-23 - Apple Lite AMPYX signing setup checklist
 
 - Agent/task: Codex / prepare AMPYX Apple Developer signing and production Bundle ID setup for WZRD.VID Lite without changing runtime behavior or submitting to App Store Connect.

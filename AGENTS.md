@@ -37,6 +37,7 @@ Product boundaries:
 - `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling, render worker threads, drag/drop and file picker wiring.
 - `app_i18n.py`: lightweight desktop UI localization resources and language fallback helpers.
 - `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, optimization handoff.
+- `still_cache.py`: still-image loading and HEIC/HEIF proxy caching under the app-managed `StillCache` directory.
 - `ffmpeg_utils.py`: ffmpeg/ffprobe discovery, probing, encoding, muxing, source audio building, audio mixing, optimization/transcode helpers.
 - `presets.py`: ANSI/chunky style presets and descriptions.
 - `theme.py`: PySide6 stylesheet and UI asset references.
@@ -83,6 +84,7 @@ Generated/build outputs that should not be edited directly:
 High-risk files/directories:
 
 - `renderer.py`: affects output timing, frame conversion, effects, audio planning, bypass logic, optimization path.
+- `still_cache.py`: affects still-image loading, HEIC/HEIF proxy generation, `StillCache` paths, cache keys, and cache cleanup targets.
 - `ffmpeg_utils.py`: affects ffmpeg command construction, audio muxing/mixing, file size optimization, path safety.
 - `app.py`: affects desktop UI, project settings, source timeline handling, render settings, worker threads.
 - `build_app.sh`: affects packaged macOS app, asset generation, Qt pruning, signing, bundle version and bundle identifier.
@@ -167,7 +169,8 @@ python3 apple-lite/scripts/run_simulator_smoke.py
 Syntax/static checks:
 
 ```bash
-python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
+python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
+node --check docs/i18n.js
 node --check docs/lite/app.js
 git diff --check
 ```

@@ -69,22 +69,22 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 ## 6. App Logic/State
 
-- Inspect first: `app.py`, `renderer.py`, `ffmpeg_utils.py`, project save/load code, settings defaults and migration behavior.
+- Inspect first: `app.py`, `app_i18n.py`, `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, project save/load code, settings defaults and migration behavior.
 - Searches to run: affected setting key, dataclass field, UI control name, project JSON serializer/deserializer.
 - Common mistakes to avoid: changing settings schema without backward handling, blocking the UI thread, losing paths with spaces, breaking audio/render sync.
-- High-risk files: `app.py`, `renderer.py`, `ffmpeg_utils.py`.
-- Required checks: `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke test for affected flow.
+- High-risk files: `app.py`, `app_i18n.py`, `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`.
+- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; focused smoke test for affected flow.
 - Update `AGENTS.md` when: new command/check is required for future agents.
 - Update `docs/agent-impact-map.md` when: state/data flow changes.
 - Update `docs/agent-log.md` after the task.
 
 ## 7. Video/Media Handling
 
-- Inspect first: `renderer.py`, `ffmpeg_utils.py`, `app.py` media import/preview code, relevant README docs.
-- Searches to run: `TimelineItem`, `RenderSettings`, `parse_timecode`, `has_audio_stream`, `mux_audio`, `build_timeline_audio`, `MediaRecorder` for Lite.
+- Inspect first: `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py` media import/preview code, `app_i18n.py` if visible media/status strings change, relevant README/docs.
+- Searches to run: `TimelineItem`, `RenderSettings`, `parse_timecode`, `has_audio_stream`, `mux_audio`, `build_timeline_audio`, `load_still_image`, `StillCache`, `MediaRecorder` for Lite.
 - Common mistakes to avoid: audio desync, unsupported image orientation, temp file leaks, final codec regression, path quoting bugs.
-- High-risk files: `renderer.py`, `ffmpeg_utils.py`, `app.py`, `docs/lite/app.js`.
-- Required checks: `py_compile`; tiny render or Lite render smoke; `ffprobe` final output if codec/audio changed; grep network APIs for Lite privacy changes.
+- High-risk files: `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py`, `docs/lite/app.js`, `docs/i18n.js`.
+- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tiny render, still/HEIC cache, or Lite render smoke as relevant; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI or copy changed; `ffprobe` final output if codec/audio changed; grep network APIs for Lite privacy changes.
 - Update `AGENTS.md` when: new media safety rules are discovered.
 - Update `docs/agent-impact-map.md` when: media pipeline modules/flows change.
 - Update `docs/agent-log.md` after the task.

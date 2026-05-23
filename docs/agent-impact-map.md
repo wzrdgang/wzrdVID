@@ -20,6 +20,14 @@ This map describes the current repository so future agents can edit with context
 - Outbound dependencies: OpenCV, Pillow, numpy, ffmpeg helpers, temporary frame directories, output MP4 files.
 - High-risk notes: Rendering touches timing, frame counts, max-length caps, random clip segment planning, still proxy cache behavior, temp cleanup, EXIF photo orientation, bypass intervals, transitions/endings, optimization, long-media warning logs, stage timing logs, experimental pipe fallback, and audio duration expectations. Run focused smoke tests after edits.
 
+### Still Image Cache
+
+- Owning files/directories: `still_cache.py`.
+- Purpose: Loads still images, handles EXIF transpose/RGB conversion, decodes HEIC/HEIF sources through ffmpeg, writes app-managed proxy PNGs under `StillCache`, and enumerates managed still-cache cleanup targets.
+- Inbound dependencies: `app.py` photo validation/preview/cache cleanup, `renderer.py` still timeline frame loading, source still files, optional `WZRDVID_STILL_CACHE_DIR`.
+- Outbound dependencies: Pillow, `ffmpeg_utils.extract_still_frame()`, platform user config/application-support paths, generated proxy PNGs under `StillCache`.
+- High-risk notes: Cache keys include resolved source path, size, mtime, and proxy size. Mistakes can cause stale proxies, repeated slow HEIC decodes, excessive cache growth, or unsafe cleanup target selection. Run syntax checks plus focused HEIC/still import, render, and cache cleanup smokes after edits.
+
 ### ffmpeg and Media Utilities
 
 - Owning files/directories: `ffmpeg_utils.py`.
@@ -191,6 +199,7 @@ This map describes the current repository so future agents can edit with context
 | `app.py` | Central desktop UI, settings, threading, timeline/audio bindings | Desktop app workflows, save/load, preview, render/batch | Keep edits scoped; verify affected controls and project JSON | `python3 -m py_compile app.py ...`; targeted GUI/source render smoke if behavior changed |
 | `app_i18n.py` | Desktop UI localization resources and fallback helpers | Visible desktop labels, language selector, local settings preference | Keep stable keys and English fallback; mark draft translations | `py_compile`; source GUI smoke if practical |
 | `renderer.py` | Core media timeline/render/effect engine | Preview/full render/batch outputs | Avoid broad timing/render rewrites; test representative media | `py_compile`; tiny render smoke; affected media tests |
+| `still_cache.py` | Still-image loading, HEIC/HEIF proxy caching, and managed still-cache cleanup targets | Photo preview/import, desktop render still frames, preview/cache cleanup | Preserve cache-key inputs and managed-directory boundaries; do not broaden cleanup outside app-owned `StillCache` | `python3 -m py_compile still_cache.py`; focused HEIC/still import/render/cache cleanup smoke |
 | `ffmpeg_utils.py` | ffmpeg discovery, probing, audio mix/mux, optimization | Audio output, final MP4 compatibility, file-size targets | Preserve subprocess list args and path safety | `py_compile`; ffprobe/ffmpeg smoke; AAC/H.264 verification if output changed |
 | `presets.py` | Style preset definitions consumed by UI/renderer | Preset dropdown and visual output | Additive changes are safer than renames/removals | `py_compile`; preview/tiny render with changed preset |
 | `theme.py` | Desktop visual identity and asset paths | Entire PySide6 UI styling | Keep controls readable; do not scatter one-off styles | `py_compile`; GUI screenshot/launch check for styling edits |
@@ -283,11 +292,11 @@ This map describes the current repository so future agents can edit with context
 | Change type | Minimum checks |
 | --- | --- |
 | Docs-only | `git status --short --branch`; `git diff --check`; targeted `rg` for required section names/stale terms |
-| Copy/style-only desktop | Docs-only checks; `python3 -m py_compile app.py renderer.py ffmpeg_utils.py presets.py theme.py run.py`; GUI launch/screenshot if practical |
-| Copy/style-only Pages/Lite | Docs-only checks; local static preview; `node --check docs/lite/app.js` if Lite JS touched |
+| Copy/style-only desktop | Docs-only checks; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; GUI launch/screenshot if practical |
+| Copy/style-only Pages/Lite | Docs-only checks; local static preview; `node --check docs/i18n.js`; `node --check docs/lite/app.js` if Lite JS touched |
 | Component UI | `py_compile`; targeted GUI smoke; save/load smoke if settings/project controls touched |
-| App logic/state | `py_compile`; focused render/preview/project smoke; check settings backward compatibility |
-| Video/media handling | `py_compile`; tiny render smoke with relevant media; ffprobe final codec/audio where output changed |
+| App logic/state | `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; focused render/preview/project smoke; check settings backward compatibility |
+| Video/media handling | `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tiny render or still/HEIC cache smoke with relevant media; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI changed; ffprobe final codec/audio where output changed |
 | Routing/navigation | local static preview from `docs/`; check relative links and `docs/CNAME` only if domain-related |
 | Asset/media | file-size check; path/reference check; README/site/app preview if asset is visible |
 | Dependency/package | install check in venv; `py_compile`; build/source-run smoke; packaging smoke if PyInstaller impact |
