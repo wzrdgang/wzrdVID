@@ -1,5 +1,37 @@
 # WZRD.VID Performance Notes
 
+## 2026-05-23 - Full Quality still proxy sizing audit
+
+- Goal: audit whether 1280x720 Full Quality still proxies can be reduced below the current `2x max(output_size)` cap without visible regression after the Glitch Hell glyph-cache fix.
+- Test media: generated synthetic landscape JPG (`3840x2160`), portrait JPG (`2400x3200`), and HEIC (`3200x2400`) under `/tmp/wzrdvid-full-quality-proxy-audit/media`. No media was committed.
+- Test settings: Glitch Hell, Full Quality `1280x720`, `24 fps`, `CRF 22`, full ANSI, silent audio, frame pipe transport, cold isolated still cache per cap. The audit monkeypatched `_still_proxy_max_dimension()` only inside the `/tmp` harness; repo defaults were not changed.
+
+| Proxy cap | Proxy sizes (landscape / portrait / HEIC) | Total render | Source/still | Resize/framing | HEIC motion |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Exact output max, `1280` | `1280x720` / `960x1280` / `1280x960` | 18.23s | 4.03s | 0.58s | 0.54s |
+| 1.25x, `1600` | `1600x900` / `1200x1600` / `1600x1200` | 20.62s | 4.40s | 1.58s | 0.81s |
+| 1.5x, `1920` | `1920x1080` / `1440x1920` / `1920x1440` | 20.87s | 4.58s | 1.89s | 1.04s |
+| Current 2x, `2560` | `2560x1440` / `1920x2560` / `2560x1920` | 21.80s | 5.48s | 2.71s | 1.81s |
+
+Representative frame comparison used current 2x output as the baseline and compared both framed source pixels and final Glitch Hell text-art pixels.
+
+| Source | Cap | Framed MAE / p95 / max | Final MAE / p95 / max | Final changed pixels |
+| --- | --- | ---: | ---: | ---: |
+| Landscape JPG | `1280` | 0.5246 / 2 / 23 | 0.4990 / 0 / 253 | 6.04% |
+| Landscape JPG | `1600` | 0.7415 / 3 / 35 | 0.4241 / 0 / 253 | 5.55% |
+| Landscape JPG | `1920` | 0.5726 / 3 / 29 | 0.3516 / 0 / 253 | 4.58% |
+| Portrait JPG | `1280` | 1.0435 / 5 / 82 | 0.4125 / 0 / 253 | 4.75% |
+| Portrait JPG | `1600` | 0.6292 / 3 / 69 | 0.3081 / 0 / 249 | 3.75% |
+| Portrait JPG | `1920` | 0.5017 / 2 / 38 | 0.2857 / 0 / 250 | 3.43% |
+| HEIC motion | `1280` | 4.7103 / 13 / 246 | 5.7221 / 30 / 253 | 30.93% |
+| HEIC motion | `1600` | 3.1315 / 8 / 197 | 4.3880 / 16 / 253 | 27.53% |
+| HEIC motion | `1920` | 2.1875 / 6 / 138 | 3.3017 / 7 / 253 | 23.66% |
+
+- Decision: do not change the default still proxy cap in this pass. The smaller caps materially reduce Full Quality still/framing cost, but the HEIC motion representative frame differences are not negligible. Even 1.5x changed 23.66% of final Glitch Hell pixels in the synthetic HEIC motion frame, and the framed-source differences remain visible enough to require broader quality review.
+- Guarded-setting decision: no new local setting was added in this pass. A lower proxy cap could be useful as an explicit speed-vs-detail option later, but it needs UI/settings copy, recipe/non-recipe scope decisions, and visual review across normal/bypass/PUBLIC ACCESS/ANSI outputs before it should ship.
+- Artifacts: summary JSON, logs, rendered MP4s, and representative frames are under `/tmp/wzrdvid-full-quality-proxy-audit/`.
+- Known gaps: synthetic stills are intentionally high-detail stress cases, not the user's private media. The audit did not run a full 3360-frame support timeline or human visual review in the app UI.
+
 ## 2026-05-12 - real Safari/WKWebView HEIC batch profile
 
 - Goal: use actual HEIC files to decide whether WZRD.VID Lite needs a memory-only per-session still proxy after the Lite HEIC import timing and Clear Project pass.

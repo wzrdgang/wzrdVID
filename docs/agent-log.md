@@ -17,6 +17,23 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Full Quality still proxy sizing audit
+
+- Agent/task: Codex / audit 1280x720 Full Quality still proxy sizing after the Glitch Hell glyph-cache fix.
+- Intent: Desktop renderer performance audit only. Preserve default behavior unless smaller proxy caps are visually negligible. Preserve Lite, Apple Lite, website, release assets, signing IDs, Bundle IDs, and deployment config.
+- Files changed this pass: `docs/PERFORMANCE_NOTES.md`, `docs/agent-log.md`. Existing dirty files from the prior glyph-cache pass remain dirty; concurrent agent-system docs changes were left in place and not reverted.
+- Behavior changed: No.
+- Test media: generated synthetic landscape JPG (`3840x2160`), portrait JPG (`2400x3200`), and HEIC (`3200x2400`) under `/tmp/wzrdvid-full-quality-proxy-audit/media`; no media was committed.
+- Timing matrix: exact output cap `1280` rendered in 18.23s with source/still 4.03s, resize/framing 0.58s, HEIC motion 0.54s. 1.25x cap `1600` rendered in 20.62s with source/still 4.40s, resize/framing 1.58s, HEIC motion 0.81s. 1.5x cap `1920` rendered in 20.87s with source/still 4.58s, resize/framing 1.89s, HEIC motion 1.04s. Current 2x cap `2560` rendered in 21.80s with source/still 5.48s, resize/framing 2.71s, HEIC motion 1.81s.
+- Visual comparison: current 2x was the baseline. Landscape and portrait final Glitch Hell differences were modest but nonzero. HEIC motion differences were nontrivial: exact cap final MAE 5.7221, p95 30, 30.93% changed pixels; 1.25x final MAE 4.3880, p95 16, 27.53% changed pixels; 1.5x final MAE 3.3017, p95 7, 23.66% changed pixels.
+- Decision: left `_still_proxy_max_dimension()` unchanged. Smaller caps reduce Full Quality still/framing cost, but the HEIC motion frame differences are not negligible enough to safely change defaults.
+- Guarded setting decision: no new local setting was added. A future speed-vs-detail proxy cap setting needs UI/settings copy, local-vs-recipe scope, and visual review across normal/bypass/PUBLIC ACCESS/ANSI outputs.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; render/still-cache inspections; synthetic media generation with `.venv/bin/python` and `magick`; Full Quality proxy-cap timing harness with isolated cold still caches; representative framed/final pixel comparison against current 2x; `docs/PERFORMANCE_NOTES.md` update.
+- Checks passed: proxy-cap audit completed for exact, 1.25x, 1.5x, and current 2x; representative frame artifacts and `summary.json` were written under `/tmp/wzrdvid-full-quality-proxy-audit/`.
+- Checks failed: None during the audit pass.
+- Known gaps: Did not run the user's exact private media, a full 3360-frame support timeline, or app-UI human visual review. Unrelated/concurrent `docs/agent-system-audit.md` work remains untouched by this audit.
+- Next recommended prompt: If desired, design a local-only Full Quality still proxy speed/detail setting and test it against normal, bypass, PUBLIC ACCESS, Glitch Hell, and HEIC motion outputs before shipping.
+
 ## 2026-05-23 - Agent system audit P0 docs drift remediation
 
 - Agent/task: Codex / review the unexpected dirty `renderer.py` diff, then apply only the P0 docs-only remediation from `docs/agent-system-audit.md`.
