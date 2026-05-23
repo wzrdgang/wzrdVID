@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - HEIC protected-path render preflight and pipe fallback fix
+
+- Agent/task: Codex / fix desktop render restart/failure when a HEIC source lives under macOS privacy-protected paths such as Messages attachments.
+- Intent: Desktop renderer failure handling only. Preserve Lite, Apple Lite, website, release assets, signing IDs, Bundle IDs, and deployment config.
+- Files changed this pass: `renderer.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`.
+- Behavior changed: Yes. HEIC/HEIF stills that require ffmpeg decode are preflighted before frame rendering, source media access/decode errors raise `SourceMediaError`, and frame-pipe fallback now only handles pipe/encode transport failures instead of retrying source decode failures through PNG staging.
+- Error handling: ffmpeg `Operation not permitted` or permission-denied HEIC failures now report the exact filename/path and tell the user to copy/export the file out of Messages/Photos or other protected storage, remove the old item, and re-add the copy. Bad/unsupported HEIC decode remains a separate HEIC support/decode message.
+- Validation media: generated synthetic HEIC/JPG files under temporary `wzrdvid-heic-validate-*` directories; no media was committed.
+- Commands run: required repo docs reads; `git status --short --branch`; targeted renderer/ffmpeg/still-cache inspections; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; synthetic HEIC/JPG generation with Pillow and `magick`; normal HEIC render smoke; unreadable chmod `000` HEIC render failure smoke; synthetic frame-pipe encode failure smoke; `ffprobe` checks for normal HEIC and PNG-fallback outputs.
+- Checks passed: normal HEIC rendered successfully through frame pipe with preflight and valid H.264/yuv420p 160x90/2fps output; unreadable HEIC failed during HEIC/HEIF preflight before frame rendering, pipe startup, or PNG fallback, with filename/path and copy/export guidance; synthetic pipe encode failure still fell back to PNG staging and produced valid H.264/yuv420p 160x90/2fps output; Python compile passed.
+- Checks failed: None.
+- Known gaps: Did not access the user's real Messages/Photos path or private media. The protected-path validation used chmod denial under a synthetic temp path.
+- Next recommended prompt: Run a packaged-app render smoke with a HEIC copied from Messages to a normal folder, then repeat with the original protected attachment path to confirm the GUI surfaces the new preflight message before frame rendering.
+
 ## 2026-05-23 - Full Quality still proxy sizing audit
 
 - Agent/task: Codex / audit 1280x720 Full Quality still proxy sizing after the Glitch Hell glyph-cache fix.

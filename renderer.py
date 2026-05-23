@@ -180,6 +180,14 @@ class RenderError(RuntimeError):
     """Raised when the ANSI render cannot be completed."""
 
 
+class SourceMediaError(RenderError):
+    """Raised when a source file cannot be opened or decoded."""
+
+
+class FramePipeTransportError(RenderError):
+    """Raised when the raw ffmpeg frame-pipe transport fails."""
+
+
 def build_bypass_intervals(
     duration: float,
     mode: str,
@@ -395,6 +403,8 @@ def render_project(
     else:
         _emit(log, "Bypass ANSI: full ANSI render.")
 
+    _preflight_ffmpeg_decoded_stills(timeline_segments, settings.output_size, log)
+
     preset = get_preset(settings.preset_name)
     if preset.get("profile") == "public_access_v1":
         _emit(log, "PUBLIC ACCESS renderer: camcorder dub, RF noise, tracking wear; ANSI coverage controls still apply.")
@@ -445,7 +455,7 @@ def render_project(
                     progress=progress,
                     log=log,
                 )
-            except Exception as exc:  # noqa: BLE001 - experimental transport must fall back cleanly.
+            except FramePipeTransportError as exc:
                 _emit(log, f"Frame pipe transport failed before audio muxing ({frame_pipe_reason}): {exc}")
                 _emit(log, "Falling back to PNG frame staging.")
                 try:
@@ -737,16 +747,29 @@ def _render_silent_video_with_pipe(
 
     _emit(log, "Frame pipe transport: streaming rendered frames directly to ffmpeg.")
     pipe_started = time.perf_counter()
-    ffmpeg_utils.encode_raw_rgb_frames_to_mp4(
-        stream_frames,
-        width,
-        height,
-        settings.fps,
-        silent_video,
-        log=log,
-        crf=settings.video_crf,
-        video_bitrate=target_bitrate,
-    )
+    try:
+        ffmpeg_utils.encode_raw_rgb_frames_to_mp4(
+            stream_frames,
+            width,
+            height,
+            settings.fps,
+            silent_video,
+            log=log,
+            crf=settings.video_crf,
+            video_bitrate=target_bitrate,
+        )
+    except Exception as exc:  # noqa: BLE001 - classify before optional PNG fallback.
+        source_error = _find_exception_in_chain(exc, SourceMediaError)
+        if source_error is not None:
+            if source_error is exc:
+                raise
+            raise source_error from exc
+        render_error = _find_exception_in_chain(exc, RenderError)
+        if render_error is not None:
+            if render_error is exc:
+                raise
+            raise render_error from exc
+        raise FramePipeTransportError(str(exc)) from exc
     elapsed = max(0.0, time.perf_counter() - pipe_started)
     throughput = frames_written / elapsed if elapsed > 0 else 0.0
     _emit(log, f"Frame pipe render/encode stage completed in {elapsed:.2f}s ({throughput:.2f} fps).")
@@ -756,6 +779,153 @@ def _render_silent_video_with_pipe(
 def _emit_elapsed(log: LogCallback, label: str, started_at: float) -> None:
     elapsed = max(0.0, time.perf_counter() - started_at)
     _emit(log, f"{label} completed in {elapsed:.2f}s.")
+
+
+def _iter_exception_chain(exc: BaseException) -> Iterable[BaseException]:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        yield current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+
+
+def _find_exception_in_chain(exc: BaseException, expected_type: type[BaseException]) -> BaseException | None:
+    for current in _iter_exception_chain(exc):
+        if isinstance(current, expected_type):
+            return current
+    return None
+
+
+def _exception_text(exc: BaseException) -> str:
+    parts: list[str] = []
+    for current in _iter_exception_chain(exc):
+        message = str(current).strip()
+        if message:
+            parts.append(message)
+        for attr in ("stderr", "stdout", "output"):
+            value = getattr(current, attr, None)
+            if not value:
+                continue
+            if isinstance(value, bytes):
+                value = value.decode(errors="replace")
+            value = str(value).strip()
+            if value:
+                parts.append(value)
+    deduped: list[str] = []
+    for part in parts:
+        if part not in deduped:
+            deduped.append(part)
+    return "\n".join(deduped)
+
+
+def _brief_exception_detail(exc: BaseException, *, limit: int = 700) -> str:
+    detail = _exception_text(exc).strip()
+    if len(detail) <= limit:
+        return detail
+    return detail[-limit:]
+
+
+def _is_access_denied_error(exc: BaseException) -> bool:
+    if any(isinstance(current, PermissionError) for current in _iter_exception_chain(exc)):
+        return True
+    text = _exception_text(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "operation not permitted",
+            "permission denied",
+            "errno 1",
+            "eacces",
+        )
+    )
+
+
+def _photo_source_error(path: str | Path, exc: BaseException) -> SourceMediaError:
+    source = Path(path).expanduser()
+    filename = source.name or str(source)
+    detail = _brief_exception_detail(exc)
+    suffix = source.suffix.lower()
+
+    if suffix in HEIC_EXTENSIONS:
+        if _is_access_denied_error(exc):
+            message = (
+                f"Cannot access HEIC/HEIF source before render: {filename}\n"
+                f"Path: {source}\n"
+                "macOS denied ffmpeg access to this file. If it is in Messages, Photos, "
+                "or another privacy-protected location, copy or export the file to a normal "
+                "folder such as Desktop or Pictures, remove the old item, and re-add that copy "
+                "in WZRD.VID."
+            )
+        else:
+            message = (
+                f"HEIC/HEIF image support is not available for this source: {filename}\n"
+                f"Path: {source}\n"
+                "ffmpeg could not decode this HEIC/HEIF file. Install or update ffmpeg, "
+                "or convert/export the photo to PNG/JPEG and add it again."
+            )
+    elif _is_access_denied_error(exc):
+        message = (
+            f"Cannot access photo source before render: {filename}\n"
+            f"Path: {source}\n"
+            "The file could not be opened. If it is in a privacy-protected location, copy or "
+            "export it to a normal folder, remove the old item, and re-add that copy in WZRD.VID."
+        )
+    else:
+        message = (
+            f"Could not decode photo source before render: {filename}\n"
+            f"Path: {source}\n"
+            "Convert/export the photo to PNG/JPEG and add it again."
+        )
+
+    if detail:
+        message = f"{message}\nDetails: {detail}"
+    return SourceMediaError(message)
+
+
+def _video_source_error(path: str | Path, message: str) -> SourceMediaError:
+    source = Path(path).expanduser()
+    filename = source.name or str(source)
+    return SourceMediaError(
+        f"Could not read video source before render: {filename}\n"
+        f"Path: {source}\n"
+        f"{message}"
+    )
+
+
+def _requires_ffmpeg_still_decode(path: str | Path) -> bool:
+    return still_cache.is_heic_path(path)
+
+
+def _preflight_ffmpeg_decoded_stills(
+    timeline_segments: list[TimelineSegment],
+    output_size: tuple[int, int],
+    log: LogCallback,
+) -> None:
+    paths: list[str] = []
+    seen: set[str] = set()
+    for segment in timeline_segments:
+        if segment.kind != "photo" or not _requires_ffmpeg_still_decode(segment.path):
+            continue
+        path = str(Path(segment.path).expanduser())
+        if path in seen:
+            continue
+        seen.add(path)
+        paths.append(path)
+
+    if not paths:
+        return
+
+    _emit(log, f"Preflight: validating {len(paths)} HEIC/HEIF still source(s) before frame render.")
+    started = time.perf_counter()
+    max_dimension = _still_proxy_max_dimension(output_size)
+    for path in paths:
+        try:
+            still = still_cache.load_still_image(path, max_dimension=max_dimension, log=log)
+            still.image.load()
+        except Exception as exc:  # noqa: BLE001 - normalize source decode/access failures.
+            raise _photo_source_error(path, exc) from exc
+    _emit_elapsed(log, "HEIC/HEIF still preflight", started)
 
 
 def _emit_long_media_warnings(
@@ -1135,9 +1305,7 @@ def _check_photo_readable(path: str) -> None:
     try:
         _load_photo_image(path, max_dimension=1024).load()
     except Exception as exc:  # noqa: BLE001 - Pillow support varies by local install.
-        if Path(path).suffix.lower() in HEIC_EXTENSIONS:
-            raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
-        raise RenderError(f"Could not read photo source {path}: {exc}") from exc
+        raise _photo_source_error(path, exc) from exc
 
 
 def _load_photo_image(path: str, *, max_dimension: int | None = None, log: LogCallback = None) -> Image.Image:
@@ -1184,7 +1352,7 @@ class _TimelineFrameSource:
         if capture is None:
             capture = cv2.VideoCapture(segment.path)
             if not capture.isOpened():
-                raise RenderError(f"OpenCV could not open video: {segment.path}")
+                raise _video_source_error(segment.path, "OpenCV could not open this video file.")
             self.captures[segment.path] = capture
 
         source_t = segment.source_start + local_t
@@ -1195,7 +1363,7 @@ class _TimelineFrameSource:
         if not ok:
             last_frame = self.last_frames.get(segment.path)
             if last_frame is None:
-                raise RenderError(f"Could not read {segment.path} at {source_t:.3f}s.")
+                raise _video_source_error(segment.path, f"OpenCV could not decode a frame at {source_t:.3f}s.")
             frame_bgr = last_frame
         else:
             self.last_frames[segment.path] = frame_bgr
@@ -1212,9 +1380,7 @@ class _TimelineFrameSource:
                     log=self.log,
                 )
             except Exception as exc:  # noqa: BLE001
-                if Path(path).suffix.lower() in HEIC_EXTENSIONS:
-                    raise RenderError("HEIC/HEIF image support is not available in this install. Install or update ffmpeg, or convert the photo to PNG/JPEG and add it again.") from exc
-                raise RenderError(f"Could not load photo source {path}: {exc}") from exc
+                raise _photo_source_error(path, exc) from exc
             is_heic = Path(path).suffix.lower() in HEIC_EXTENSIONS
             record = _PhotoFrameRecord(
                 image=still.image,
