@@ -17,6 +17,24 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Apple Lite AMPYX signing setup checklist
+
+- Agent/task: Codex / prepare AMPYX Apple Developer signing and production Bundle ID setup for WZRD.VID Lite without changing runtime behavior or submitting to App Store Connect.
+- Intent: Docs-only setup clarification. Preserve desktop renderer behavior, Lite runtime behavior, Apple Lite runtime behavior, signing IDs, Bundle IDs, App Store Connect records, App Store/DUNS account metadata, GitHub Releases, GitHub Pages config, release assets, screenshot files, and unrelated files.
+- Files changed this pass: `docs/APPLE_LITE_APP_STORE_PREP.md`, `docs/APPLE_LITE_APP_RESEARCH.md`, `docs/APPLE_LITE_DEVICE_TEST_LOG.md`, `docs/agent-log.md`.
+- Behavior changed: No. No Xcode project setting, signing ID, Bundle ID, team ID, Info.plist value, runtime source, release asset, GitHub Pages config, or Apple account metadata changed.
+- Git state: started clean with `main` and `origin/main` aligned at `e25206e`.
+- Current project identity evidence: native target `WZRDVIDLite`, display name `WZRD.VID Lite`, `PRODUCT_BUNDLE_IDENTIFIER = com.samhowell.wzrdvid.lite`, `DEVELOPMENT_TEAM = JKSWZ8682X`, `CODE_SIGN_STYLE = Automatic`, `PRODUCT_NAME = WZRDVIDLite`, `MARKETING_VERSION = 0.2.0`, `CURRENT_PROJECT_VERSION = 1`, `TARGETED_DEVICE_FAMILY = "1,2"`, and `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`.
+- Current plist evidence: `CFBundleIdentifier = $(PRODUCT_BUNDLE_IDENTIFIER)`, `CFBundleDisplayName = WZRD.VID Lite`, `NSPhotoLibraryUsageDescription` explains local media selection/no upload, `NSPhotoLibraryAddUsageDescription` explains saving rendered clips to Photos on Download, `ITSAppUsesNonExemptEncryption = false`, and `UILaunchScreen` remains an empty dictionary.
+- Production identity decision: keep `com.samhowell.wzrdvid.lite` as current local/dev evidence only. Preferred production Bundle ID candidate remains `com.worky.wzrdvid.lite`, unless Apple/account setup requires a different AMPYX-controlled reverse-DNS identity.
+- Docs update: added a step-by-step AMPYX Apple Developer/App Store Connect setup checklist covering final Team ID, Bundle ID registration, App Store Connect app record, SKU, category, support/privacy URLs, App Privacy, age rating, archive/TestFlight validation, and no external/App Review submission before final metadata and device retest are complete.
+- Cleanup: corrected stale docs that still described the Apple Lite app icon catalog as absent; the current AppIcon catalog exists but still needs final AMPYX signing/archive validation.
+- Commands run: required repo docs reads; memory lookup; `git status --short --branch`; one-off HTTPS/GitHub CLI credential-helper fetch to refresh `origin/main`; project/plist identity inspections with `rg`, `PlistBuddy`, and `find`; `node --check docs/lite/app.js`; `node --check docs/i18n.js`; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py presets.py theme.py run.py apple-lite/scripts/prepare_lite_web_bundle.py apple-lite/scripts/run_simulator_smoke.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; `git diff --check`; `git diff --cached --check`.
+- Checks passed: branch was clean and aligned at `e25206e` before edits; JavaScript syntax checks passed; Python compile checks passed; Info.plist lint passed; unstaged and staged diff whitespace checks passed.
+- Checks failed: None for required checks.
+- Known gaps: AMPYX Apple Developer enrollment, final AMPYX Team ID, production Bundle ID registration, App Store Connect app record, privacy manifest/archive validation, final signed build, physical-device rerun under AMPYX signing, final screenshot approval, and TestFlight upload remain pending.
+- Next recommended prompt: Complete AMPYX Apple Developer organization enrollment, then register the production Bundle ID candidate `com.worky.wzrdvid.lite` or the final AMPYX-controlled alternative without changing runtime behavior.
+
 ## 2026-05-23 - Apple Lite refined screenshot baseline approval
 
 - Agent/task: Codex / approve the refined WZRD.VID Lite dry-run screenshot candidate set and record docs-only evidence.

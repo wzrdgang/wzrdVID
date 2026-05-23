@@ -16,6 +16,8 @@ Current repo evidence:
 - Current project team setting: `DEVELOPMENT_TEAM = JKSWZ8682X`.
 - Current app version/build: `0.2.0` / `1`.
 - Current privacy usage strings: Photos read/select copy for local media import and Photos add-only copy for saving rendered clips.
+- Current signing style: automatic signing for Debug and Release.
+- Current app icon state: `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` with the committed Apple Lite `Assets.xcassets/AppIcon.appiconset`.
 - Current wrapper behavior: `WKWebView` loads bundled `LiteWeb` files, cancels non-local navigation, and uses a native export bridge to validate and save rendered clips to Photos.
 - Current automated status: bundle prep, simulator smoke, JavaScript syntax checks, Python compile checks, Info.plist lint, forbidden Lite API grep, and git diff whitespace checks passed on 2026-05-22.
 
@@ -26,7 +28,7 @@ Blockers before a real TestFlight path:
 - Apple Developer organization enrollment for AMPYX LLC still needs to be completed in Apple systems.
 - Decide and register the production Bundle ID under the Apple Developer organization team. The current `com.samhowell.wzrdvid.lite` identifier is local/dev evidence only; the preferred production candidate is `com.worky.wzrdvid.lite`, unless Apple/account setup later requires a different AMPYX-controlled reverse-DNS identity.
 - Confirm or replace the committed `DEVELOPMENT_TEAM = JKSWZ8682X` with the actual AMPYX organization Team ID in Xcode after enrollment.
-- Add production app icon assets and App Store marketing icon assets. No `Assets.xcassets` or app icon set is present in `apple-lite/` as of this audit.
+- Validate the committed Apple Lite `AppIcon.appiconset` under the final AMPYX signing/archive path. The icon catalog now exists, but final App Store Connect/archive validation has not run under AMPYX signing.
 - Decide whether the empty `UILaunchScreen` dictionary is sufficient for first TestFlight or whether a branded launch screen should be added before review.
 - Create and publish a privacy policy URL suitable for App Store Connect, then answer App Privacy with the current no-collection/no-tracking implementation if that remains true.
 - Recheck privacy manifest requirements during archive/upload validation. No `PrivacyInfo.xcprivacy` is present, and no required-reason API use was identified in the current Apple Lite source beyond temporary local file writes and Photos add-only access, but Xcode/App Store Connect validation is the authoritative check.
@@ -71,15 +73,17 @@ Do not try to ship the desktop renderer, bundled ffmpeg, or full desktop feature
 ## Implementation Checklist After D-U-N-S
 
 1. Finish Apple Developer organization enrollment and confirm legal seller name.
-2. Decide first platform target: iPhone/iPad first; macOS/Catalyst later only if the Lite shell tests well.
-3. Create Bundle ID and App Store Connect app record for `WZRD.VID Lite`.
-4. Build a SwiftUI `WKWebView` shell that loads bundled static Lite files, not the public website.
-5. Add native import/export bridges only if required for reliable local media access and output sharing.
-6. Verify the app runs without network access and that no analytics, accounts, backend calls, tracking SDKs, or remote config exist.
-7. Test local file import, 15/30/60 duration controls, random clip assembly, language switching, output generation, and export/share on real devices.
-8. Prepare privacy policy text that accurately describes local-only processing and any file permissions.
-9. Fill App Store Connect metadata, privacy details, age rating, screenshots, and accessibility support.
-10. Submit an internal TestFlight build before public review.
+2. Obtain the final AMPYX organization Team ID from Apple Developer account membership details.
+3. Decide first platform target: iPhone/iPad first; macOS/Catalyst later only if the Lite shell tests well.
+4. Register the preferred production Bundle ID candidate `com.worky.wzrdvid.lite`, unless Apple/account setup requires a different AMPYX-controlled reverse-DNS identity.
+5. Update Xcode signing only after registration: replace or confirm the final AMPYX Team ID, switch from the current local/dev Bundle ID to the registered production Bundle ID, and keep automatic signing unless distribution validation requires manual profiles.
+6. Create the App Store Connect app record for `WZRD.VID Lite` with primary language, registered Bundle ID, AMPYX-controlled SKU, category, support URL, and privacy policy URL.
+7. Verify the bundled SwiftUI `WKWebView` shell still loads local static Lite files, not the public website.
+8. Verify the app runs without network access and that no analytics, accounts, backend calls, tracking SDKs, or remote config exist.
+9. Test local file import, 15/30/60 duration controls, random clip assembly, language switching, output generation, and direct Photos save on real devices under AMPYX signing.
+10. Fill App Store Connect metadata, App Privacy, age rating, screenshots, and accessibility support using `docs/APPLE_LITE_APP_STORE_PREP.md` as the draft source.
+11. Run archive/TestFlight validation with the required current Apple SDK, including privacy manifest/archive warnings.
+12. Submit an internal TestFlight build before public review. Do not submit for external testing or App Review until final metadata, review notes, screenshots, support/privacy contact details, and physical-device retest are complete.
 
 ## Groundwork Added
 

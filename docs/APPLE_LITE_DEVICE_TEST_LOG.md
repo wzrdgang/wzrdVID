@@ -15,9 +15,11 @@ Current app identity/signing evidence:
 - Xcode project local/dev bundle identifier is `com.samhowell.wzrdvid.lite`; this is current repo evidence only, not the desired production identity.
 - Preferred production Bundle ID candidate is `com.worky.wzrdvid.lite`, unless Apple/account setup later requires a different AMPYX-controlled reverse-DNS identity.
 - Xcode project team setting is `DEVELOPMENT_TEAM = JKSWZ8682X`.
+- Xcode signing style is automatic for Debug and Release.
+- Xcode app icon setting is `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`; the Apple Lite `Assets.xcassets/AppIcon.appiconset` is now committed.
 - `Info.plist` includes `NSPhotoLibraryUsageDescription` and `NSPhotoLibraryAddUsageDescription`.
 - `Info.plist` includes `ITSAppUsesNonExemptEncryption = false`.
-- No `Assets.xcassets`, app icon set, launch storyboard, or `PrivacyInfo.xcprivacy` file is present under `apple-lite/`.
+- No launch storyboard or `PrivacyInfo.xcprivacy` file is present under `apple-lite/`.
 
 2026-05-22 automated checks:
 
@@ -29,8 +31,8 @@ Readiness decision:
 
 - Ready for Apple Developer organization enrollment prep: yes, outside the repo.
 - Ready for physical-device install: technically yes with a valid local development team/profile, based on prior physical-device pass; needs rerun under the final AMPYX team/profile after enrollment.
-- Ready for TestFlight archive/upload: not yet. Blockers are final AMPYX team signing, final registered production bundle ID decision, App Store Connect app record, app icon assets, privacy policy/App Privacy metadata, and archive/upload validation.
-- Ready for App Store Connect metadata preparation: yes, with local-only/no-upload/no-account/no-analytics positioning, but screenshots, app icon, category, age rating, privacy policy URL, support URL, review notes, and privacy responses still need to be produced.
+- Ready for TestFlight archive/upload: not yet. Blockers are final AMPYX team signing, final registered production bundle ID decision, App Store Connect app record, final validation of the committed AppIcon catalog under AMPYX signing, privacy policy/App Privacy metadata, and archive/upload validation.
+- Ready for App Store Connect metadata preparation: yes, with local-only/no-upload/no-account/no-analytics positioning, but final screenshots, AppIcon archive validation, category, age rating, privacy policy URL, support URL, review notes, and privacy responses still need to be completed.
 
 ## Current Device Availability
 
