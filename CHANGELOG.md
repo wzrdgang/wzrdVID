@@ -5,6 +5,7 @@
 - Improved desktop Glitch Hell/ASCII text render performance by caching per-render glyph masks before drawing ANSI frames. This preserves ASCII text-art pixels while avoiding repeated glyph rasterization in `ImageDraw.text`.
 - Added more detailed desktop renderer timing logs for still/proxy loading, HEIC motion frame generation, resize/framing, ANSI prep effects, text sampling, glyph drawing, ANSI output effects, transitions/effects/endings, and frame-pipe writes.
 - Fixed desktop HEIC/HEIF render failure handling so macOS privacy/access-denied source errors fail during preflight with the exact file path and copy/export guidance instead of being mislabeled as missing HEIC support or retried through PNG staging.
+- Improved desktop HEIC/HEIF photo import from protected macOS Messages/Photos containers by copying readable protected sources into WZRD.VID's app-owned `ImportedMedia` cache while keeping the original filename visible in the timeline.
 
 ## v0.2.1 — 2026-05-14
 

@@ -17,6 +17,20 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-05-23 - Protected HEIC import internalization
+
+- Agent/task: Codex / make desktop HEIC/HEIF imports from likely macOS Messages/Photos protected paths render without manual copy/export when WZRD.VID can read the selected file.
+- Intent: Desktop app/import/render/still-cache behavior only. Preserve Lite, Apple Lite, website, release assets, signing IDs, Bundle IDs, and GitHub Pages/deployment config.
+- Files changed this pass: `app.py`, `CHANGELOG.md`, `docs/agent-impact-map.md`, `docs/agent-log.md`. The renderer HEIC preflight/fallback change from the prior commit was reused and not further changed.
+- Behavior changed: Yes. On photo import, likely protected HEIC/HEIF paths from Messages/Photos containers are copied to app-owned `ImportedMedia` with a stable stem-plus-hash filename; the timeline stores the cached render path and preserves the original filename in `display_name`.
+- Cache/cleanup decision: `ImportedMedia` is not included in Clear Preview Cache or automatic cleanup. Recipes/settings can reference cached internalized paths; if a cached file is missing later, existing missing-media validation handles it.
+- Validation media: generated synthetic HEIC/JPG files under temporary `wzrdvid-heic-validate-*` and `wzrdvid-heic-app-validate-*` directories; no media was committed.
+- Commands run: required repo docs reads; `git status --short --branch`; targeted `app.py`/impact-map inspections; `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; synthetic media generation with Pillow and `magick`; offscreen PySide import smoke for normal HEIC, simulated Messages-path HEIC, and unreadable protected HEIC; tiny render smokes for normal HEIC, internalized protected HEIC, and forced frame-pipe fallback; `ffprobe` checks for render outputs.
+- Checks passed: normal HEIC import kept the original path; simulated Messages HEIC copied to `ImportedMedia`, kept display name `IMG_5713.HEIC`, showed the original filename in the timeline with a tooltip containing the cached render path, preserved cached path plus `display_name` through recipe JSON export/import, and rendered from the cached path; unreadable protected HEIC kept the original path for render preflight; preview/cache cleanup left `ImportedMedia` contents intact; tiny render outputs were valid H.264/yuv420p 160x90/2fps MP4s.
+- Checks failed: None.
+- Known gaps: Did not use real private Messages/Photos media. The protected-path success/failure validation used synthetic paths and chmod denial under a temporary directory.
+- Next recommended prompt: Run a packaged-app GUI import/render smoke with a real HEIC selected from Messages or Photos, confirming the timeline shows the original filename while the stored render path points to `ImportedMedia`.
+
 ## 2026-05-23 - HEIC protected-path render preflight and pipe fallback fix
 
 - Agent/task: Codex / fix desktop render restart/failure when a HEIC source lives under macOS privacy-protected paths such as Messages attachments.

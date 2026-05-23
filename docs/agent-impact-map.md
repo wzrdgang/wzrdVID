@@ -101,10 +101,10 @@ This map describes the current repository so future agents can edit with context
 
 - Entry point: Add Video(s), Add Photo(s), drag/drop onto timeline, recipe import or legacy project preset load.
 - UI/component path: `app.py` timeline widgets, `MediaDropTableWidget`, timeline item table columns, preview controls.
-- Data/state path: `TimelineItem` records path, kind, duration, trim, photo hold, `has_audio`, and `include_audio`; project JSON preserves timeline order and item settings.
-- Asset/media path: user selected videos/photos; photos are corrected for EXIF orientation through Pillow handling in the render/preview path.
-- Success behavior: Items append to timeline, durations are shown, video audio is detected, Include Audio defaults appropriately, preview updates. HEIC/HEIF stills can be selected from the normal media picker and defer full decode until preview/render, where cached app-managed still proxies are reused.
-- Failure/empty behavior: Unsupported media or probe/load failures are logged and shown as clear GUI errors.
+- Data/state path: `TimelineItem` records path, kind, duration, trim, photo hold, `has_audio`, and `include_audio`; project JSON preserves timeline order and item settings. Protected HEIC/HEIF imports may store an app-cache path plus a `display_name` that preserves the user's original filename.
+- Asset/media path: user selected videos/photos; readable HEIC/HEIF files from likely protected Messages/Photos containers are copied into app-owned `ImportedMedia`; photos are corrected for EXIF orientation through Pillow handling in the render/preview path.
+- Success behavior: Items append to timeline, durations are shown, video audio is detected, Include Audio defaults appropriately, preview updates. Normal HEIC/HEIF stills can be selected from the normal media picker and defer full decode until preview/render, where cached app-managed still proxies are reused. HEIC/HEIF stills from likely macOS protected Messages/Photos paths are internalized into `ImportedMedia` when WZRD.VID can read/copy them, while the timeline continues to show the original filename.
+- Failure/empty behavior: Unsupported media or probe/load failures are logged and shown as clear GUI errors. If protected HEIC/HEIF internalization cannot copy the selected file, the original path remains in the timeline and render preflight is expected to surface the protected-source guidance.
 - Files likely involved in changes: `app.py`, `renderer.py`, `ffmpeg_utils.py`.
 
 ### Desktop Audio Import, Source Audio, and Mixing
@@ -220,6 +220,7 @@ This map describes the current repository so future agents can edit with context
 - Desktop persistent settings: platform user config/application-support directory from `app.py` `_user_data_dir()`; includes `settings.json`.
 - Desktop previews: preview outputs are placed under a `Previews` folder next to the user-data/settings area.
 - Desktop still cache: HEIC/HEIF proxies are stored under a `StillCache` folder in the same WZRD.VID app-support/config area, keyed by source path, size, mtime, and proxy size. Manual Clear Preview Cache removes them; automatic cleanup removes old app-managed still cache files by age.
+- Desktop imported media cache: protected HEIC/HEIF imports that WZRD.VID can read are copied under `ImportedMedia` in the same app-support/config area using original stem plus a short source identity hash. Recipes may reference these cached paths. Current preview/cache cleanup does not delete `ImportedMedia`; do not add deletion without a separate safety design.
 - User recipes/project presets: user-selected JSON files; media paths are referenced, not embedded.
 - Desktop render temp files: `tempfile.TemporaryDirectory(prefix="wzrd_vid_render_")` and ffmpeg temp directories for optimization/audio work. The default renderer uses the frame-pipe transport and does not create a `frames/` PNG sequence. Legacy PNG staging can be forced with the local desktop developer setting or `WZRDVID_FORCE_PNG_STAGING=1`, and the renderer creates `frames/` if the default pipe path falls back before audio muxing.
 - Browser Lite data: local browser File objects, object URLs, Canvas, Web Audio, MediaRecorder blobs; no server storage and no upload path.

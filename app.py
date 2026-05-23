@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import os
 import platform
@@ -295,6 +296,7 @@ def _default_app_font() -> QFont:
 
 SETTINGS_PATH = _user_data_dir() / "settings.json"
 PREVIEW_DIR = SETTINGS_PATH.parent / "Previews"
+IMPORTED_MEDIA_DIR = SETTINGS_PATH.parent / "ImportedMedia"
 CACHE_CLEANUP_MAX_AGE_DAYS = 7
 CACHE_CLEANUP_MAX_AGE_SECONDS = CACHE_CLEANUP_MAX_AGE_DAYS * 24 * 60 * 60
 WZRD_TEMP_PREFIXES = (
@@ -615,6 +617,13 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".
 AUDIO_CONTAINER_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
+PROTECTED_HEIC_PATH_MARKERS = (
+    ("library", "messages", "attachments"),
+    ("library", "containers", "com.apple.photos"),
+    ("library", "containers", "com.apple.ichat"),
+    ("library", "containers", "com.apple.messages"),
+    ("library", "group containers", "group.com.apple.photos"),
+)
 BATCH_VARIANTS = [
     "29 MB Text Limit",
     "32 MB Sweet Spot",
@@ -660,6 +669,67 @@ def media_kind(path: str | Path) -> str | None:
 
 def has_audio_stream(path: str | Path) -> bool:
     return ffmpeg_utils.has_audio_stream(path)
+
+
+def is_likely_protected_heic_source(path: str | Path) -> bool:
+    source = Path(path).expanduser()
+    if source.suffix.lower() not in HEIC_EXTENSIONS:
+        return False
+    parts = tuple(part.lower() for part in source.parts)
+    if any(part.endswith(".photoslibrary") for part in parts):
+        return True
+    return any(_path_contains_sequence(parts, marker) for marker in PROTECTED_HEIC_PATH_MARKERS)
+
+
+def internalized_heic_cache_path(source: str | Path, *, cache_dir: Path | None = None) -> Path:
+    source_path = Path(source).expanduser()
+    suffix = source_path.suffix.lower() or ".heic"
+    stem = _safe_import_stem(source_path.stem)
+    digest = _source_identity_hash(source_path)
+    root = Path(cache_dir).expanduser() if cache_dir is not None else IMPORTED_MEDIA_DIR
+    return root / f"{stem}_{digest}{suffix}"
+
+
+def copy_protected_heic_source_to_cache(source: str | Path, *, cache_dir: Path | None = None) -> Path:
+    source_path = Path(source).expanduser()
+    target = internalized_heic_cache_path(source_path, cache_dir=cache_dir)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        return target
+    shutil.copy2(source_path, target)
+    return target
+
+
+def _safe_import_stem(stem: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-")
+    return (cleaned or "heic_source")[:80]
+
+
+def _source_identity_hash(source: Path) -> str:
+    try:
+        stat = source.stat()
+        size = stat.st_size
+        mtime_ns = stat.st_mtime_ns
+    except OSError:
+        size = 0
+        mtime_ns = 0
+    payload = "|".join(
+        (
+            str(source.expanduser().resolve(strict=False)),
+            str(mtime_ns),
+            str(size),
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8", errors="surrogateescape")).hexdigest()[:12]
+
+
+def _path_contains_sequence(parts: tuple[str, ...], marker: tuple[str, ...]) -> bool:
+    if not marker or len(parts) < len(marker):
+        return False
+    for index in range(0, len(parts) - len(marker) + 1):
+        if parts[index : index + len(marker)] == marker:
+            return True
+    return False
 
 
 def _drop_file_paths(event) -> list[str]:  # noqa: ANN001 - Qt event type varies by handler.
@@ -2149,13 +2219,13 @@ class MainWindow(QMainWindow):
             )
 
     def _append_timeline_item(self, path: str, kind: str) -> bool:
-        source = Path(path)
+        source = Path(path).expanduser()
         if not source.exists():
             self.append_log(f"Rejected missing source file: {path}")
             QMessageBox.warning(self, APP_NAME, self.tr("dialog.source_missing", path=path))
             return False
-        requested_kind = kind if kind in {"video", "photo"} else self._guess_source_kind(path, kind)
-        detected_kind = media_kind(path)
+        requested_kind = kind if kind in {"video", "photo"} else self._guess_source_kind(str(source), kind)
+        detected_kind = media_kind(source)
         if requested_kind == "video" and detected_kind != "video":
             self.append_log(f"Rejected non-video source: {source.name}")
             QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_video_only", path=path))
@@ -2168,13 +2238,14 @@ class MainWindow(QMainWindow):
         duration = 0.0
         has_audio = False
         include_audio = False
+        display_name = ""
         if kind == "video":
-            if not is_video_file(path):
+            if not is_video_file(source):
                 QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_video_only", path=path))
                 return False
             try:
-                duration = ffmpeg_utils.get_duration(path)
-                has_audio = has_audio_stream(path)
+                duration = ffmpeg_utils.get_duration(str(source))
+                has_audio = has_audio_stream(str(source))
                 include_audio = has_audio
                 audio_note = "audio on" if has_audio else "no audio"
                 self.append_log(
@@ -2185,38 +2256,58 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, APP_NAME, self.tr("dialog.probe_video_failed", error=exc))
                 return False
         else:
-            if not is_image_file(path):
+            if not is_image_file(source):
                 QMessageBox.warning(self, APP_NAME, self.tr("dialog.add_photo_only", path=path))
                 return False
+            original_source = source
+            source, display_name = self._maybe_internalize_protected_heic_source(source)
             try:
-                self._validate_photo_source(path)
+                self._validate_photo_source(str(source))
             except ValueError as exc:
-                self.append_log(f"Could not add photo {source.name}: {exc}")
+                self.append_log(f"Could not add photo {display_name or source.name}: {exc}")
                 QMessageBox.warning(self, APP_NAME, str(exc))
                 return False
             duration = 3.0
+            display_label = display_name or source.name
             if source.suffix.lower() in HEIC_EXTENSIONS:
                 self.append_log(
-                    f"Added HEIC/HEIF photo: {source.name} "
+                    f"Added HEIC/HEIF photo: {display_label} "
                     "(3.0s subtle motion loop, silent; decode cached on first preview/render)"
                 )
             else:
-                self.append_log(f"Added photo: {source.name} (3.0s hold, silent)")
-        self.timeline_items.append(
-            {
-                "path": str(source),
-                "kind": kind,
-                "duration": float(duration),
-                "trim_start": "0:00",
-                "trim_end": "auto",
-                "photo_hold_duration": "3.0",
-                "has_audio": bool(has_audio),
-                "include_audio": bool(include_audio),
-            }
-        )
+                self.append_log(f"Added photo: {display_label} (3.0s hold, silent)")
+            if source != original_source and not display_name:
+                display_name = original_source.name
+        item = {
+            "path": str(source),
+            "kind": kind,
+            "duration": float(duration),
+            "trim_start": "0:00",
+            "trim_end": "auto",
+            "photo_hold_duration": "3.0",
+            "has_audio": bool(has_audio),
+            "include_audio": bool(include_audio),
+        }
+        if display_name:
+            item["display_name"] = display_name
+        self.timeline_items.append(item)
         if include_audio and not self.audio_path.text().strip() and self.audio_mode.currentText() == AUDIO_SILENT:
             self._set_combo_text(self.audio_mode, AUDIO_SOURCE)
         return True
+
+    def _maybe_internalize_protected_heic_source(self, source: Path) -> tuple[Path, str]:
+        if not is_likely_protected_heic_source(source):
+            return source, ""
+        try:
+            cached = copy_protected_heic_source_to_cache(source)
+        except OSError as exc:
+            self.append_log(
+                "Could not copy protected HEIC/HEIF source into WZRD.VID media cache: "
+                f"{source.name} ({exc})"
+            )
+            return source, ""
+        self.append_log(f"Copied protected HEIC/HEIF source into WZRD.VID media cache: {source.name}")
+        return cached, source.name
 
     def _guess_source_kind(self, path: str, fallback: str = "video") -> str:
         kind = media_kind(path)
@@ -2251,8 +2342,12 @@ class MainWindow(QMainWindow):
             for row, item in enumerate(self.timeline_items):
                 path = str(item.get("path", ""))
                 kind = str(item.get("kind", "video"))
-                file_item = self._table_item(Path(path).name or path, editable=False)
-                file_item.setToolTip(path)
+                display_name = self._timeline_display_name(item)
+                file_item = self._table_item(display_name, editable=False)
+                tooltip = path
+                if display_name != (Path(path).name or path):
+                    tooltip = f"{display_name}\nRender path: {path}"
+                file_item.setToolTip(tooltip)
                 self.timeline_table.setItem(row, 0, file_item)
                 self.timeline_table.setItem(row, 1, self._table_item(self.tr(f"kind.{kind}"), editable=False))
                 self.timeline_table.setItem(row, 2, self._table_item(self._timeline_duration_text(item), editable=False))
@@ -2316,6 +2411,13 @@ class MainWindow(QMainWindow):
         item.setCheckState(Qt.CheckState.Checked if include_audio and has_audio else Qt.CheckState.Unchecked)
         return item
 
+    def _timeline_display_name(self, item: dict[str, object]) -> str:
+        display_name = str(item.get("display_name", "")).strip()
+        if display_name:
+            return display_name
+        path = str(item.get("path", ""))
+        return Path(path).name or path or "(unnamed)"
+
     def _timeline_table_item_changed(self, item: QTableWidgetItem) -> None:
         if self._timeline_table_updating:
             return
@@ -2376,7 +2478,8 @@ class MainWindow(QMainWindow):
     def _set_default_output_from_sources(self) -> None:
         first = self.timeline_items[0]
         source = Path(str(first.get("path", "wzrd")))
-        self.output_path.setText(str(source.with_name(f"{source.stem}_wzrd.mp4")))
+        display_stem = Path(self._timeline_display_name(first)).stem or source.stem or "wzrd"
+        self.output_path.setText(str(source.with_name(f"{display_stem}_wzrd.mp4")))
 
     def _selected_timeline_index(self) -> int | None:
         rows = self.timeline_table.selectionModel().selectedRows() if self.timeline_table.selectionModel() else []
@@ -2393,7 +2496,7 @@ class MainWindow(QMainWindow):
         self._refresh_timeline_table()
         if self.timeline_items:
             self.timeline_table.selectRow(min(index, len(self.timeline_items) - 1))
-        self.append_log(f"Removed source: {Path(str(removed.get('path', ''))).name}")
+        self.append_log(f"Removed source: {self._timeline_display_name(removed)}")
         self._after_timeline_changed()
 
     def move_selected_source(self, direction: int) -> None:
@@ -3889,7 +3992,7 @@ class MainWindow(QMainWindow):
         output_values = self._output_size_values()
         optimize_values = self._optimize_values()
         timeline_names = [
-            Path(str(item.get("path", ""))).name or "(unnamed)"
+            self._timeline_display_name(item)
             for item in self.timeline_items[:12]
         ]
         if len(self.timeline_items) > len(timeline_names):
@@ -4495,18 +4598,20 @@ class MainWindow(QMainWindow):
                         except Exception:  # noqa: BLE001
                             has_audio = False
                     include_audio = bool(raw.get("include_audio", has_audio)) and has_audio
-                items.append(
-                    {
-                        "path": path,
-                        "kind": kind,
-                        "duration": duration,
-                        "trim_start": str(raw.get("trim_start", "0:00")),
-                        "trim_end": str(raw.get("trim_end", "auto")),
-                        "photo_hold_duration": str(raw.get("photo_hold_duration", "3.0")),
-                        "has_audio": bool(has_audio),
-                        "include_audio": bool(include_audio),
-                    }
-                )
+                item = {
+                    "path": path,
+                    "kind": kind,
+                    "duration": duration,
+                    "trim_start": str(raw.get("trim_start", "0:00")),
+                    "trim_end": str(raw.get("trim_end", "auto")),
+                    "photo_hold_duration": str(raw.get("photo_hold_duration", "3.0")),
+                    "has_audio": bool(has_audio),
+                    "include_audio": bool(include_audio),
+                }
+                display_name = str(raw.get("display_name", "")).strip()
+                if display_name:
+                    item["display_name"] = display_name
+                items.append(item)
         if items:
             return items
 
