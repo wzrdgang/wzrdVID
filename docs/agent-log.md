@@ -17,6 +17,18 @@ Future agents must:
 
 Entries are reverse chronological: newest entry near the top.
 
+## 2026-06-02 - wzrdvid.com SEO metadata and crawl files
+
+- Agent/task: Codex / improve search discoverability for the public Pages site without changing visible copy, layout, or brand voice.
+- Intent: Homepage and Lite metadata only, plus sitemap/robots crawl files. Preserve all visible page text, routing, and product behavior.
+- Files changed this pass: `docs/index.html`, `docs/lite/index.html`, `docs/sitemap.xml`, `docs/robots.txt`, `docs/agent-log.md`.
+- Behavior changed: No visible UI/content change. Added canonical URLs, robots directives, Open Graph/Twitter metadata, and JSON-LD structured data for the homepage and Lite page, plus a root sitemap and robots.txt for GitHub Pages crawl readiness.
+- Validation: `git status --short --branch`; repo docs reads; HTML audit of `docs/index.html` and `docs/lite/index.html`; `git diff --check`; local static server checks for `/`, `/lite/`, `/robots.txt`, and `/sitemap.xml`; sitemap XML parse; JSON-LD parse.
+- Checks passed: homepage and Lite pages still present the same visible copy; crawl files are present at the site root; metadata updates stayed off the visible page surface.
+- Checks failed: None.
+- Known gaps: Search engines still need to recrawl the updated Pages site after deployment.
+- Next recommended prompt: Push the Pages changes, then verify the live `/robots.txt`, `/sitemap.xml`, and Search Console sitemap status after GitHub Pages updates.
+
 ## 2026-05-23 - Protected HEIC native access investigation
 
 - Agent/task: Codex follow-up to investigate whether desktop WZRD.VID can use Qt/macOS native file-dialog copy semantics, NSFileCoordinator, or security-scoped bookmarks to make user-selected protected HEIC/HEIF imports work more often.
