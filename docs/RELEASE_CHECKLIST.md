@@ -93,5 +93,19 @@ This records the locally prepared release candidate. It does not authorize or cl
 - [ ] Run the packaged-GUI test with suitable real Messages/Photos HEIC/HEIF media when available.
 - [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback when an iPhone is available.
 - [ ] Human-check Finder DMG presentation and the existing-app **Replace** dialog.
-- [ ] After publication, validate Gatekeeper behavior from a genuinely downloaded/quarantined DMG.
-- [ ] Commit, push, tag, create the GitHub Release, upload the exact artifacts, and update public download guidance only in a separately authorized publication phase.
+- [ ] Validate normal browser/Finder quarantine and first-launch behavior. Fresh command-line public downloads had provenance but no quarantine; `spctl` rejected the intentionally ad-hoc/unnotarized DMG/app, so this remains manual.
+- [x] Commit and push release source `7b2333fe0a7656e3e6058b56a9deb0b265199482`; tag `v0.3.0`; publish the GitHub Release; upload and fresh-download-verify the exact DMG/ZIP; update public guidance to DMG-primary with ZIP fallback.
+
+## v0.3.0 Publication Evidence — 2026-08-25
+
+- [x] `main` and `origin/main` contained release source commit `7b2333fe0a7656e3e6058b56a9deb0b265199482` before tagging.
+- [x] Lightweight tag `v0.3.0` resolves exactly to the release source commit locally and remotely.
+- [x] GitHub Release `WZRD.VID v0.3.0` is published, non-draft, and non-prerelease at https://github.com/wzrdgang/wzrdVID/releases/tag/v0.3.0.
+- [x] GitHub DMG asset ID `530032899`, 82,977,353 bytes, digest `sha256:67999c6a8533e61cbaef5b46c500c96794f8511a9545239a26836a31c22a021b`.
+- [x] GitHub ZIP asset ID `530032896`, 79,429,475 bytes, digest `sha256:f096b7c9364c526b44731b5ccccd46ee6aff6ccea2e6a83374562f81832f7e08`.
+- [x] Fresh public downloads matched both authoritative hashes; downloaded DMG/ZIP apps remained arm64, v0.3.0, ad-hoc/no-Team, strict-valid, link-clean, and matched the approved executable SHA/CDHash.
+- [x] A freshly downloaded ZIP app launched under an isolated profile with visible title `WZRD.VID v0.3.0`.
+- [ ] Real packaged-GUI Messages/Photos HEIC/HEIF remains manual.
+- [ ] Physical-iPhone Lite source-audio listening and saved-Photos playback remains manual and separate from the desktop release.
+- [ ] Human Finder DMG presentation and existing-app **Replace** wording remains manual.
+- [ ] Normal browser/Finder quarantine and Gatekeeper first-launch behavior remains manual; command-line public downloads did not receive `com.apple.quarantine`.
