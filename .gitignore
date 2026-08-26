@@ -22,6 +22,7 @@ build/
 
 # Release packages
 WZRD.VID-macOS.zip
+WZRD.VID-macOS.dmg
 
 # Render/output media
 *.mp4

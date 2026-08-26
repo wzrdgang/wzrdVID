@@ -7,6 +7,7 @@
   const LITE_PRESET_FPS_CAP = 30;
   const MIN_ANSI_CHUNK = 0.5;
   const MAX_ANSI_CHUNK = 3.0;
+  const SOURCE_AUDIO_RAMP_SECONDS = 0.018;
   const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'mts', 'm2ts', 'webm', 'mkv', 'avi']);
   const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'heif']);
   const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'aif', 'aiff']);
@@ -28,7 +29,17 @@
     renderedType: '',
     lastAudioMode: 'none',
     lastExportDiagnostics: null,
-    renderAbort: false
+    renderAbort: false,
+    activeRenderSession: null
+  };
+
+  const audioRuntime = {
+    context: null,
+    contextCount: 0,
+    mediaElementSources: new WeakMap(),
+    totalSourceNodes: 0,
+    activeControllers: 0,
+    activeConnections: 0
   };
 
   const elements = {
@@ -45,6 +56,7 @@
     ansiValue: document.getElementById('ansiValue'),
     duration: document.getElementById('durationSelect'),
     randomClip: document.getElementById('randomClipAssembly'),
+    includeSourceAudio: document.getElementById('includeSourceAudio'),
     quality: document.getElementById('qualitySelect'),
     renderButton: document.getElementById('renderButton'),
     downloadButton: document.getElementById('downloadButton'),
@@ -168,8 +180,80 @@
     hasRenderedClip: () => Boolean(state.renderedBlob && state.renderedFilename),
     audioMode: () => state.lastAudioMode,
     diagnostics: () => state.lastExportDiagnostics,
+    runtimeDiagnostics: () => audioRuntimeDiagnostics(),
     shareRenderedClip: shareRenderedClipWithNative
   };
+
+  window.WZRDVID_LITE_TEST = {
+    clearAddedAudio: () => {
+      if (!window.__WZRDVID_LITE_SMOKE_MODE) return false;
+      clearAddedAudio();
+      return true;
+    }
+  };
+
+  function audioRuntimeDiagnostics() {
+    return {
+      contextCount: audioRuntime.contextCount,
+      contextState: audioRuntime.context?.state || 'none',
+      totalSourceNodes: audioRuntime.totalSourceNodes,
+      activeControllers: audioRuntime.activeControllers,
+      activeConnections: audioRuntime.activeConnections,
+      activeRender: Boolean(state.activeRenderSession)
+    };
+  }
+
+  function requestSharedAudioContext() {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return { context: null, ready: Promise.resolve(false) };
+    if (!audioRuntime.context) {
+      try {
+        audioRuntime.context = new AudioContext();
+        audioRuntime.contextCount += 1;
+      } catch {
+        return { context: null, ready: Promise.resolve(false) };
+      }
+    }
+    const context = audioRuntime.context;
+    if (context.state === 'closed') return { context: null, ready: Promise.resolve(false) };
+    const ready = context.state === 'suspended'
+      ? context.resume().then(() => true).catch(() => false)
+      : Promise.resolve(true);
+    return { context, ready };
+  }
+
+  function cachedMediaElementSource(context, element) {
+    const cached = audioRuntime.mediaElementSources.get(element);
+    if (cached) return { node: cached.outlet, created: false };
+    const source = context.createMediaElementSource(element);
+    const outlet = context.createGain();
+    outlet.gain.value = 1;
+    source.connect(outlet);
+    audioRuntime.mediaElementSources.set(element, { source, outlet });
+    audioRuntime.totalSourceNodes += 1;
+    return { node: outlet, created: true };
+  }
+
+  function releaseMediaElementSource(element) {
+    const cached = element && audioRuntime.mediaElementSources.get(element);
+    if (!cached) return;
+    try { cached.source.disconnect(); } catch { /* source may already be detached */ }
+    try { cached.outlet.disconnect(); } catch { /* outlet may already be detached */ }
+    audioRuntime.mediaElementSources.delete(element);
+  }
+
+  function clearAddedAudio() {
+    if (!state.audio) return;
+    for (const element of [state.audio.audio, state.audio.mixElement]) {
+      if (!element) continue;
+      releaseMediaElementSource(element);
+      try { element.pause(); } catch { /* audio may already be stopped */ }
+      try { element.src = ''; } catch { /* ignore source cleanup failures */ }
+    }
+    if (state.audio.url) URL.revokeObjectURL(state.audio.url);
+    state.audio = null;
+    updateFileList();
+  }
 
   async function addMediaFiles(files) {
     const startedAt = performance.now();
@@ -221,11 +305,11 @@
       log(t('lite.log_audio_ignored', { name: file.name }));
       return;
     }
-    if (state.audio?.url) URL.revokeObjectURL(state.audio.url);
+    clearAddedAudio();
     const url = URL.createObjectURL(file);
     const audio = new Audio(url);
     audio.preload = 'metadata';
-    state.audio = { file, url, audio };
+    state.audio = { file, url, audio, mixElement: null, decodedContext: null, decodedBuffer: null, decodePromise: null };
     log(t('lite.log_audio_armed', { name: file.name }));
     updateFileList();
   }
@@ -267,22 +351,20 @@
 
   function clearProject() {
     state.renderAbort = true;
+    state.activeRenderSession?.abort?.();
     state.media.forEach((item) => {
+      releaseMediaElementSource(item.element);
       try { item.element?.pause?.(); } catch { /* media may already be stopped */ }
+      try { item.element.muted = true; } catch { /* images do not expose muted */ }
       try {
         if (item.element && 'src' in item.element) item.element.src = '';
       } catch { /* ignore source cleanup failures */ }
       if (item.url) URL.revokeObjectURL(item.url);
     });
-    if (state.audio) {
-      try { state.audio.audio?.pause?.(); } catch { /* audio may already be stopped */ }
-      if (state.audio.url) URL.revokeObjectURL(state.audio.url);
-    }
+    clearAddedAudio();
     revokeRenderedUrl();
     state.media = [];
-    state.audio = null;
     state.lastAudioMode = 'none';
-    state.renderAbort = false;
     if ('lastExportDiagnostics' in state) state.lastExportDiagnostics = null;
     if (elements.mediaInput) elements.mediaInput.value = '';
     if (elements.audioInput) elements.audioInput.value = '';
@@ -303,6 +385,33 @@
       }
       media.onloadedmetadata = () => resolve();
       media.onerror = () => reject(new Error('metadata failed'));
+    });
+  }
+
+  function waitForPlayable(media, timeoutMs = 1500, reload = false) {
+    return new Promise((resolve) => {
+      if (reload) {
+        try { media.load?.(); } catch { /* continue to the bounded readiness wait */ }
+      }
+      if (media.readyState >= 2) {
+        resolve(true);
+        return;
+      }
+      let settled = false;
+      const done = (ready) => {
+        if (settled) return;
+        settled = true;
+        media.removeEventListener('canplay', onReady);
+        media.removeEventListener('loadeddata', onReady);
+        media.removeEventListener('error', onError);
+        resolve(ready);
+      };
+      const onReady = () => done(true);
+      const onError = () => done(false);
+      media.addEventListener('canplay', onReady, { once: true });
+      media.addEventListener('loadeddata', onReady, { once: true });
+      media.addEventListener('error', onError, { once: true });
+      setTimeout(() => done(media.readyState >= 2), timeoutMs);
     });
   }
 
@@ -359,6 +468,10 @@
   }
 
   function selectedDuration() {
+    const smokeOverride = Number(window.__WZRDVID_LITE_SMOKE_DURATION_SECONDS);
+    if (window.__WZRDVID_LITE_SMOKE_MODE && Number.isFinite(smokeOverride) && smokeOverride > 0 && smokeOverride <= 60) {
+      return smokeOverride;
+    }
     const value = Number(elements.duration?.value || DEFAULT_DURATION);
     return [15, 30, 60].includes(value) ? value : DEFAULT_DURATION;
   }
@@ -574,6 +687,13 @@
       return;
     }
 
+    const includeSourceAudio = Boolean(elements.includeSourceAudio?.checked);
+    const sourceAudioRequested = includeSourceAudio && state.media.some((item) => item.kind === 'video');
+    const addedAudioCaptureStream = state.audio && (state.audio.audio.captureStream || state.audio.audio.mozCaptureStream);
+    const audioRequest = (sourceAudioRequested || (state.audio && !addedAudioCaptureStream))
+      ? requestSharedAudioContext()
+      : { context: null, ready: Promise.resolve(false) };
+
     revokeRenderedUrl();
     state.renderAbort = false;
     elements.renderButton.disabled = true;
@@ -592,122 +712,207 @@
     const expectedFrames = Math.max(1, Math.ceil(duration * fps));
     const mimeType = pickRecorderMimeType();
     const chunks = [];
-    await drawFrame(timeline, 0, duration, preset, ansiIntervals);
-    let canvasStream = elements.canvas.captureStream(0);
-    let videoTracks = canvasStream.getVideoTracks();
-    let manualCanvasFrames = typeof videoTracks[0]?.requestFrame === 'function';
-    if (!manualCanvasFrames) {
-      canvasStream.getTracks().forEach((track) => track.stop?.());
-      canvasStream = elements.canvas.captureStream(fps);
-      videoTracks = canvasStream.getVideoTracks();
-      manualCanvasFrames = false;
-    }
-    const requestCanvasFrame = () => {
-      if (manualCanvasFrames) videoTracks[0]?.requestFrame?.();
-    };
-    requestCanvasFrame();
-    const mixedStream = new MediaStream(videoTracks);
-    state.lastAudioMode = 'none';
-    const audioController = await prepareAudioStream(duration);
-    if (audioController?.track) mixedStream.addTrack(audioController.track);
-
-    const recorder = new MediaRecorder(mixedStream, mimeType ? { mimeType } : undefined);
-    let recorderStopped = false;
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size) chunks.push(event.data);
-    };
-    const stopped = new Promise((resolve) => {
-      recorder.onstop = () => {
-        recorderStopped = true;
-        resolve();
-      };
-    });
-    const stopRecorder = () => {
-      if (recorder.state !== 'inactive') {
-        try { recorder.stop(); } catch { /* recorder already stopped */ }
+    const renderSession = {
+      aborted: false,
+      audioController: null,
+      canvasStream: null,
+      recorder: null,
+      playback: null,
+      abort() {
+        this.aborted = true;
+        this.audioController?.stop?.();
+        void stopRenderPlayback(this.playback, true);
+        if (this.recorder?.state && this.recorder.state !== 'inactive') {
+          try { this.recorder.stop(); } catch { /* recorder already stopped */ }
+        }
+        this.canvasStream?.getTracks?.().forEach((track) => track.stop?.());
       }
     };
+    state.activeRenderSession = renderSession;
 
-    log(t('lite.log_render_armed', { seconds: duration.toFixed(0), ansi: ansiPercent, width: quality.width, height: quality.height, fps }));
-    log(t(randomizeTimeline ? 'lite.log_random_enabled' : 'lite.log_random_disabled'));
-    log(t('lite.log_timeline', { segments: timeline.length, intervals: ansiIntervals.length, seed: ansiSeed }));
-    log(mimeType.includes('mp4') ? t('lite.log_mp4') : t('lite.log_webm'));
-    setStatus(t('lite.status_rendering', { seconds: duration }));
-    setProgress(0);
-    const startedAt = performance.now();
-    const deadline = startedAt + duration * 1000;
-    const hardStop = window.setTimeout(stopRecorder, duration * 1000);
-    const renderPlayback = { segment: null, video: null };
+    let canvasStream = null;
+    let videoTracks = [];
+    let mixedStream = null;
+    let recorder = null;
+    let manualCanvasFrames = false;
+    let recorderStopped = false;
+    let hardStop = 0;
+    let startedAt = 0;
     let frameCount = 0;
-    recorder.start(250);
-    requestCanvasFrame();
-    await audioController?.start();
+    let audioDiagnostics = {};
+    const renderPlayback = { segment: null, video: null, audioController: null };
+    renderSession.playback = renderPlayback;
 
-    while (!state.renderAbort && !recorderStopped) {
-      const now = performance.now();
-      if (now >= deadline) break;
-      const elapsed = Math.max(0, Math.min(duration, (now - startedAt) / 1000));
-      await drawFrame(timeline, elapsed, duration, preset, ansiIntervals, renderPlayback);
+    try {
+      await drawFrame(timeline, 0, duration, preset, ansiIntervals);
+      canvasStream = elements.canvas.captureStream(0);
+      renderSession.canvasStream = canvasStream;
+      videoTracks = canvasStream.getVideoTracks();
+      manualCanvasFrames = typeof videoTracks[0]?.requestFrame === 'function';
+      if (!manualCanvasFrames) {
+        canvasStream.getTracks().forEach((track) => track.stop?.());
+        canvasStream = elements.canvas.captureStream(fps);
+        renderSession.canvasStream = canvasStream;
+        videoTracks = canvasStream.getVideoTracks();
+      }
+      const requestCanvasFrame = () => {
+        if (manualCanvasFrames) videoTracks[0]?.requestFrame?.();
+      };
       requestCanvasFrame();
-      frameCount += 1;
-      setProgress((elapsed / duration) * 100);
-      const nextFrameAt = startedAt + frameCount * (1000 / fps);
-      const wait = Math.min(1000 / fps, Math.max(0, nextFrameAt - performance.now()));
-      if (wait > 1) await sleep(wait);
+      mixedStream = new MediaStream(videoTracks);
+      state.lastAudioMode = 'none';
+      const audioController = await prepareAudioStream(duration, timeline, { includeSourceAudio, audioRequest });
+      renderSession.audioController = audioController;
+      renderPlayback.audioController = audioController;
+      if (audioController?.track) mixedStream.addTrack(audioController.track);
+      await audioController?.prepare?.();
+
+      recorder = new MediaRecorder(mixedStream, mimeType ? { mimeType } : undefined);
+      renderSession.recorder = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = () => {
+          recorderStopped = true;
+          resolve();
+        };
+      });
+      const stopRecorder = () => {
+        if (recorder.state !== 'inactive') {
+          try { recorder.stop(); } catch { /* recorder already stopped */ }
+        }
+      };
+
+      log(t('lite.log_render_armed', { seconds: duration.toFixed(1).replace('.0', ''), ansi: ansiPercent, width: quality.width, height: quality.height, fps }));
+      log(t(randomizeTimeline ? 'lite.log_random_enabled' : 'lite.log_random_disabled'));
+      log(t('lite.log_timeline', { segments: timeline.length, intervals: ansiIntervals.length, seed: ansiSeed }));
+      log(t('lite.log_source_audio_state', { state: includeSourceAudio ? 'ON' : 'OFF', mode: state.lastAudioMode }));
+      log(mimeType.includes('mp4') ? t('lite.log_mp4') : t('lite.log_webm'));
+      setStatus(t('lite.status_rendering', { seconds: duration }));
+      setProgress(0);
+      startedAt = performance.now();
+      const deadline = startedAt + duration * 1000;
+      hardStop = window.setTimeout(stopRecorder, duration * 1000);
+      recorder.start(250);
+      requestCanvasFrame();
+      await audioController?.start();
+
+      while (!state.renderAbort && !renderSession.aborted && !recorderStopped) {
+        const now = performance.now();
+        if (now >= deadline) break;
+        const elapsed = Math.max(0, Math.min(duration, (now - startedAt) / 1000));
+        await drawFrame(timeline, elapsed, duration, preset, ansiIntervals, renderPlayback);
+        requestCanvasFrame();
+        frameCount += 1;
+        setProgress((elapsed / duration) * 100);
+        const nextFrameAt = startedAt + frameCount * (1000 / fps);
+        const wait = Math.min(1000 / fps, Math.max(0, nextFrameAt - performance.now()));
+        if (wait > 1) await sleep(wait);
+      }
+
+      window.clearTimeout(hardStop);
+      stopRecorder();
+      await stopped;
+      await stopRenderPlayback(renderPlayback);
+      audioDiagnostics = audioController?.diagnostics?.() || {};
+      audioController?.stop();
+      canvasStream.getTracks().forEach((track) => track.stop?.());
+
+      if (renderSession.aborted || state.renderAbort) return;
+
+      setProgress(100);
+      const type = recorder.mimeType || mimeType || 'video/webm';
+      const blob = new Blob(chunks, { type });
+      const renderMs = Math.max(1, performance.now() - startedAt);
+      const effectiveFps = frameCount / (renderMs / 1000);
+      state.renderedType = type;
+      state.renderedBlob = blob;
+      state.renderedUrl = URL.createObjectURL(blob);
+      const extension = type.includes('mp4') ? 'mp4' : 'webm';
+      state.renderedFilename = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
+      const timelineMap = timeline.map((item) => ({
+        sourceName: item.source.file.name,
+        sourceKind: item.source.kind,
+        outputStart: Number(item.start.toFixed(3)),
+        outputEnd: Number((item.start + item.duration).toFixed(3)),
+        sourceStart: Number(item.sourceStart.toFixed(3)),
+        sourceEnd: Number((item.sourceStart + item.duration).toFixed(3))
+      }));
+      state.lastExportDiagnostics = {
+        mimeType,
+        recorderMimeType: recorder.mimeType || '',
+        blobType: blob.type || '',
+        blobSize: blob.size,
+        filename: state.renderedFilename,
+        videoTracks: videoTracks.length,
+        videoTrackReadyState: videoTracks[0]?.readyState || '',
+        canvasFrameMode: manualCanvasFrames ? 'manual' : 'interval',
+        audioTracks: mixedStream.getAudioTracks().length,
+        mixedOutputAudioTracks: mixedStream.getAudioTracks().length,
+        audioMode: state.lastAudioMode,
+        includeSourceAudio,
+        addedAudio: Boolean(state.audio),
+        selectedDuration: Number(elements.duration?.value || DEFAULT_DURATION),
+        renderDuration: duration,
+        targetFps: fps,
+        frames: frameCount,
+        expectedFrames,
+        effectiveFps: Number(effectiveFps.toFixed(2)),
+        timelineSegments: timeline.length,
+        timelineSources: new Set(timeline.map((item) => item.source.file.name)).size,
+        timelineSourceNames: Array.from(new Set(timeline.map((item) => item.source.file.name))),
+        timelineMap,
+        ...audioDiagnostics,
+        audioRuntime: audioRuntimeDiagnostics()
+      };
+      elements.downloadButton.href = state.renderedUrl;
+      elements.downloadButton.download = state.renderedFilename;
+      elements.downloadButton.textContent = t('lite.download_type', { type: extension.toUpperCase() });
+      elements.downloadButton.className = 'btn btn-primary';
+      elements.downloadButton.removeAttribute('aria-disabled');
+      setStatus(t('lite.status_complete', { seconds: duration, type: extension.toUpperCase() }));
+      log(t('lite.log_render_complete', {
+        seconds: duration,
+        frames: frameCount,
+        expected: expectedFrames,
+        size: (blob.size / 1024 / 1024).toFixed(2),
+        type: extension
+      }));
+    } catch (error) {
+      if (!renderSession.aborted && !state.renderAbort) {
+        log(t('lite.log_render_failed', { error: error?.message || String(error) }));
+        setStatus(t('lite.status_render_failed'));
+      }
+    } finally {
+      window.clearTimeout(hardStop);
+      await stopRenderPlayback(renderPlayback, true);
+      renderSession.audioController?.stop?.();
+      if (recorder?.state && recorder.state !== 'inactive') {
+        try { recorder.stop(); } catch { /* recorder already stopped */ }
+      }
+      canvasStream?.getTracks?.().forEach((track) => track.stop?.());
+      if (state.activeRenderSession === renderSession) state.activeRenderSession = null;
+      state.renderAbort = false;
+      elements.renderButton.disabled = false;
     }
-
-    window.clearTimeout(hardStop);
-    stopRecorder();
-    await stopped;
-    stopRenderPlayback(renderPlayback);
-    audioController?.stop();
-    canvasStream.getTracks().forEach((track) => track.stop?.());
-    setProgress(100);
-    elements.renderButton.disabled = false;
-
-    const type = recorder.mimeType || mimeType || 'video/webm';
-    const blob = new Blob(chunks, { type });
-    const renderMs = Math.max(1, performance.now() - startedAt);
-    const effectiveFps = frameCount / (renderMs / 1000);
-    state.renderedType = type;
-    state.renderedBlob = blob;
-    state.renderedUrl = URL.createObjectURL(blob);
-    const extension = type.includes('mp4') ? 'mp4' : 'webm';
-    state.renderedFilename = `wzrdvid-lite-${duration}s-${Date.now()}.${extension}`;
-    state.lastExportDiagnostics = {
-      mimeType,
-      recorderMimeType: recorder.mimeType || '',
-      blobType: blob.type || '',
-      blobSize: blob.size,
-      filename: state.renderedFilename,
-      videoTracks: videoTracks.length,
-      videoTrackReadyState: videoTracks[0]?.readyState || '',
-      canvasFrameMode: manualCanvasFrames ? 'manual' : 'interval',
-      audioTracks: mixedStream.getAudioTracks().length,
-      audioMode: state.lastAudioMode,
-      targetFps: fps,
-      frames: frameCount,
-      expectedFrames,
-      effectiveFps: Number(effectiveFps.toFixed(2)),
-      timelineSources: new Set(timeline.map((item) => item.source.file.name)).size,
-      timelineSourceNames: Array.from(new Set(timeline.map((item) => item.source.file.name)))
-    };
-    elements.downloadButton.href = state.renderedUrl;
-    elements.downloadButton.download = state.renderedFilename;
-    elements.downloadButton.textContent = t('lite.download_type', { type: extension.toUpperCase() });
-    elements.downloadButton.className = 'btn btn-primary';
-    elements.downloadButton.removeAttribute('aria-disabled');
-    setStatus(t('lite.status_complete', { seconds: duration, type: extension.toUpperCase() }));
-    log(t('lite.log_render_complete', {
-      seconds: duration,
-      frames: frameCount,
-      expected: expectedFrames,
-      size: (blob.size / 1024 / 1024).toFixed(2),
-      type: extension
-    }));
   }
 
-  async function prepareAudioStream(duration) {
+  async function prepareAudioStream(duration, timeline, options) {
+    const sourceVideos = Array.from(new Set(
+      timeline.filter((item) => item.source.kind === 'video').map((item) => item.source.element)
+    ));
+    const sourceRequested = Boolean(options.includeSourceAudio && sourceVideos.length);
+    if (sourceRequested) {
+      const ready = await options.audioRequest.ready;
+      if (ready && options.audioRequest.context) {
+        const addedAudioBuffer = state.audio ? await decodeAddedAudio(options.audioRequest.context) : null;
+        const controller = prepareSharedWebAudioController(duration, sourceVideos, options.audioRequest.context, true, addedAudioBuffer);
+        if (controller) return controller;
+      }
+      log(t('lite.log_source_audio_unavailable'));
+    }
+
     if (!state.audio) return null;
     const audio = state.audio.audio;
     const captureStream = audio.captureStream || audio.mozCaptureStream;
@@ -737,10 +942,14 @@
           audio.pause();
           audio.volume = 0.92;
         }
-      }, duration);
+      }, duration, { sourceAudioReady: false, sourceNodesCreated: 0, sourceSwitchCount: 0 });
     }
 
-    const webAudioController = prepareWebAudioController(duration);
+    const request = options.audioRequest.context ? options.audioRequest : requestSharedAudioContext();
+    const ready = await request.ready;
+    const webAudioController = ready && request.context
+      ? prepareSharedWebAudioController(duration, [], request.context, false, null)
+      : null;
     if (webAudioController) return webAudioController;
 
     state.lastAudioMode = 'unavailable';
@@ -748,76 +957,244 @@
     return null;
   }
 
-  function prepareWebAudioController(duration) {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!state.audio || !AudioContext) return null;
+  async function decodeAddedAudio(audioContext) {
+    if (!state.audio) return null;
+    if (state.audio.decodedContext === audioContext && state.audio.decodedBuffer) return state.audio.decodedBuffer;
+    if (state.audio.decodedContext === audioContext && state.audio.decodePromise) return state.audio.decodePromise;
+    const audioState = state.audio;
+    audioState.decodedContext = audioContext;
+    audioState.decodePromise = audioState.file.arrayBuffer()
+      .then((bytes) => audioContext.decodeAudioData(bytes.slice(0)))
+      .then((buffer) => {
+        if (state.audio === audioState) audioState.decodedBuffer = buffer;
+        return buffer;
+      })
+      .catch(() => null);
+    return audioState.decodePromise;
+  }
 
-    const audio = new Audio(state.audio.url);
-    audio.preload = 'auto';
-    audio.loop = true;
-    audio.volume = 1;
-    audio.muted = false;
-    audio.playsInline = true;
+  function prepareSharedWebAudioController(duration, sourceVideos, audioContext, sourceAudioRequested, addedAudioBuffer) {
+    if (!audioContext.createMediaElementSource || !audioContext.createMediaStreamDestination) return null;
 
-    let audioContext;
-    try {
-      audioContext = new AudioContext();
-    } catch {
-      return null;
-    }
-    if (!audioContext.createMediaElementSource || !audioContext.createMediaStreamDestination) {
-      audioContext.close?.();
-      return null;
-    }
-
-    let source;
-    let gain;
+    const connections = [];
+    const sourceEntries = new Map();
+    let sourceVideoNodesCreated = 0;
+    let addedAudioNodeCreated = false;
+    let sourceSwitchCount = 0;
+    let activeSource = null;
+    let stopped = false;
+    let fadeTimer = 0;
+    let fadeInterval = 0;
+    let addedLoopInterval = 0;
     let destination;
+    let master;
+    let sourceBus;
+    let addedBus;
+    let addedElement = null;
+    let addedGain = null;
+    let addedBufferSource = null;
+    let restartAddedAudio = null;
+
+    const connect = (from, to) => {
+      from.connect(to);
+      audioRuntime.activeConnections += 1;
+      connections.push(() => {
+        try { from.disconnect(to); } catch { /* already disconnected */ }
+        audioRuntime.activeConnections = Math.max(0, audioRuntime.activeConnections - 1);
+      });
+    };
+
     try {
-      source = audioContext.createMediaElementSource(audio);
-      gain = audioContext.createGain();
       destination = audioContext.createMediaStreamDestination();
-      gain.gain.value = 0.92;
-      source.connect(gain);
-      gain.connect(destination);
-      gain.connect(audioContext.destination);
+      master = audioContext.createGain();
+      master.gain.value = 1;
+      connect(master, destination);
+      connect(master, audioContext.destination);
+
+      if (sourceAudioRequested) {
+        sourceBus = audioContext.createGain();
+        sourceBus.gain.value = 1;
+        connect(sourceBus, master);
+        for (const video of sourceVideos) {
+          const cached = cachedMediaElementSource(audioContext, video);
+          if (cached.created) sourceVideoNodesCreated += 1;
+          const gain = audioContext.createGain();
+          gain.gain.value = 0;
+          connect(cached.node, gain);
+          connect(gain, sourceBus);
+          sourceEntries.set(video, { gain });
+          video.muted = false;
+          video.playsInline = true;
+        }
+      }
+
+      if (state.audio) {
+        addedGain = audioContext.createGain();
+        addedGain.gain.value = 0;
+        addedBus = audioContext.createGain();
+        addedBus.gain.value = 1;
+        if (!addedAudioBuffer) {
+          addedElement = new Audio(state.audio.url);
+          addedElement.preload = 'auto';
+          addedElement.loop = false;
+          addedElement.volume = 1;
+          addedElement.muted = false;
+          addedElement.playsInline = true;
+          state.audio.mixElement = addedElement;
+          const cached = cachedMediaElementSource(audioContext, addedElement);
+          addedAudioNodeCreated = cached.created;
+          connect(cached.node, addedGain);
+        }
+        connect(addedGain, addedBus);
+        connect(addedBus, master);
+      }
     } catch {
-      audioContext.close?.();
+      while (connections.length) connections.pop()();
+      sourceVideos.forEach((video) => { video.muted = true; });
       return null;
     }
 
     const track = destination.stream.getAudioTracks()[0];
     if (!track) {
-      audioContext.close?.();
+      while (connections.length) connections.pop()();
+      sourceVideos.forEach((video) => { video.muted = true; });
       log(t('lite.log_no_audio_track'));
       return null;
     }
-    state.lastAudioMode = 'webAudio';
-    return makeAudioController({
+
+    if (sourceAudioRequested && state.audio) state.lastAudioMode = 'mixedWebAudio';
+    else if (sourceAudioRequested) state.lastAudioMode = 'sourceWebAudio';
+    else state.lastAudioMode = 'webAudio';
+    audioRuntime.activeControllers += 1;
+
+    const rampGain = (entry, target, immediate = false) => {
+      const now = audioContext.currentTime;
+      const param = entry.gain.gain;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      if (immediate) param.setValueAtTime(target, now);
+      else param.linearRampToValueAtTime(target, now + SOURCE_AUDIO_RAMP_SECONDS);
+    };
+
+    return {
       track,
-      setLevel: (level) => { gain.gain.value = Math.max(0.0001, 0.92 * level); },
-      startPlayback: async () => {
-        audio.currentTime = 0;
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume().catch(() => {});
+      prepare: async () => {
+        await Promise.all(sourceVideos.map((video) => waitForPlayable(video, 600)));
+        if (addedElement) await waitForPlayable(addedElement, 1500, true);
+        const mediaToPrime = [...sourceVideos, ...(addedElement ? [addedElement] : [])];
+        for (const media of mediaToPrime) {
+          const originalTime = Number(media.currentTime || 0);
+          await media.play().catch(() => {});
+          await sleep(80);
+          media.pause();
+          await seekVideo(media, originalTime);
         }
-        await audio.play().catch(() => log(t('lite.log_audio_blocked')));
+        await sleep(SOURCE_AUDIO_RAMP_SECONDS * 1000);
       },
-      stopPlayback: () => {
-        audio.pause();
-        try { source.disconnect(); } catch { /* already disconnected */ }
-        try { gain.disconnect(); } catch { /* already disconnected */ }
+      hasSource: (video) => sourceEntries.has(video),
+      activateSource: (video) => {
+        const next = sourceEntries.get(video);
+        if (!next || activeSource === video) return;
+        if (activeSource) rampGain(sourceEntries.get(activeSource), 0);
+        activeSource = video;
+        rampGain(next, 1);
+        sourceSwitchCount += 1;
+      },
+      deactivateSource: async (video, immediate = false) => {
+        if (!video || activeSource !== video) return;
+        rampGain(sourceEntries.get(video), 0, immediate);
+        activeSource = null;
+        if (!immediate) await sleep(SOURCE_AUDIO_RAMP_SECONDS * 1000);
+      },
+      start: async () => {
+        if (audioContext.state === 'suspended') await audioContext.resume().catch(() => {});
+        if (addedAudioBuffer) {
+          addedBufferSource = audioContext.createBufferSource();
+          addedBufferSource.buffer = addedAudioBuffer;
+          addedBufferSource.loop = true;
+          connect(addedBufferSource, addedGain);
+          addedGain.gain.value = 0.92;
+          addedBufferSource.start();
+        }
+        if (addedElement) {
+          await seekVideo(addedElement, 0);
+          addedGain.gain.value = 0.92;
+          restartAddedAudio = () => {
+            if (stopped) return;
+            addedElement.currentTime = 0;
+            void addedElement.play().catch(() => log(t('lite.log_audio_blocked')));
+          };
+          addedElement.addEventListener('ended', restartAddedAudio);
+          await addedElement.play().catch(() => log(t('lite.log_audio_blocked')));
+          addedLoopInterval = window.setInterval(() => {
+            const remaining = Number(addedElement.duration || 0) - Number(addedElement.currentTime || 0);
+            if (addedElement.ended || (Number.isFinite(remaining) && remaining >= 0 && remaining < 0.12)) restartAddedAudio();
+          }, 60);
+        }
+        if (!addedGain) return;
+        fadeTimer = window.setTimeout(() => {
+          const started = performance.now();
+          fadeInterval = window.setInterval(() => {
+            const progress = Math.min(1, (performance.now() - started) / 1800);
+            addedGain.gain.value = Math.max(0.0001, 0.92 * (1 - progress));
+            if (progress >= 1) window.clearInterval(fadeInterval);
+          }, 80);
+        }, Math.max(0, duration - 2.0) * 1000);
+      },
+      diagnostics: () => ({
+        sourceAudioRequested,
+        sourceAudioReady: sourceAudioRequested && sourceEntries.size > 0,
+        sourceBusReady: Boolean(sourceBus),
+        sourceNodesInGraph: sourceEntries.size,
+        sourceNodesCreated: sourceVideoNodesCreated,
+        addedAudioNodeCreated,
+        addedAudioBufferReady: Boolean(addedAudioBuffer),
+        sourceSwitchCount,
+        addedAudioCurrentTime: Number(addedElement?.currentTime || 0),
+        addedAudioDuration: Number(addedElement?.duration || 0),
+        sharedAudioContextCount: audioRuntime.contextCount,
+        sharedAudioContextState: audioContext.state,
+        mixedOutputAudioTracks: destination.stream.getAudioTracks().length
+      }),
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        window.clearTimeout(fadeTimer);
+        window.clearInterval(fadeInterval);
+        window.clearInterval(addedLoopInterval);
+        sourceEntries.forEach((entry, video) => {
+          rampGain(entry, 0, true);
+          try { video.pause(); } catch { /* video already stopped */ }
+          video.muted = true;
+        });
+        if (addedElement) {
+          if (restartAddedAudio) addedElement.removeEventListener('ended', restartAddedAudio);
+          addedElement.pause();
+          addedGain.gain.value = 0;
+          releaseMediaElementSource(addedElement);
+          if (state.audio?.mixElement === addedElement) state.audio.mixElement = null;
+        }
+        if (addedBufferSource) {
+          try { addedBufferSource.stop(); } catch { /* buffer source may already be stopped */ }
+        }
         track.stop();
-        audioContext.close?.();
+        while (connections.length) connections.pop()();
+        audioRuntime.activeControllers = Math.max(0, audioRuntime.activeControllers - 1);
       }
-    }, duration);
+    };
   }
 
-  function makeAudioController(playback, duration) {
+  function makeAudioController(playback, duration, diagnostics = {}) {
     let fadeTimer = 0;
     let fadeInterval = 0;
+    let stopped = false;
+    audioRuntime.activeControllers += 1;
     return {
       track: playback.track,
+      prepare: async () => {},
+      hasSource: () => false,
+      activateSource: () => {},
+      deactivateSource: async () => {},
       start: async () => {
         await playback.startPlayback();
         fadeTimer = window.setTimeout(() => {
@@ -829,10 +1206,22 @@
           }, 80);
         }, Math.max(0, duration - 2.0) * 1000);
       },
+      diagnostics: () => ({
+        sourceAudioRequested: false,
+        sourceAudioReady: false,
+        sourceBusReady: false,
+        sourceNodesInGraph: 0,
+        mixedOutputAudioTracks: playback.track ? 1 : 0,
+        ...diagnostics
+      }),
       stop: () => {
+        if (stopped) return;
+        stopped = true;
         window.clearTimeout(fadeTimer);
         window.clearInterval(fadeInterval);
         playback.stopPlayback();
+        playback.track?.stop?.();
+        audioRuntime.activeControllers = Math.max(0, audioRuntime.activeControllers - 1);
       }
     };
   }
@@ -842,44 +1231,76 @@
     const localTime = Math.max(0, time - segment.start);
     if (segment.source.kind === 'video') {
       if (playback) {
-        await preparePlaybackVideo(playback, segment, localTime);
+        await preparePlaybackVideo(playback, segment, localTime, timeline);
       } else {
         await seekVideo(segment.source.element, segment.sourceStart + localTime);
       }
     } else if (playback?.video) {
-      stopRenderPlayback(playback);
+      await stopRenderPlayback(playback);
     }
+    if (playback) scheduleUpcomingPlayback(playback, segment, timeline);
     drawSource(segment, localTime, time, duration, preset);
     if (isAnsiTime(time, ansiIntervals)) drawAnsi(preset, time);
     applyPresetEffects(preset, time, duration);
   }
 
-  async function preparePlaybackVideo(playback, segment, localTime) {
+  function scheduleUpcomingPlayback(playback, segment, timeline) {
+    if (!playback.preparedSegments) playback.preparedSegments = new Map();
+    const index = timeline.indexOf(segment);
+    const next = timeline[index + 1];
+    if (!next || next.source.kind !== 'video' || next.source.element === segment.source.element || playback.preparedSegments.has(next)) return;
+    const video = next.source.element;
+    const preparation = (async () => {
+      video.muted = !playback.audioController?.hasSource?.(video);
+      video.playsInline = true;
+      video.pause();
+      await seekVideo(video, next.sourceStart);
+      await waitForPlayable(video, 600);
+      await waitForVideoFrame(video);
+    })();
+    playback.preparedSegments.set(next, preparation);
+  }
+
+  async function preparePlaybackVideo(playback, segment, localTime, timeline) {
     const video = segment.source.element;
     const expected = segment.sourceStart + localTime;
     if (playback.segment !== segment || playback.video !== video) {
-      stopRenderPlayback(playback);
+      await stopRenderPlayback(playback);
       playback.segment = segment;
       playback.video = video;
-      video.muted = true;
+      video.muted = !playback.audioController?.hasSource?.(video);
       video.playsInline = true;
       video.loop = false;
-      await seekVideo(video, segment.sourceStart);
-      await waitForVideoFrame(video);
+      const prepared = playback.preparedSegments?.get(segment);
+      if (prepared) await prepared;
+      else {
+        await seekVideo(video, segment.sourceStart);
+        await waitForPlayable(video, 600);
+      }
       await video.play().catch(() => {});
+      playback.audioController?.activateSource?.(video);
+      await waitForVideoFrame(video);
+      scheduleUpcomingPlayback(playback, segment, timeline);
       return;
     }
     if (video.paused) await video.play().catch(() => {});
     if (Math.abs((video.currentTime || 0) - expected) > 1.0) {
+      await playback.audioController?.deactivateSource?.(video);
+      video.pause();
       await seekVideo(video, expected);
-      await waitForVideoFrame(video);
+      await waitForPlayable(video, 600);
       await video.play().catch(() => {});
+      playback.audioController?.activateSource?.(video);
+      await waitForVideoFrame(video);
     }
   }
 
-  function stopRenderPlayback(playback) {
+  async function stopRenderPlayback(playback, immediate = false) {
     if (!playback?.video) return;
-    try { playback.video.pause(); } catch { /* video already stopped */ }
+    const video = playback.video;
+    await playback.audioController?.deactivateSource?.(video, immediate);
+    try { video.pause(); } catch { /* video already stopped */ }
+    video.muted = true;
     playback.segment = null;
     playback.video = null;
   }
@@ -1142,9 +1563,11 @@
   document.addEventListener('wzrdvid:i18n', updateLocalizedRuntimeText);
 
   window.addEventListener('beforeunload', () => {
+    state.activeRenderSession?.abort?.();
     revokeRenderedUrl();
     state.media.forEach((item) => URL.revokeObjectURL(item.url));
-    if (state.audio?.url) URL.revokeObjectURL(state.audio.url);
+    clearAddedAudio();
+    audioRuntime.context?.close?.();
   });
 
   updateLocalizedRuntimeText();

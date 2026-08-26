@@ -16,12 +16,13 @@ Current export behavior:
 - The PUBLIC ACCESS preset applies browser-side public-access/VHS source treatment before ANSI Coverage is applied, so 0%, 50%, and 100% ANSI remain meaningful.
 - Videos are sampled as random short clips. Images become 1-3 second held/animated segments. Random assembly shuffles through all loaded media before reusing a source, then sources can repeat to fill the selected length.
 - Lite targets 30 fps browser recording for Fast 480p and 24 fps for Better 720p while applying browser-side texture: tunnel zoom, punch/wobble, tape/RGB treatment, hard ANSI overlays, short ending fade, and optional added-audio bump.
-- Added audio uses the separate local audio bus. Lite does not currently preserve source audio from visual media clips during timeline sampling/random assembly.
+- The global `Include Source Audio` control defaults on and follows the final assembled visual timeline, including random source ranges. Still/image and silent-video sections contribute source-bus silence. Explicit Add Audio remains separate and can be mixed with source audio into one MediaRecorder track.
+- Lite keeps one reusable page-session AudioContext for source mixing. Persistent source-video elements cache their MediaElementSource ownership, while mixed Add Audio is decoded into the same Web Audio graph so iOS does not stop it when a source video begins playback.
 - Desktop supports broader ffmpeg-backed formats. Lite depends on the browser's decoder support; HEIC/HEIF and some camera/video containers may be rejected locally with a log message.
 - The desktop app remains the full MP4 renderer with deeper timeline, audio, and export controls.
 
 Future work:
 
 - Optional ffmpeg.wasm encoding path for reliable browser MP4.
-- More precise audio trimming/mixing controls.
+- More precise audio trimming/mixing controls beyond the current global source switch and Add Audio bus.
 - More preset tuning and share-size targets.

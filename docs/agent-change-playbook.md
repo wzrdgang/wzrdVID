@@ -69,22 +69,22 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 ## 6. App Logic/State
 
-- Inspect first: `app.py`, `app_i18n.py`, `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, project save/load code, settings defaults and migration behavior.
+- Inspect first: `app.py`, `app_i18n.py`, `renderer.py`, `datamosh.py`, `ffmpeg_utils.py`, `still_cache.py`, project save/load code, settings defaults and migration behavior.
 - Searches to run: affected setting key, dataclass field, UI control name, project JSON serializer/deserializer.
 - Common mistakes to avoid: changing settings schema without backward handling, blocking the UI thread, losing paths with spaces, breaking audio/render sync.
-- High-risk files: `app.py`, `app_i18n.py`, `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`.
-- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; focused smoke test for affected flow.
+- High-risk files: `app.py`, `app_i18n.py`, `renderer.py`, `datamosh.py`, `ffmpeg_utils.py`, `still_cache.py`.
+- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; focused smoke test for affected flow.
 - Update `AGENTS.md` when: new command/check is required for future agents.
 - Update `docs/agent-impact-map.md` when: state/data flow changes.
 - Update `docs/agent-log.md` after the task.
 
 ## 7. Video/Media Handling
 
-- Inspect first: `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py` media import/preview code, `app_i18n.py` if visible media/status strings change, relevant README/docs.
+- Inspect first: `renderer.py`, `datamosh.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py` media import/preview code, `app_i18n.py` if visible media/status strings change, relevant README/docs.
 - Searches to run: `TimelineItem`, `RenderSettings`, `parse_timecode`, `has_audio_stream`, `mux_audio`, `build_timeline_audio`, `load_still_image`, `StillCache`, `MediaRecorder` for Lite.
-- Common mistakes to avoid: audio desync, unsupported image orientation, temp file leaks, final codec regression, path quoting bugs.
-- High-risk files: `renderer.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py`, `docs/lite/app.js`, `docs/i18n.js`.
-- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tiny render, still/HEIC cache, or Lite render smoke as relevant; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI or copy changed; `ffprobe` final output if codec/audio changed; grep network APIs for Lite privacy changes.
+- Common mistakes to avoid: audio desync, unsupported image orientation, temp file leaks, final codec regression, path quoting bugs, or treating a DATAMOSHING codec failure as a frame-pipe failure.
+- High-risk files: `renderer.py`, `datamosh.py`, `ffmpeg_utils.py`, `still_cache.py`, `app.py`, `docs/lite/app.js`, `docs/i18n.js`.
+- Required checks: `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tiny render, still/HEIC cache, or Lite render smoke as relevant; authentic VOP/frame-count/duration/error-boundary tests when DATAMOSHING changes; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI or copy changed; `ffprobe` final output if codec/audio changed; for Lite audio changes validate source-off/source-only/Add-only/mixed exported PCM against the visual segment map, still silence, cut leakage, repeated renders, and reset cleanup; grep network APIs for Lite privacy changes.
 - Update `AGENTS.md` when: new media safety rules are discovered.
 - Update `docs/agent-impact-map.md` when: media pipeline modules/flows change.
 - Update `docs/agent-log.md` after the task.
@@ -95,7 +95,7 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 - Searches to run: `WKWebView`, `loadFileURL`, `LiteWeb`, `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `MediaRecorder`, `download`.
 - Common mistakes to avoid: turning Lite into a remote website wrapper, adding analytics/accounts/backend/remote config, bundling the desktop renderer or ffmpeg, committing generated `LiteWeb/`, or promising full desktop parity.
 - High-risk files: `apple-lite/WZRDVIDLite/App/LiteWebView.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/app.js`, `docs/i18n.js`.
-- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator behavior is in scope; `node --check docs/i18n.js docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`.
+- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator behavior is in scope; require the smoke runner's native export plus PCM/frequency analysis when Apple Lite audio changes; `node --check docs/i18n.js docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`.
 - Update `AGENTS.md` when: Apple Lite commands, boundaries, or generated paths change.
 - Update `docs/agent-impact-map.md` when: native wrapper structure, bundle prep, or Lite runtime flow changes.
 - Update `docs/agent-log.md` after the task.
@@ -124,11 +124,11 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 ## 10. Build Config
 
-- Inspect first: `build_app.sh`, `scripts/package_release.sh`, `requirements.txt`, icon/branding generators, `.gitignore`.
-- Searches to run: app name, bundle id, PyInstaller excludes, icon path, `dist/WZRD.VID.app`, release zip name.
-- Common mistakes to avoid: breaking Finder launch, removing needed Qt plugins, changing app identity, committing generated build outputs.
-- High-risk files: `build_app.sh`, `scripts/package_release.sh`, `requirements.txt`, generator scripts.
-- Required checks: script syntax; `./build_app.sh` when packaging behavior changed; `scripts/package_release.sh` when release zip behavior changed; Finder launch if app bundle changed.
+- Inspect first: `build_app.sh`, `scripts/package_dmg.sh`, `scripts/package_release.sh`, `requirements.txt`, icon/branding generators, `.gitignore`, and release/install docs.
+- Searches to run: app name, bundle id, PyInstaller excludes, explicit Qt prune allowlist and companion links, icon path, `dist/WZRD.VID.app`, DMG/ZIP names, `/Applications` shortcut, signing/notarization claims, and current public asset instructions.
+- Common mistakes to avoid: breaking Finder launch, removing needed Qt plugins, globally deleting broken links, restoring unused Qt payload to mask a link defect, changing app identity, committing generated build outputs, mounting at/cleaning a broad fixed path, weakening mounted-app verification, stripping quarantine, or making future DMG wording false for the current published ZIP release.
+- High-risk files: `build_app.sh`, `scripts/package_dmg.sh`, `scripts/package_release.sh`, `requirements.txt`, generator scripts, and release/install docs.
+- Required checks: script syntax; `./build_app.sh` when packaging behavior changed; require `find -L dist/WZRD.VID.app -type l -print` to return no paths; require `codesign --verify --deep --strict --verbose=4 dist/WZRD.VID.app` to exit 0; normal app launch. For DMG changes, run `scripts/package_dmg.sh` twice when practical; verify checksum, root allowlist, `Applications -> /Applications`, mounted and replacement-installed strict codesign/identity, failure detach/staging cleanup, external user-data hashes, and a frozen packaged render. Run `scripts/package_release.sh` only when ZIP behavior or an authorized release-package task is in scope.
 - Update `AGENTS.md` when: build commands or packaging rules change.
 - Update `docs/agent-impact-map.md` when: build output/dependency flow changes.
 - Update `docs/agent-log.md` after the task.

@@ -88,7 +88,7 @@ RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
 UPDATE_CHECK_TIMEOUT_SECONDS = 6
 RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
-APP_VERSION_FALLBACK = "0.2.1"
+APP_VERSION_FALLBACK = "0.3.0"
 
 
 def _resource_path(name: str) -> Path:
@@ -563,6 +563,12 @@ EFFECTS = [
     ("tunnel_zoom", "Tunnel Zoom", "Loops a slow push-in, then snaps back to wide like a busted tape zoom."),
     ("punch_zoom", "Punch Zooms", "Short impact zooms on a repeating pulse."),
     ("glitch", "Glitch", "Horizontal offsets, slice jumps, and damaged-frame shifts."),
+    ("datamoshing", "DATAMOSHING", "Breaks MPEG-4 prediction frames so motion leaks across cuts, creating real interframe smears and frozen-motion ghosts."),
+    ("pixel_sorting", "Pixel Sorting", "Reorders selected pixel runs by brightness, stretching highlights and shadows into long digital streaks."),
+    ("databending", "Databending", "Treats image data like the wrong kind of signal, creating byte drift, channel warping and structured digital corruption."),
+    ("circuit_bending", "Circuit Bending", "Software-emulates bent video circuitry with sync loss, chroma jumps, clipping, rolling and electronic feedback."),
+    ("hex_editing", "Hex Editing", "Applies seeded byte-level mutations—shifts, swaps, repeats, zeros and XOR damage—without altering the source file."),
+    ("random_noise_bw", "Random Noise B/W", "Turns luminance into stochastic black-and-white static, keeping the source recognizable while every pixel flickers between signal and noise."),
     ("rgb_split", "RGB Split", "Offsets color channels for cheap-video separation."),
     ("color_drift", "Color Drift", "Slow hue movement through the render."),
     ("scanlines", "Scanlines", "CRT-style line darkening."),
@@ -576,8 +582,18 @@ EFFECTS = [
     ("mosaic_collapse", "Mosaic Collapse", "Impact moments collapse into chunky compression blocks."),
     ("audio_reactive", "Audio Reactive Hits", "Lets the audio trigger punch zooms, RGB splits, and glitch bursts."),
 ]
+PHASE2_FRAME_EFFECT_KEYS = {
+    "pixel_sorting",
+    "databending",
+    "circuit_bending",
+    "hex_editing",
+    "random_noise_bw",
+}
+LOCALIZED_EFFECT_KEYS = PHASE2_FRAME_EFFECT_KEYS | {"datamoshing"}
 DEFAULT_OFF_EFFECTS = {
     "tunnel_zoom",
+    "datamoshing",
+    *PHASE2_FRAME_EFFECT_KEYS,
     "stutter_hold",
     "motion_melt",
     "terminal_scroll",
@@ -612,7 +628,7 @@ ENDING_MODES = [
     "CRT Shutdown",
     "Buffer Exhausted",
 ]
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mts", ".m2ts", ".avi", ".mkv", ".webm"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mts", ".m2ts", ".avi", ".mkv", ".webm", ".3gp", ".3g2"}
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".aiff", ".aif"}
 AUDIO_CONTAINER_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
@@ -1149,10 +1165,13 @@ class MainWindow(QMainWindow):
         self.audio_end = QLineEdit("auto")
         self.audio_timeline_start = QLineEdit("0:00")
         self.audio_timeline_end = QLineEdit("auto")
+        self.style_begin_time = QLineEdit("0:00")
         self._register_tooltip(self.audio_timeline_start, "tooltip.audio_timeline_start")
         self._register_tooltip(self.audio_timeline_end, "tooltip.audio_timeline_end")
+        self._register_tooltip(self.style_begin_time, "tooltip.style_begin_time")
         for field in (self.video_start, self.video_end, self.audio_start, self.audio_end, self.audio_timeline_start, self.audio_timeline_end):
             field.setPlaceholderText("0:00, 1:40, 100, 12.5, or auto")
+        self.style_begin_time.setPlaceholderText("0:00, 1:40, 100, or 12.5")
         self.max_video_length = QLineEdit()
         self.max_video_length.setMinimumWidth(112)
         self.max_video_length.setPlaceholderText("auto, 1:30, or 90")
@@ -1176,8 +1195,12 @@ class MainWindow(QMainWindow):
         self._register_tooltip(self.chunky_blocks, "tooltip.chunky_blocks")
         self.effect_checks: dict[str, QCheckBox] = {}
         for key, label, tooltip in EFFECTS:
-            checkbox = QCheckBox(label)
-            checkbox.setToolTip(tooltip)
+            if key in LOCALIZED_EFFECT_KEYS:
+                checkbox = self._checkbox(f"effect.{key}.label")
+                self._register_tooltip(checkbox, f"effect.{key}.tooltip")
+            else:
+                checkbox = QCheckBox(label)
+                checkbox.setToolTip(tooltip)
             checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
             self.effect_checks[key] = checkbox
 
@@ -1796,9 +1819,12 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.match_timeline_to_audio, 3, 2)
         grid.addWidget(self.match_timeline_mode, 3, 3)
 
-        grid.addWidget(self._label("label.max_video_length"), 4, 0)
-        grid.addWidget(self.max_video_length, 4, 1)
-        grid.addWidget(self.random_clip_assembly, 4, 2, 1, 2)
+        grid.addWidget(self._label("label.style_begin_time"), 4, 0)
+        grid.addWidget(self.style_begin_time, 4, 1)
+
+        grid.addWidget(self._label("label.max_video_length"), 5, 0)
+        grid.addWidget(self.max_video_length, 5, 1)
+        grid.addWidget(self.random_clip_assembly, 5, 2, 1, 2)
         return group
 
     def _build_style_group(self) -> QGroupBox:
@@ -2190,6 +2216,7 @@ class MainWindow(QMainWindow):
         self.audio_timeline_end.textChanged.connect(self._update_coverage_summary)
         self.audio_timeline_start.textChanged.connect(lambda _text: self._save_settings())
         self.audio_timeline_end.textChanged.connect(lambda _text: self._save_settings())
+        self.style_begin_time.textChanged.connect(lambda _text: self._save_settings())
         self.max_video_length.textChanged.connect(self._update_coverage_summary)
         self.max_video_length.textChanged.connect(self._update_output_size_estimate)
         self.max_video_length.textChanged.connect(self._update_optimize_estimate)
@@ -2229,9 +2256,9 @@ class MainWindow(QMainWindow):
             self.tr("file.add_video_title"),
             str(Path.home()),
             (
-                "Media files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm "
+                "Media files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm *.3gp *.3g2 "
                 "*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif);;"
-                "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm);;"
+                "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm *.3gp *.3g2);;"
                 "Photo files (*.jpg *.jpeg *.png *.webp *.avif *.gif *.bmp *.tif *.tiff *.heic *.heif)"
             ),
         )
@@ -2363,7 +2390,9 @@ class MainWindow(QMainWindow):
             item["display_name"] = display_name
         self.timeline_items.append(item)
         if include_audio and not self.audio_path.text().strip() and self.audio_mode.currentText() == AUDIO_SILENT:
+            was_blocked = self.audio_mode.blockSignals(True)
             self._set_combo_text(self.audio_mode, AUDIO_SOURCE)
+            self.audio_mode.blockSignals(was_blocked)
         return True
 
     def _maybe_internalize_protected_heic_source(self, source: Path) -> tuple[Path, str] | None:
@@ -2782,7 +2811,7 @@ class MainWindow(QMainWindow):
             self,
             "Select video file",
             str(Path.home()),
-            "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
+            "Video files (*.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm *.3gp *.3g2)",
         )
         if not path:
             return
@@ -2809,7 +2838,7 @@ class MainWindow(QMainWindow):
             self,
             self.tr("file.select_audio_title"),
             str(Path.home()),
-            "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus *.aiff *.aif *.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm)",
+            "Audio or video-with-audio (*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus *.aiff *.aif *.mp4 *.mov *.m4v *.mts *.m2ts *.avi *.mkv *.webm *.3gp *.3g2)",
         )
         if path:
             self._set_external_audio_path(path, from_drop=False)
@@ -3113,6 +3142,20 @@ class MainWindow(QMainWindow):
                     raise
                 raise ValueError(self.tr("dialog.max_video_length_invalid")) from exc
             return None
+
+    def _selected_style_begin_time(self, strict: bool) -> float:
+        raw = self.style_begin_time.text().strip()
+        try:
+            seconds = ffmpeg_utils.parse_timecode(raw)
+            if seconds is None:
+                raise ValueError(self.tr("dialog.style_begin_time_invalid"))
+            return seconds
+        except Exception as exc:  # noqa: BLE001
+            if strict:
+                if isinstance(exc, ValueError) and str(exc) == self.tr("dialog.style_begin_time_invalid"):
+                    raise
+                raise ValueError(self.tr("dialog.style_begin_time_invalid")) from exc
+            return 0.0
 
     def _render_duration_without_max_video_length(self, strict: bool) -> float | None:
         total_duration = self._timeline_total_duration(strict=strict)
@@ -3758,6 +3801,7 @@ class MainWindow(QMainWindow):
         audio_end = ffmpeg_utils.parse_timecode(self.audio_end.text())
         audio_timeline_start = ffmpeg_utils.parse_timecode(self.audio_timeline_start.text()) or 0.0
         audio_timeline_end = ffmpeg_utils.parse_timecode(self.audio_timeline_end.text())
+        style_begin_time = self._selected_style_begin_time(strict=True)
         if audio_timeline_start < 0:
             raise ValueError("Music start in video cannot be negative.")
         if audio_timeline_end is not None and audio_timeline_end <= audio_timeline_start:
@@ -3788,6 +3832,7 @@ class MainWindow(QMainWindow):
             audio_timeline_end=audio_timeline_end,
             max_video_length=max_video_length,
             random_clip_assembly=random_clip_assembly,
+            style_begin_time=style_begin_time,
             audio_mode=audio_mode,
             worky_music_mode=self.worky_music_mode.isChecked(),
             match_timeline_to_audio=self.match_timeline_to_audio.isChecked(),
@@ -3922,6 +3967,7 @@ class MainWindow(QMainWindow):
             bypass_mode=BYPASS_MANUAL if shifted_blocks else BYPASS_FULL_ANSI,
             manual_blocks=shifted_blocks,
             random_percent=0.0,
+            output_time_offset=preview_offset,
         )
 
 
@@ -4076,6 +4122,7 @@ class MainWindow(QMainWindow):
         music_trim_end = self.audio_end.text().strip() or "auto"
         music_video_start = self.audio_timeline_start.text().strip() or "0:00"
         music_video_end = self.audio_timeline_end.text().strip() or "auto"
+        style_begin_time = self.style_begin_time.text().strip() or "0:00"
         lines = [
             f"{APP_NAME} support report",
             f"Version: v{APP_VERSION}",
@@ -4092,6 +4139,7 @@ class MainWindow(QMainWindow):
             f"Music placement in video: {music_video_start} to {music_video_end}",
             f"Max video length: {max_length_text}",
             f"Random clip assembly: {'on' if self.random_clip_assembly.isChecked() else 'off'}",
+            f"Style begins at: {style_begin_time}",
             f"Style preset: {self.preset.currentText()}",
             f"Chunky blocks: {'on' if self.chunky_blocks.isChecked() else 'off'}",
             (
@@ -4204,6 +4252,7 @@ class MainWindow(QMainWindow):
             (self.audio_end.text(), "auto"),
             (self.audio_timeline_start.text(), "0:00"),
             (self.audio_timeline_end.text(), "auto"),
+            (self.style_begin_time.text(), "0:00"),
             (self.max_video_length.text(), ""),
         )
         if any(value.strip() != default for value, default in text_defaults):
@@ -4287,6 +4336,7 @@ class MainWindow(QMainWindow):
         self.audio_end.setText("auto")
         self.audio_timeline_start.setText("0:00")
         self.audio_timeline_end.setText("auto")
+        self.style_begin_time.setText("0:00")
         self.max_video_length.clear()
         self._max_video_length_user_edited = False
         self._set_combo_text(self.audio_mode, AUDIO_SILENT)
@@ -4475,7 +4525,7 @@ class MainWindow(QMainWindow):
         output_values = self._output_size_values()
         return {
             "app": APP_NAME,
-            "schema_version": 4,
+            "schema_version": 5,
             "ui_language": self.ui_language,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
@@ -4487,6 +4537,7 @@ class MainWindow(QMainWindow):
             "audio_end": self.audio_end.text().strip(),
             "audio_timeline_start": self.audio_timeline_start.text().strip(),
             "audio_timeline_end": self.audio_timeline_end.text().strip(),
+            "style_begin_time": self.style_begin_time.text().strip(),
             "max_video_length": self._max_video_length_state_text(normalize_noop=normalize_noop_max),
             "random_clip_assembly": self.random_clip_assembly.isChecked(),
             "audio_mode": self.audio_mode.currentText(),
@@ -4550,6 +4601,7 @@ class MainWindow(QMainWindow):
         self.audio_end.setText(str(data.get("audio_end", "auto")))
         self.audio_timeline_start.setText(str(data.get("audio_timeline_start", "0:00")))
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
+        self.style_begin_time.setText(str(data.get("style_begin_time", "0:00")))
         loaded_max_video_length = self._max_video_length_text_from_state(data.get("max_video_length", ""))
         self._max_video_length_user_edited = bool(mark_explicit_max_length and loaded_max_video_length)
         self.max_video_length.setText(loaded_max_video_length)
@@ -4617,7 +4669,7 @@ class MainWindow(QMainWindow):
         effects = data.get("effects", {})
         if isinstance(effects, dict):
             for key, checkbox in self.effect_checks.items():
-                checkbox.setChecked(bool(effects.get(key, True)))
+                checkbox.setChecked(bool(effects.get(key, key not in DEFAULT_OFF_EFFECTS)))
 
         for row in list(self.block_rows):
             self.remove_manual_block(row)

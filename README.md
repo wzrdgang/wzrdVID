@@ -163,7 +163,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 ## Features
 
 - Multi-source timeline for videos and photos, with drag-and-drop into the Sources / Timeline table.
-- Expanded import support for common video, audio, and image formats, including `.mts`, `.m2ts`, `.opus`, `.avif`, `.heic`, and `.heif` where local codecs allow.
+- Expanded import support for common video, audio, and image formats, including `.3gp`, `.3g2`, `.mts`, `.m2ts`, `.opus`, `.avif`, `.heic`, and `.heif` where local codecs allow.
 - Photo holds with the same ANSI/chunky/effects pipeline as video, including automatic EXIF orientation correction for phone photos.
 - HEIC/HEIF stills become subtle 3-second motion loops when they can be decoded locally.
 - Music/audio from audio files or video files with audio tracks, selectable by picker or drag-and-drop.
@@ -173,9 +173,11 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
 - Match visual timeline length to selected music by retiming, trimming, or looping.
 - Optional **Max video length** cap and deterministic **Random clip assembly** for building short exports from timeline media.
+- **Style begins at** keeps the opening clean, then starts the full WZRD treatment at an absolute rendered-output timestamp.
 - ANSI/text-art rendering with color sampled from source frames.
 - **PUBLIC ACCESS** renderer for camcorder-dub public-access texture while keeping ANSI Coverage fully adjustable.
-- Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, and mosaic collapse.
+- Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, mosaic collapse, Pixel Sorting, in-memory Databending and Hex Editing, software-emulated Circuit Bending, luminance-driven Random Noise B/W, and authentic DATAMOSHING.
+- DATAMOSHING manipulates I/P prediction frames in a temporary MPEG-4 Part 2 stream after the visual render, then returns to a normal H.264/yuv420p MP4 before existing audio finalization. It never modifies source media or ships the temporary prediction stream.
 - Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
 - Bypass-normal sections so chosen parts remain regular video instead of ANSI.
 - Transitions and endings for less-abrupt exports.
@@ -184,6 +186,7 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Auto-optimize final video size with H.264 `yuv420p`, AAC, and `+faststart`.
 - 5-second and 10-second preview renders before committing to a full export.
 - WZRD.VID Lite includes a browser-safe Random clip assembly checkbox using its 15/30/60-second duration choices.
+- WZRD.VID Lite's global **Include Source Audio** control defaults on, follows source-video sound through normal or random visual cuts, keeps still sections silent on the source bus, and can mix that sound with explicit Add Audio. This does not change the desktop per-source audio controls.
 - PyInstaller macOS app build support.
 
 ## Screenshots / Demos
@@ -224,14 +227,14 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 2. Set video trim points or photo hold durations.
 3. Select or drag in optional external music/audio. Video containers such as `.mp4` or `.mov` can be used as audio sources when they contain an audio track.
 4. Choose Audio Mix mode and per-video **Include Audio** rows.
-5. Set timeline/music trim, optional max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
+5. Set timeline/music trim, optional **Style begins at** time and max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
 7. Choose ANSI Coverage if you want some sections to stay normal video.
 8. Pick Output Size and optional Optimize Output target.
 9. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
 10. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
 
-Recipes save timeline items, media paths, trims, max video length/random assembly settings, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
+Recipes save timeline items, media paths, trims, Style begins at, max video length/random assembly settings, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
 
 Advanced per-clip include-section selection remains future work.
 
@@ -239,7 +242,7 @@ New projects default to **CRT Flash** transitions and **Fade Out** endings so ex
 
 ## Supported Media
 
-- Video timeline sources: `.mp4`, `.mov`, `.m4v`, `.mts`, `.m2ts`, `.avi`, `.mkv`, `.webm`.
+- Video timeline sources: `.mp4`, `.mov`, `.m4v`, `.mts`, `.m2ts`, `.avi`, `.mkv`, `.webm`, `.3gp`, `.3g2`.
 - Photo timeline sources: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.gif`, `.bmp`, `.tif`, `.tiff`, `.heic`, `.heif`.
 - External audio/music: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.opus`, `.aiff`, `.aif`, plus video containers with audio tracks.
 

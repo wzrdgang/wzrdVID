@@ -78,6 +78,13 @@ TXT FEED</div>
           <input id="audioInput" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.aif,.aiff,.mp4,.mov,.m4v,.mts,.m2ts,.avi,.mkv,.webm">
         </div>
         <button id="audioButton" class="btn btn-secondary" type="button" data-i18n="lite.add_audio">ADD AUDIO</button>
+        <label class="checkbox-field source-audio-field">
+          <span>
+            <input id="includeSourceAudio" type="checkbox" checked>
+            <span data-i18n="lite.include_source_audio">Include Source Audio</span>
+          </span>
+          <small data-i18n="lite.include_source_audio_help">Keeps sound from source videos aligned with normal and random visual cuts. Add Audio mixes with it when both are enabled.</small>
+        </label>
         <button id="resetButton" class="btn btn-secondary" type="button" data-i18n="lite.clear_project">CLEAR PROJECT</button>
         <p class="small-note" data-i18n="lite.clear_project_help">Clears selected media, audio, and the rendered clip. Files stay local.</p>
 

@@ -121,6 +121,8 @@
     'lite.add_audio_hint': 'drag audio here',
     'lite.add_audio_small': 'mp3 wav m4a flac ogg opus or video with audio',
     'lite.add_audio_button': 'ADD AUDIO',
+    'lite.include_source_audio': 'Include Source Audio',
+    'lite.include_source_audio_help': 'Keeps sound from source videos aligned with normal and random visual cuts. Add Audio mixes with it when both are enabled.',
     'lite.clear_project': 'Clear Project',
     'lite.clear_project_help': 'Clears selected media, audio, and the rendered clip. Files stay local.',
     'lite.loaded_files': 'Loaded Files',
@@ -177,10 +179,14 @@
     'lite.log_timeline': 'timeline segments: {segments} // ANSI intervals: {intervals} // seed {seed}',
     'lite.log_mp4': 'browser MP4 recorder available',
     'lite.log_webm': 'browser MP4 recorder unavailable; using WebM prototype fallback',
+    'lite.log_source_audio_state': 'source audio {state} // audio path {mode}',
+    'lite.log_source_audio_unavailable': 'Source audio is not available in this browser; rendering without source clip audio.',
     'lite.log_audio_capture_missing': 'audio capture unavailable in this browser; rendering video only',
     'lite.log_no_audio_track': 'no capturable audio track found; rendering video only',
     'lite.log_audio_blocked': 'audio playback blocked; continuing video render',
-    'lite.log_render_complete': 'render complete: target {seconds}s // frames {frames}/{expected} // {size} MB // {type}'
+    'lite.log_render_complete': 'render complete: target {seconds}s // frames {frames}/{expected} // {size} MB // {type}',
+    'lite.log_render_failed': 'render failed: {error}',
+    'lite.status_render_failed': 'render failed // check the local log and try again'
   };
 
   const DRAFTS = {

@@ -90,23 +90,28 @@ APP_BUNDLE="dist/WZRD.VID.app"
 QT_ROOT="$APP_BUNDLE/Contents/Frameworks/PySide6/Qt"
 QT_RESOURCES="$APP_BUNDLE/Contents/Resources/PySide6/Qt"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
+PRUNED_QT_FRAMEWORKS=(
+  QtNetwork
+  QtOpenGL
+  QtPdf
+  QtQml
+  QtQmlMeta
+  QtQmlModels
+  QtQmlWorkerScript
+  QtQuick
+  QtSvg
+  QtVirtualKeyboard
+  QtVirtualKeyboardQml
+)
 
 # PyInstaller's PySide6 hook is conservative. WZRD.VID uses QWidget, QtGui, and
 # QtCore only, so remove QML/Quick/PDF/virtual-keyboard/plugin payloads that are
 # not needed for Finder launch, previews, rendering, or project presets.
 if [ -d "$QT_ROOT" ]; then
+  for framework in "${PRUNED_QT_FRAMEWORKS[@]}"; do
+    rm -rf "$QT_ROOT/lib/$framework.framework"
+  done
   rm -rf \
-    "$QT_ROOT/lib/QtNetwork.framework" \
-    "$QT_ROOT/lib/QtOpenGL.framework" \
-    "$QT_ROOT/lib/QtPdf.framework" \
-    "$QT_ROOT/lib/QtQml.framework" \
-    "$QT_ROOT/lib/QtQmlMeta.framework" \
-    "$QT_ROOT/lib/QtQmlModels.framework" \
-    "$QT_ROOT/lib/QtQmlWorkerScript.framework" \
-    "$QT_ROOT/lib/QtQuick.framework" \
-    "$QT_ROOT/lib/QtSvg.framework" \
-    "$QT_ROOT/lib/QtVirtualKeyboard.framework" \
-    "$QT_ROOT/lib/QtVirtualKeyboardQml.framework" \
     "$QT_ROOT/plugins/generic" \
     "$QT_ROOT/plugins/iconengines" \
     "$QT_ROOT/plugins/networkinformation" \
@@ -129,6 +134,22 @@ if [ -d "$QT_RESOURCES/translations" ]; then
   rm -rf "$QT_RESOURCES/translations"
 fi
 
+# PyInstaller adds companion links for collected Qt payloads in both top-level
+# bundle trees. Remove only the links for payloads intentionally pruned above.
+for framework in "${PRUNED_QT_FRAMEWORKS[@]}"; do
+  rm -f \
+    "$APP_BUNDLE/Contents/Frameworks/$framework" \
+    "$APP_BUNDLE/Contents/Resources/$framework"
+done
+rm -f "$QT_ROOT/translations"
+
+DANGLING_SYMLINK="$(find -L "$APP_BUNDLE" -type l -print -quit)"
+if [ -n "$DANGLING_SYMLINK" ]; then
+  echo "Error: dangling symlink(s) remain in $APP_BUNDLE:" >&2
+  find -L "$APP_BUNDLE" -type l -print >&2
+  exit 1
+fi
+
 if [ -f "$INFO_PLIST" ]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$INFO_PLIST"
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $APP_VERSION" "$INFO_PLIST" 2>/dev/null || \
@@ -138,6 +159,7 @@ fi
 # Pruning after bundling changes the resource envelope, so refresh the ad-hoc
 # signature that PyInstaller creates for local double-click launch.
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null
+codesign --verify --deep --strict --verbose=1 "$APP_BUNDLE"
 
 rm -rf "dist/WZRD.VID"
 

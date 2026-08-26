@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+import datamosh
 import ffmpeg_utils
 import still_cache
 from presets import get_preset
@@ -46,6 +47,18 @@ PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", "
 HEIC_EXTENSIONS = {".heic", ".heif"}
 LONG_MEDIA_WARNING_SECONDS = 30 * 60
 VERY_LONG_MEDIA_WARNING_SECONDS = 60 * 60
+PHASE2_FRAME_EFFECT_ORDER = (
+    "pixel_sorting",
+    "databending",
+    "circuit_bending",
+    "hex_editing",
+    "random_noise_bw",
+)
+_PIXEL_SORTING_SALT = 0x50_49_58_45_4C
+_DATABENDING_SALT = 0x44_41_54_41_42
+_CIRCUIT_BENDING_SALT = 0x43_49_52_43_55
+_HEX_EDITING_SALT = 0x48_45_58_45_44
+_RANDOM_NOISE_BW_SALT = 0x42_57_4E_4F_49
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Menlo.ttc",
@@ -110,6 +123,8 @@ class RenderSettings:
     audio_timeline_end: float | None = None
     max_video_length: float | None = None
     random_clip_assembly: bool = False
+    style_begin_time: float = 0.0
+    output_time_offset: float = 0.0
     audio_mode: str = AUDIO_EXTERNAL
     worky_music_mode: bool = False
     match_timeline_to_audio: bool = False
@@ -329,6 +344,23 @@ def render_project(
         _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(render_duration)}.")
     else:
         _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(render_duration)}.")
+    if settings.style_begin_time <= 0:
+        _emit(log, "Style begins at: 0:00 (first output frame).")
+    elif settings.style_begin_time >= settings.output_time_offset + render_duration:
+        _emit(
+            log,
+            f"Style begins at: {ffmpeg_utils.format_duration(settings.style_begin_time)}; "
+            "this render window ends earlier, so its visual output remains clean.",
+        )
+    else:
+        _emit(log, f"Style begins at: {ffmpeg_utils.format_duration(settings.style_begin_time)} on the rendered output timeline.")
+    if settings.output_time_offset > 0:
+        _emit(
+            log,
+            "Render window on output timeline: "
+            f"{ffmpeg_utils.format_duration(settings.output_time_offset)} to "
+            f"{ffmpeg_utils.format_duration(settings.output_time_offset + render_duration)}.",
+        )
     source_audio = _uses_source_audio(settings)
     if settings.match_timeline_to_audio and audio_mode == AUDIO_MIX:
         _emit(log, "Source audio mixing is disabled when matching timeline length to music. Using external audio only.")
@@ -492,6 +524,48 @@ def render_project(
                 progress=progress,
                 log=log,
             )
+
+        if _effect_on(settings.effects, "datamoshing"):
+            eligible_start_frame = _datamosh_eligible_start_frame(settings, frame_count)
+            if eligible_start_frame >= frame_count:
+                _emit(
+                    log,
+                    "DATAMOSHING: the Style begins boundary is after this render window; "
+                    "leaving its silent visual output clean.",
+                )
+            else:
+                _emit_progress(progress, 92)
+                absolute_frame_offset = max(
+                    0,
+                    int(round(settings.output_time_offset * settings.fps)),
+                )
+                _emit(
+                    log,
+                    "DATAMOSHING: authentic MPEG-4 Part 2 prediction manipulation enabled; "
+                    f"clean anchor at local frame {eligible_start_frame}, "
+                    f"absolute frame {absolute_frame_offset + eligible_start_frame}.",
+                )
+                datamosh_result = datamosh.apply_datamosh(
+                    silent_video,
+                    temp_root_path / "datamoshed_silent.mp4",
+                    temp_root_path / "datamosh",
+                    fps=settings.fps,
+                    frame_count=frame_count,
+                    effect_intensity=settings.effect_intensity,
+                    weird_seed=(
+                        settings.weird_seed
+                        if settings.weird_seed is not None
+                        else settings.random_seed
+                    ),
+                    eligible_start_frame=eligible_start_frame,
+                    absolute_frame_offset=absolute_frame_offset,
+                    loop_friendly=settings.loop_friendly,
+                    video_crf=settings.video_crf,
+                    video_bitrate=target_bitrate,
+                    log=log,
+                )
+                if datamosh_result.applied:
+                    silent_video = datamosh_result.output_path
 
         source_audio_path: Path | None = None
         if source_audio:
@@ -1003,6 +1077,10 @@ def _validate_settings(settings: RenderSettings) -> None:
         raise ValueError("Match video length to music requires External only or External + selected source audio mode with a selected audio track.")
     if settings.max_video_length is not None and settings.max_video_length <= 0:
         raise ValueError("Max video length must be greater than 0.")
+    if settings.style_begin_time < 0:
+        raise ValueError("Style begins at must be non-negative.")
+    if settings.output_time_offset < 0:
+        raise ValueError("Output timeline offset must be non-negative.")
     if settings.random_clip_assembly and settings.match_timeline_to_audio:
         raise ValueError("Random clip assembly cannot be used with Match video length to music.")
     if settings.audio_timeline_start < 0:
@@ -1482,132 +1560,140 @@ def _render_frames(
     try:
         for index in range(frame_count):
             output_t = min(index / settings.fps, max(0.0, render_duration - 0.0001))
+            absolute_output_t = settings.output_time_offset + output_t
+            style_active = absolute_output_t >= settings.style_begin_time
             timeline_t = _source_time_for_output(playback, output_t)
-            frame_effects = dict(settings.effects)
+            frame_effects = dict(settings.effects) if style_active else {}
             hit_level = audio_hits[index] if index < len(audio_hits) else 0.0
             if hit_level > 0.01:
                 frame_effects["_reactive_hit"] = True
                 frame_effects["_hit_level"] = hit_level
 
-            if _ending_freezes_source(settings, render_duration, output_t):
+            if style_active and _ending_freezes_source(settings, render_duration, output_t):
                 source_started = time.perf_counter()
                 frame_rgb = source.frame_at(last_source_t)
                 source_frame_seconds += max(0.0, time.perf_counter() - source_started)
-            elif _effect_on(frame_effects, "stutter_hold") and held_frame is not None and index < hold_until:
+            elif style_active and _effect_on(frame_effects, "stutter_hold") and held_frame is not None and index < hold_until:
                 frame_rgb = held_frame.copy()
             else:
                 source_started = time.perf_counter()
                 frame_rgb = source.frame_at(timeline_t)
                 source_frame_seconds += max(0.0, time.perf_counter() - source_started)
-                if _effect_on(frame_effects, "stutter_hold") and _starts_stutter_hold(index, settings):
+                if style_active and _effect_on(frame_effects, "stutter_hold") and _starts_stutter_hold(index, settings):
                     held_frame = frame_rgb.copy()
                     hold_until = index + _stutter_hold_length(index, settings)
 
-            while bypass_index < bypass_count and output_t >= bypass_intervals[bypass_index][1]:
-                bypass_index += 1
-            is_normal_bypass = (
-                bypass_index < bypass_count
-                and bypass_intervals[bypass_index][0] <= output_t < bypass_intervals[bypass_index][1]
-            )
-
-            public_source: Image.Image | None = None
-            if public_access_profile:
-                public_started = time.perf_counter()
-                public_source = prepare_public_access_source(
-                    frame_rgb,
-                    output_size=settings.output_size,
-                    preset=preset,
-                    effects=frame_effects,
-                    intensity=settings.effect_intensity,
-                    frame_index=index,
-                    fps=settings.fps,
-                    framing=framing_kwargs,
-                    seed=settings.weird_seed or settings.random_seed,
-                    timing=timing_detail,
-                )
-                public_source_seconds += max(0.0, time.perf_counter() - public_started)
-
-            if is_normal_bypass:
-                if public_source is not None:
-                    output_frame = public_source
-                else:
-                    normal_started = time.perf_counter()
-                    output_frame = render_normal_frame(
-                        frame_rgb,
-                        output_size=settings.output_size,
-                        effects=frame_effects,
-                        intensity=settings.effect_intensity,
-                        frame_index=index,
-                        fps=settings.fps,
-                        framing=framing_kwargs,
-                        timing=timing_detail,
-                    )
-                    normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
+            if not style_active:
+                normal_started = time.perf_counter()
+                output_frame = fit_frame_to_output(frame_rgb, settings.output_size, **framing_kwargs)
+                normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
             else:
-                if public_source is not None:
-                    ansi_source = public_source
-                else:
-                    ansi_started = time.perf_counter()
-                    ansi_source = prepare_ansi_source(
+                while bypass_index < bypass_count and output_t >= bypass_intervals[bypass_index][1]:
+                    bypass_index += 1
+                is_normal_bypass = (
+                    bypass_index < bypass_count
+                    and bypass_intervals[bypass_index][0] <= output_t < bypass_intervals[bypass_index][1]
+                )
+
+                public_source: Image.Image | None = None
+                if public_access_profile:
+                    public_started = time.perf_counter()
+                    public_source = prepare_public_access_source(
                         frame_rgb,
                         output_size=settings.output_size,
+                        preset=preset,
                         effects=frame_effects,
                         intensity=settings.effect_intensity,
                         frame_index=index,
                         fps=settings.fps,
                         framing=framing_kwargs,
+                        seed=settings.weird_seed or settings.random_seed,
                         timing=timing_detail,
                     )
-                    ansi_prepare_seconds += max(0.0, time.perf_counter() - ansi_started)
-                text_started = time.perf_counter()
-                output_frame = render_text_art_frame(
-                    np.asarray(ansi_source),
-                    preset=preset,
-                    layout=layout,
-                    frame_index=index,
-                    output_size=settings.output_size,
-                    effects=frame_effects,
-                    intensity=settings.effect_intensity,
-                    fps=settings.fps,
-                    chunky_blocks=chunky_blocks,
-                    dither_mode=settings.dither_mode,
-                    glyph_masks=glyph_masks,
-                    timing=timing_detail,
+                    public_source_seconds += max(0.0, time.perf_counter() - public_started)
+
+                if is_normal_bypass:
+                    if public_source is not None:
+                        output_frame = public_source
+                    else:
+                        normal_started = time.perf_counter()
+                        output_frame = render_normal_frame(
+                            frame_rgb,
+                            output_size=settings.output_size,
+                            effects=frame_effects,
+                            intensity=settings.effect_intensity,
+                            frame_index=index,
+                            fps=settings.fps,
+                            framing=framing_kwargs,
+                            timing=timing_detail,
+                        )
+                        normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
+                else:
+                    if public_source is not None:
+                        ansi_source = public_source
+                    else:
+                        ansi_started = time.perf_counter()
+                        ansi_source = prepare_ansi_source(
+                            frame_rgb,
+                            output_size=settings.output_size,
+                            effects=frame_effects,
+                            intensity=settings.effect_intensity,
+                            frame_index=index,
+                            fps=settings.fps,
+                            framing=framing_kwargs,
+                            timing=timing_detail,
+                        )
+                        ansi_prepare_seconds += max(0.0, time.perf_counter() - ansi_started)
+                    text_started = time.perf_counter()
+                    output_frame = render_text_art_frame(
+                        np.asarray(ansi_source),
+                        preset=preset,
+                        layout=layout,
+                        frame_index=index,
+                        output_size=settings.output_size,
+                        effects=frame_effects,
+                        intensity=settings.effect_intensity,
+                        fps=settings.fps,
+                        chunky_blocks=chunky_blocks,
+                        dither_mode=settings.dither_mode,
+                        glyph_masks=glyph_masks,
+                        timing=timing_detail,
+                    )
+                    text_render_seconds += max(0.0, time.perf_counter() - text_started)
+
+                if first_output is None:
+                    first_output = output_frame.copy()
+
+                transition_started = time.perf_counter()
+                output_frame = _apply_transition_effect(
+                    output_frame,
+                    previous_output,
+                    output_t,
+                    transition_boundaries,
+                    settings,
+                    index,
                 )
-                text_render_seconds += max(0.0, time.perf_counter() - text_started)
-
-            if first_output is None:
-                first_output = output_frame.copy()
-
-            transition_started = time.perf_counter()
-            output_frame = _apply_transition_effect(
-                output_frame,
-                previous_output,
-                output_t,
-                transition_boundaries,
-                settings,
-                index,
-            )
-            output_frame = _apply_global_artifact_effects(
-                output_frame,
-                previous_output,
-                frame_effects,
-                settings.effect_intensity,
-                index,
-                settings.fps,
-                settings.weird_seed,
-            )
-            output_frame = _apply_ending_effect(
-                output_frame,
-                first_output,
-                render_duration,
-                output_t,
-                settings,
-                index,
-            )
-            if settings.loop_friendly and first_output is not None:
-                output_frame = _apply_loop_friendly(output_frame, first_output, render_duration, output_t)
-            transition_seconds += max(0.0, time.perf_counter() - transition_started)
+                output_frame = _apply_global_artifact_effects(
+                    output_frame,
+                    previous_output,
+                    frame_effects,
+                    settings.effect_intensity,
+                    index,
+                    settings.fps,
+                    settings.weird_seed,
+                    output_frame_index=max(0, int(round(absolute_output_t * settings.fps))),
+                )
+                output_frame = _apply_ending_effect(
+                    output_frame,
+                    first_output,
+                    render_duration,
+                    output_t,
+                    settings,
+                    index,
+                )
+                if settings.loop_friendly and first_output is not None:
+                    output_frame = _apply_loop_friendly(output_frame, first_output, render_duration, output_t)
+                transition_seconds += max(0.0, time.perf_counter() - transition_started)
 
             write_started = time.perf_counter()
             write_frame(index, output_frame)
@@ -1878,6 +1964,7 @@ def _apply_global_artifact_effects(
     frame_index: int,
     fps: int,
     seed: int | None,
+    output_frame_index: int | None = None,
 ) -> Image.Image:
     if _effect_on(effects, "motion_melt") and previous is not None:
         image = _apply_motion_melt(image, previous, frame_index, intensity)
@@ -1887,7 +1974,301 @@ def _apply_global_artifact_effects(
         image = _apply_tape_damage(image, frame_index, intensity, seed)
     if _effect_on(effects, "mosaic_collapse"):
         image = _apply_mosaic_collapse(image, frame_index, fps, intensity, seed)
-    return image
+    return _apply_phase2_frame_effects(
+        image,
+        effects,
+        intensity,
+        frame_index if output_frame_index is None else output_frame_index,
+        fps,
+        seed,
+    )
+
+
+def _phase2_effect_rng(seed: int | None, salt: int, frame_index: int) -> np.random.Generator:
+    """Return an independent deterministic RNG stream for one frame effect."""
+    mask = (1 << 64) - 1
+    mixed = (int(seed or 0) & mask) ^ (int(salt) & mask)
+    mixed ^= ((int(frame_index) & mask) + 0x9E3779B97F4A7C15) & mask
+    mixed = (mixed * 0xBF58476D1CE4E5B9) & mask
+    mixed ^= mixed >> 30
+    mixed = (mixed * 0x94D049BB133111EB) & mask
+    mixed ^= mixed >> 31
+    return np.random.default_rng(mixed)
+
+
+def _phase2_rgb_copy(frame: np.ndarray | Image.Image) -> np.ndarray:
+    if isinstance(frame, Image.Image):
+        arr = np.array(frame.convert("RGB"), dtype=np.uint8, copy=True)
+    else:
+        arr = np.array(frame, dtype=np.uint8, copy=True)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        raise ValueError("Frame effects require an RGB frame with shape (height, width, 3).")
+    return np.ascontiguousarray(arr, dtype=np.uint8)
+
+
+def _phase2_effect_amount(intensity: float) -> float:
+    return max(0.0, min(1.0, float(intensity) / 2.0))
+
+
+def _sort_pixel_line_runs(
+    line: np.ndarray,
+    rng: np.random.Generator,
+    amount: float,
+) -> None:
+    length = int(line.shape[0])
+    if length < 5:
+        return
+    run_count = 1 + int(round(amount * 2.0))
+    min_run = min(length - 1, max(4, int(length * (0.025 + 0.025 * amount))))
+    max_run = min(length - 1, max(min_run, int(length * (0.10 + 0.34 * amount))))
+    for _ in range(run_count):
+        run_length = int(rng.integers(min_run, max_run + 1))
+        start = int(rng.integers(0, max(1, length - run_length + 1)))
+        segment = line[start : start + run_length]
+        luma = (
+            segment[:, 0].astype(np.float32) * 0.2126
+            + segment[:, 1].astype(np.float32) * 0.7152
+            + segment[:, 2].astype(np.float32) * 0.0722
+        )
+        threshold_center = float(rng.uniform(48.0, 208.0))
+        threshold_radius = 24.0 + 76.0 * amount
+        eligible = np.flatnonzero(np.abs(luma - threshold_center) <= threshold_radius)
+        if eligible.size < 4:
+            continue
+        breaks = np.flatnonzero(np.diff(eligible) > 1) + 1
+        groups = [group for group in np.split(eligible, breaks) if group.size >= 4]
+        if not groups:
+            continue
+        group = max(groups, key=lambda values: values.size)
+        ordered = np.argsort(luma[group], kind="stable")
+        if bool(rng.integers(0, 2)):
+            ordered = ordered[::-1]
+        segment[group] = segment[group][ordered]
+
+
+def _apply_pixel_sorting_frame(
+    frame: np.ndarray | Image.Image,
+    intensity: float,
+    frame_index: int,
+    seed: int | None,
+) -> np.ndarray:
+    arr = _phase2_rgb_copy(frame)
+    amount = _phase2_effect_amount(intensity)
+    height, width = arr.shape[:2]
+    if amount <= 0.0 or height < 1 or width < 4:
+        return arr
+    rng = _phase2_effect_rng(seed, _PIXEL_SORTING_SALT, frame_index)
+    row_count = min(height, max(1, int(round(height * (0.012 + 0.095 * amount)))))
+    for row in np.atleast_1d(rng.choice(height, size=row_count, replace=False)):
+        _sort_pixel_line_runs(arr[int(row), :, :], rng, amount)
+    if height >= 4 and amount >= 0.28:
+        column_count = min(width, max(1, int(round(width * (0.003 + 0.018 * amount)))))
+        for column in np.atleast_1d(rng.choice(width, size=column_count, replace=False)):
+            _sort_pixel_line_runs(arr[:, int(column), :], rng, amount * 0.8)
+    return arr
+
+
+def _apply_databending_frame(
+    frame: np.ndarray | Image.Image,
+    intensity: float,
+    frame_index: int,
+    fps: int,
+    seed: int | None,
+) -> np.ndarray:
+    source = _phase2_rgb_copy(frame)
+    amount = _phase2_effect_amount(intensity)
+    height, width = source.shape[:2]
+    if amount <= 0.0 or height < 1 or width < 2:
+        return source
+    params = _phase2_effect_rng(seed, _DATABENDING_SALT, 0)
+    phase = frame_index / max(1.0, float(fps))
+    row = np.arange(height, dtype=np.float32)
+    x = np.arange(width, dtype=np.int64)[None, :]
+    row_index = np.arange(height, dtype=np.int64)[:, None]
+    frequency_a = float(params.uniform(0.018, 0.052))
+    frequency_b = float(params.uniform(0.006, 0.019))
+    speed = float(params.uniform(0.7, 1.6))
+    base_phase = float(params.uniform(0.0, math.tau))
+    amplitude = 1.0 + amount * max(3.0, width * 0.055)
+    flowing_shift = np.rint(
+        np.sin(row * frequency_a + base_phase + phase * speed) * amplitude
+        + np.sin(row * frequency_b - phase * speed * 0.57) * amplitude * 0.42
+    ).astype(np.int64)
+    out = np.empty_like(source)
+    channel_offsets = params.integers(-max(1, int(amplitude)), max(2, int(amplitude) + 1), size=3)
+    for channel in range(3):
+        indices = (x - flowing_shift[:, None] - int(channel_offsets[channel])) % width
+        out[:, :, channel] = source[row_index, indices, channel]
+
+    band_count = 1 + int(round(amount * 4.0))
+    band_params = _phase2_effect_rng(seed, _DATABENDING_SALT, 1)
+    for band_index in range(band_count):
+        center_phase = float(band_params.uniform(0.0, math.tau))
+        center = int(
+            (0.5 + 0.47 * math.sin(center_phase + phase * (0.55 + band_index * 0.13)))
+            * max(0, height - 1)
+        )
+        band_height = max(1, int(height * (0.012 + amount * float(band_params.uniform(0.025, 0.085)))))
+        top = max(0, min(height - band_height, center - band_height // 2))
+        bottom = min(height, top + band_height)
+        displacement = int(round(math.sin(phase * 1.7 + center_phase) * (2 + width * 0.08 * amount)))
+        band = out[top:bottom].astype(np.int16)
+        feedback = np.roll(band, displacement, axis=1)
+        mixed = np.mod(band * 3 + feedback * 2 + int(band_params.integers(0, 48)), 256)
+        out[top:bottom] = mixed.astype(np.uint8)
+    return out
+
+
+def _apply_circuit_bending_frame(
+    frame: np.ndarray | Image.Image,
+    intensity: float,
+    frame_index: int,
+    fps: int,
+    seed: int | None,
+) -> np.ndarray:
+    source = _phase2_rgb_copy(frame)
+    amount = _phase2_effect_amount(intensity)
+    height, width = source.shape[:2]
+    if amount <= 0.0 or height < 1 or width < 2:
+        return source
+    params = _phase2_effect_rng(seed, _CIRCUIT_BENDING_SALT, 0)
+    phase = frame_index / max(1.0, float(fps))
+    base_phase = float(params.uniform(0.0, math.tau))
+    oscillator_speed = float(params.uniform(1.0, 2.1))
+    line_frequency = float(params.uniform(0.055, 0.13))
+    rows = np.arange(height, dtype=np.float32)
+    amplitude = 1.0 + amount * max(4.0, width * 0.035)
+    sync_shift = np.rint(
+        np.sin(rows * line_frequency + base_phase + phase * oscillator_speed) * amplitude
+        + np.sign(np.sin(rows * line_frequency * 0.31 - phase * 0.83)) * amplitude * 0.24
+    ).astype(np.int64)
+    x = np.arange(width, dtype=np.int64)[None, :]
+    row_index = np.arange(height, dtype=np.int64)[:, None]
+    indices = (x - sync_shift[:, None]) % width
+    out = source[row_index, indices, :].copy()
+
+    roll_amplitude = max(1, int(height * (0.008 + 0.045 * amount)))
+    vertical_roll = int(round(math.sin(base_phase * 0.7 + phase * 0.62) * roll_amplitude))
+    out = np.roll(out, vertical_roll, axis=0)
+    chroma_jump = max(1, int(round((1.0 + width * 0.018 * amount) * math.sin(base_phase + phase * 1.31))))
+    out[:, :, 0] = np.roll(out[:, :, 0], chroma_jump, axis=1)
+    out[:, :, 2] = np.roll(out[:, :, 2], -chroma_jump, axis=1)
+
+    echo_shift = max(1, int(2 + width * 0.022 * amount))
+    echo = np.roll(out, echo_shift, axis=1).astype(np.int16)
+    signal = out.astype(np.int16)
+    feedback_mix = 0.12 + 0.22 * amount
+    signal = np.rint(signal * (1.0 - feedback_mix) + echo * feedback_mix).astype(np.int16)
+    gain = 1.0 + 0.35 * amount * math.sin(base_phase + phase * 2.2)
+    bias = int(round(34.0 * amount * math.sin(base_phase * 1.9 - phase * 1.4)))
+    signal = np.clip(np.rint(signal.astype(np.float32) * gain + bias), 0, 255).astype(np.int16)
+    low_clip = int(12 + 28 * amount)
+    high_clip = int(243 - 34 * amount)
+    signal[signal <= low_clip] = 0
+    signal[signal >= high_clip] = 255
+    out = signal.astype(np.uint8)
+
+    bar_count = 1 + int(round(amount * 2.0))
+    for bar_index in range(bar_count):
+        bar_phase = base_phase + bar_index * 2.17 + phase * (0.77 + bar_index * 0.11)
+        center = int((0.5 + 0.46 * math.sin(bar_phase)) * max(0, height - 1))
+        bar_height = max(1, int(height * (0.002 + 0.012 * amount)))
+        top = max(0, center - bar_height // 2)
+        bottom = min(height, top + bar_height)
+        out[top:bottom, :, :] = 255 if math.sin(bar_phase * 1.7) >= 0 else 0
+    if amount > 0.55 and math.sin(base_phase + phase * 0.91) > 0.88 - 0.12 * amount:
+        out = np.subtract(255, out, dtype=np.uint8)
+    return np.ascontiguousarray(out, dtype=np.uint8)
+
+
+def _apply_hex_editing_frame(
+    frame: np.ndarray | Image.Image,
+    intensity: float,
+    frame_index: int,
+    seed: int | None,
+) -> np.ndarray:
+    arr = _phase2_rgb_copy(frame)
+    amount = _phase2_effect_amount(intensity)
+    flat = arr.reshape(-1)
+    total = int(flat.size)
+    if amount <= 0.0 or total < 6:
+        return arr
+    rng = _phase2_effect_rng(seed, _HEX_EDITING_SALT, frame_index)
+    mutation_count = 1 + int(round(3.0 + 13.0 * amount))
+    max_span = min(max(3, total // 5), max(3, int(total * (0.0005 + 0.0065 * amount))))
+    for _ in range(mutation_count):
+        span = int(rng.integers(3, max_span + 1))
+        start = int(rng.integers(0, max(1, total - span + 1)))
+        end = start + span
+        operation = int(rng.integers(0, 7))
+        if operation == 0:
+            value = np.uint8(rng.integers(1, 256))
+            flat[start:end] = np.bitwise_xor(flat[start:end], value)
+        elif operation == 1:
+            values = flat[start:end].astype(np.uint16)
+            flat[start:end] = (((values << 4) & 0xF0) | (values >> 4)).astype(np.uint8)
+        elif operation == 2:
+            flat[start:end] = np.uint8(0 if bool(rng.integers(0, 2)) else 255)
+        elif operation == 3:
+            source_start = int(rng.integers(0, max(1, total - span + 1)))
+            flat[start:end] = flat[source_start : source_start + span].copy()
+        elif operation == 4:
+            shift = int(rng.integers(1, max(2, span)))
+            flat[start:end] = np.roll(flat[start:end].copy(), shift)
+        elif operation == 5:
+            delta = int(rng.integers(-112, 113))
+            flat[start:end] = np.mod(flat[start:end].astype(np.int16) + delta, 256).astype(np.uint8)
+        else:
+            other = int(rng.integers(0, max(1, total - span + 1)))
+            first = flat[start:end].copy()
+            second = flat[other : other + span].copy()
+            flat[start:end] = second
+            flat[other : other + span] = first
+    return arr
+
+
+def _apply_random_noise_bw_frame(
+    frame: np.ndarray | Image.Image,
+    intensity: float,
+    frame_index: int,
+    seed: int | None,
+) -> np.ndarray:
+    source = _phase2_rgb_copy(frame)
+    amount = _phase2_effect_amount(intensity)
+    luma = (
+        source[:, :, 0].astype(np.float32) * 0.2126
+        + source[:, :, 1].astype(np.float32) * 0.7152
+        + source[:, :, 2].astype(np.float32) * 0.0722
+    )
+    rng = _phase2_effect_rng(seed, _RANDOM_NOISE_BW_SALT, frame_index)
+    stochastic_threshold = rng.random(luma.shape, dtype=np.float32) * 255.0
+    threshold = 127.5 * (1.0 - amount) + stochastic_threshold * amount
+    binary = np.where(luma >= threshold, np.uint8(255), np.uint8(0))
+    return np.repeat(binary[:, :, None], 3, axis=2)
+
+
+def _apply_phase2_frame_effects(
+    image: Image.Image,
+    effects: dict[str, bool],
+    intensity: float,
+    frame_index: int,
+    fps: int,
+    seed: int | None,
+) -> Image.Image:
+    if not any(_effect_on(effects, key) for key in PHASE2_FRAME_EFFECT_ORDER):
+        return image
+    frame: np.ndarray | Image.Image = image
+    if _effect_on(effects, "pixel_sorting"):
+        frame = _apply_pixel_sorting_frame(frame, intensity, frame_index, seed)
+    if _effect_on(effects, "databending"):
+        frame = _apply_databending_frame(frame, intensity, frame_index, fps, seed)
+    if _effect_on(effects, "circuit_bending"):
+        frame = _apply_circuit_bending_frame(frame, intensity, frame_index, fps, seed)
+    if _effect_on(effects, "hex_editing"):
+        frame = _apply_hex_editing_frame(frame, intensity, frame_index, seed)
+    if _effect_on(effects, "random_noise_bw"):
+        frame = _apply_random_noise_bw_frame(frame, intensity, frame_index, seed)
+    return Image.fromarray(_phase2_rgb_copy(frame), mode="RGB")
 
 
 def _apply_motion_melt(image: Image.Image, previous: Image.Image, frame_index: int, intensity: float) -> Image.Image:
@@ -2818,6 +3199,12 @@ def _interval_total(intervals: Iterable[Interval]) -> float:
 
 def _effect_on(effects: dict[str, bool], key: str) -> bool:
     return bool(effects.get(key, False))
+
+
+def _datamosh_eligible_start_frame(settings: RenderSettings, frame_count: int) -> int:
+    local_style_time = max(0.0, settings.style_begin_time - settings.output_time_offset)
+    frame = math.ceil(local_style_time * settings.fps - 1e-9)
+    return max(0, min(frame_count, frame))
 
 
 def _emit(log: LogCallback, message: str) -> None:

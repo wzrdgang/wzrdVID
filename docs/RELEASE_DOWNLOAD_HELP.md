@@ -47,6 +47,14 @@ Signed/notarized builds and real auto-update support are planned after Apple Dev
 
 The desktop update checker is a notifier only. It can open the release page, but it does not auto-download, auto-install, or replace your current app.
 
+### Upcoming v0.3.0 DMG workflow — not yet the published v0.2.1 download
+
+Release preparation now includes `WZRD.VID-macOS.dmg`, but the currently published v0.2.1 instructions above remain ZIP-based until a DMG is actually uploaded in a separately authorized release.
+
+The planned DMG install/update flow is conventional: open the image, drag `WZRD.VID.app` onto its `Applications` shortcut, and choose **Replace** if Finder finds an older app bundle. This replaces only `/Applications/WZRD.VID.app`. WZRD.VID's `settings.json`, `ImportedMedia`, `StillCache`, and `Previews` live under `~/Library/Application Support/WZRD.VID`, and user-exported recipe JSON files live wherever the user saved them, so they remain outside the replaced application bundle.
+
+The DMG is an install convenience, not an automatic updater, Developer ID signature, notarization, or Gatekeeper bypass. Until signing/notarization changes are separately authorized and validated, first launch may still require right-clicking the app and choosing **Open**.
+
 ## Common First-Run Issues
 
 - **Wrong ZIP:** The Source code ZIP is for running/building from source. Normal app users need `WZRD.VID-macOS.zip`.
@@ -118,3 +126,13 @@ WZRD.VID-macOS.zip
 ```
 
 Upload that ZIP to GitHub Releases so users can download the double-clickable app instead of the source-only Code ZIP.
+
+## Build a DMG Candidate for a Future Release
+
+After `./build_app.sh` succeeds:
+
+```bash
+scripts/package_dmg.sh
+```
+
+The script creates and locally validates `WZRD.VID-macOS.dmg`. It does not publish, install into `/Applications`, change signing, notarize, or replace the current ZIP release asset.

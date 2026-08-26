@@ -4,6 +4,12 @@ Date: 2026-05-10
 
 This began as a research memo for post-D-U-N-S work. The repo now also includes first-pass Apple Lite packaging groundwork under `apple-lite/`. It does not create an App Store submission, change release packaging, or change WZRD.VID Lite browser behavior.
 
+## 2026-08-25 Lite Source Audio Update
+
+The bundled Lite browser renderer now has a default-on global `Include Source Audio` control. Source sound follows the same assembled normal/random segment map as the Canvas visual renderer, with still and silent-video sections contributing source-bus silence. Source audio and optional Add Audio feed one Web Audio destination/MediaRecorder audio track; the native Swift bridge remains downstream-only and continues to validate/save the browser-generated movie.
+
+The iPhone 17 simulator smoke passed source-only, silent, Add-only, mixed, repeated-render, reset-cleanup, Fast 480p, Better 720p, 15-second, and 30-second coverage. Native exports passed one-video/one-audio-track validation plus external PCM/FFT checks for 220/440/880 Hz selection and cut leakage. No production identity, signing, Bundle ID, Team ID, version/build, App Store configuration, permission string, or deployment setting changed. A physical-device source-audio hand test with real selected media remains a manual release gate.
+
 ## 2026-05-22 Readiness Update
 
 AMPYX LLC now has D-U-N-S available/received, so Apple Developer Program organization enrollment can move forward outside the repo. The local Apple Lite project is still groundwork only: no App Store Connect record, TestFlight archive, upload, release, tag, website deployment change, or production signing change has been made.

@@ -66,6 +66,8 @@ The smoke builds the app, installs it on an available iPhone simulator, launches
 - 15-second duration control
 - Random clip assembly checkbox
 - random timeline coverage across multiple loaded media items
+- all four Include Source Audio/Add Audio modes, source-node reuse, one page-session AudioContext, reset cleanup, and 15-second random plus 30-second repeated source-audio renders
+- native MP4 export plus objective PCM/FFT checks for 220 Hz Add Audio, 440/880 Hz source selection, still-section source silence, and post-cut source-tone exclusion
 - browser render/export surface and generated download link
 - native export bridge surface for the bundled app shell
 
@@ -83,7 +85,7 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 - Confirm Random clip assembly appears and can be toggled.
 - Attempt a short render with local media.
 - Verify the output Save Video path. The native shell now intercepts rendered Lite blobs, validates that the temporary movie has a video track, and saves directly to Photos because WKWebView blob downloads and the generic share-sheet Save Video path were unreliable on a real device.
-- Verify audio and video together. Real-device manual testing confirmed added audio, saved video, and video playback now work. The current build seeds and requests canvas frames before recording, fixes native Blob payload transfer for MP4 codec strings, and smoke-verifies browser-side and native video/audio tracks.
+- Verify audio and video together. Automated simulator coverage now proves source-only, Add-only, and mixed audio in the exported MP4. A physical-device hand test must still confirm that Include Source Audio follows real cuts, turns off cleanly, mixes with Add Audio, and matches the saved Photos output.
 - Verify visual quality. The current Lite renderer keeps the browser-only path, targets 30 fps for Fast 480p and 24 fps for Better 720p, and has been tuned back toward the live WZRD.VID Lite visual baseline with stronger tunnel zoom, punch/wobble, hard ANSI treatment, shorter ending fade, and added-audio bump.
 - Confirm no external navigation is allowed from inside the wrapper.
 
@@ -91,6 +93,6 @@ Use `../docs/APPLE_LITE_DEVICE_TEST_LOG.md` for the guided real-device checklist
 
 - Final Apple Developer Team ID, production Bundle ID, App Store Connect record, and signing/export settings are not configured yet.
 - Native export/save bridge has a first implementation for rendered Lite blobs. It keeps the browser renderer local, sends the rendered blob to Swift through `WKScriptMessageHandler`, writes a temporary local file, validates the movie has a video track, and saves directly to Photos with add-only permission.
-- Apple Lite added-audio capture has a first Web Audio fallback for iOS WKWebView, where `HTMLAudioElement.captureStream()` is unavailable. Simulator and physical-device smokes select `webAudio` and verify a generated MP4 payload with browser-side and native video/audio tracks. Real-device manual testing confirmed added audio and saved video playback. Source clip audio is not currently preserved from Lite's visual source timeline.
+- Apple Lite uses Web Audio when iOS WKWebView lacks `HTMLAudioElement.captureStream()`. The default-on source-audio bus follows Lite's assembled visual segments; source plus Add Audio is captured as one mixed audio track, and the native bridge remains a downstream validator/saver rather than an audio renderer. Simulator PCM/FFT coverage passes, while a physical-device source-audio hand test remains a manual release gate.
 - No TestFlight/App Store metadata yet.
 - No App Store submission, notarization, signing automation, or release packaging is included here.

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-08-25
+
+- Added a macOS DMG packaging workflow with the conventional `WZRD.VID.app` → `Applications` drag-install layout. The package path validates the ad-hoc app before and after imaging, and isolated replacement testing confirms app-support settings, ImportedMedia, StillCache, Previews, and external recipe files remain outside the replaced bundle.
+- Added optional source-video audio to WZRD.VID Lite and Apple Lite. The new default-on `Include Source Audio` control follows normal and random visual cuts, keeps still sections silent on the source bus, and can mix source sound with explicitly added audio into one recorded track.
+- Fixed macOS app pruning so intentionally removed Qt frameworks and translations no longer leave dangling bundle symlinks. Fresh builds now stop on any dangling link and pass strict codesign verification without restoring unused Qt payload.
+- Added authentic desktop DATAMOSHING using controlled MPEG-4 Part 2 I/P-frame prediction manipulation after the visual render and before the existing H.264/AAC finalization. Temporary prediction streams remain app-owned; source media is never modified and final exports remain normal MP4 files.
+- Added five desktop frame-domain Style Stack effects: Pixel Sorting, in-memory Databending, software-emulated Circuit Bending, in-memory Hex Editing, and luminance-driven Random Noise B/W. They share the existing Effect Intensity and Reroll Weirdness controls, obey `Style begins at`, and persist as default-off flags in schema-version-5 recipes.
+- Added desktop `.3gp` and `.3g2` visual video-container support across import, drag/drop, recipe restore, preview/render, and selected source-audio handling.
+- Added a desktop `Style begins at` output-timeline control that keeps earlier frames clean, starts the existing WZRD treatment on the first eligible frame, and persists through local settings and schema-version-5 recipes while older recipes default to `0:00`.
 - Improved desktop Glitch Hell/ASCII text render performance by caching per-render glyph masks before drawing ANSI frames. This preserves ASCII text-art pixels while avoiding repeated glyph rasterization in `ImageDraw.text`.
 - Added more detailed desktop renderer timing logs for still/proxy loading, HEIC motion frame generation, resize/framing, ANSI prep effects, text sampling, glyph drawing, ANSI output effects, transitions/effects/endings, and frame-pipe writes.
 - Fixed desktop HEIC/HEIF render failure handling so macOS privacy/access-denied source errors fail during preflight with the exact file path and copy/export guidance instead of being mislabeled as missing HEIC support or retried through PNG staging.
