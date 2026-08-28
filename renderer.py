@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+import coverage_intervals
 import datamosh
 import ffmpeg_utils
 import still_cache
@@ -1036,26 +1037,23 @@ def build_bypass_intervals(
     if not use_manual and not use_random:
         return []
 
-    intervals: list[Interval] = []
-    if use_manual:
-        for block in manual_blocks or []:
-            start, end = _coerce_block(block)
-            intervals.append((start, end))
-    intervals = timeline_math.merge_intervals(intervals, duration)
-
-    if use_random:
-        random_percent = max(0.0, min(100.0, float(random_percent)))
-        target_random = duration * (random_percent / 100.0)
-        intervals = _add_random_intervals(
-            intervals=intervals,
-            duration=duration,
-            target_seconds=target_random,
-            min_len=max(0.05, float(min_len)),
-            max_len=max(float(min_len), float(max_len)),
-            seed=seed,
+    manual_intervals = (
+        tuple(_coerce_block(block) for block in (manual_blocks or []))
+        if use_manual
+        else ()
+    )
+    return list(
+        coverage_intervals.build_coverage_intervals(
+            duration,
+            include_manual=use_manual,
+            manual_intervals=manual_intervals,
+            include_random=use_random,
+            random_percent=random_percent,
+            random_seed=seed,
+            random_min_length=min_len,
+            random_max_length=max_len,
         )
-
-    return timeline_math.merge_intervals(intervals, duration)
+    )
 
 
 def build_style_fx_clean_intervals(
@@ -4849,82 +4847,6 @@ def _coerce_time(value: Any) -> float:
     if parsed is None:
         return 0.0
     return parsed
-
-
-def _add_random_intervals(
-    intervals: list[Interval],
-    duration: float,
-    target_seconds: float,
-    min_len: float,
-    max_len: float,
-    seed: int | None,
-) -> list[Interval]:
-    if target_seconds <= 0:
-        return intervals
-
-    rng = random.Random(seed)
-    result = list(intervals)
-    available = _available_gaps(result, duration)
-    available_seconds = timeline_math.interval_total(available)
-    if available_seconds <= 0:
-        return result
-    if target_seconds >= available_seconds - 0.02:
-        return timeline_math.merge_intervals(result + available, duration)
-
-    random_added = 0.0
-    attempts = 0
-    while random_added < target_seconds - 0.05 and attempts < 3000:
-        attempts += 1
-        min_chunk = min(min_len, duration)
-        if random_added > 0 and target_seconds - random_added < min_chunk:
-            break
-        gaps = [gap for gap in _available_gaps(result, duration) if gap[1] - gap[0] >= min_chunk]
-        if not gaps:
-            break
-        gap = _weighted_gap_choice(gaps, rng)
-        gap_len = gap[1] - gap[0]
-        remaining = target_seconds - random_added
-        if remaining < min_chunk:
-            chunk_len = min_chunk
-        else:
-            chunk_max = min(max_len, gap_len, remaining)
-            if chunk_max < min_chunk:
-                continue
-            chunk_len = rng.uniform(min_chunk, chunk_max)
-        if chunk_len < min_chunk:
-            break
-        if gap_len <= chunk_len + 0.02:
-            start = gap[0]
-        else:
-            start = rng.uniform(gap[0], gap[1] - chunk_len)
-        candidate = (start, start + chunk_len)
-        result = timeline_math.merge_intervals(result + [candidate], duration)
-        random_added += chunk_len
-    return result
-
-
-def _weighted_gap_choice(gaps: list[Interval], rng: random.Random) -> Interval:
-    total = timeline_math.interval_total(gaps)
-    pick = rng.random() * total
-    cursor = 0.0
-    for gap in gaps:
-        cursor += gap[1] - gap[0]
-        if pick <= cursor:
-            return gap
-    return gaps[-1]
-
-
-def _available_gaps(intervals: list[Interval], duration: float) -> list[Interval]:
-    merged = timeline_math.merge_intervals(intervals, duration)
-    gaps: list[Interval] = []
-    cursor = 0.0
-    for start, end in merged:
-        if start > cursor:
-            gaps.append((cursor, start))
-        cursor = max(cursor, end)
-    if cursor < duration:
-        gaps.append((cursor, duration))
-    return gaps
 
 
 def _effect_on(effects: dict[str, bool], key: str) -> bool:
