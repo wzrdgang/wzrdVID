@@ -11,10 +11,11 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 import app
 import renderer
+import state_contract
 
 
 class StateContractTests(unittest.TestCase):
@@ -183,13 +184,75 @@ class StateContractTests(unittest.TestCase):
         self.window._apply_project_state({"schema_version": 6})
         self.assertEqual(self.window._codec_layer_order(), renderer.CODEC_LAYER_ORDER)
 
+    def test_recipe_export_import_uses_the_same_canonical_boundary(self) -> None:
+        recipe_path = self.root / "phase13-recipe.json"
+        self.window._set_zone_state(
+            self.valid_zones(),
+            {"pixel_sorting": "one", "skrrt": "two"},
+            warn_on_repair=False,
+        )
+        reversed_layer = tuple(reversed(renderer.CODEC_LAYER_ORDER))
+        self.window._set_codec_layer_order(reversed_layer)
+        self.window.style_begin_time.setText("0:07")
+        self.window._set_combo_text(
+            self.window.style_fx_coverage_mode,
+            state_contract.STYLE_FX_MANUAL,
+        )
+        self.window.add_style_fx_manual_block("0:01", "0:02")
+
+        with mock.patch.object(
+            QFileDialog,
+            "getSaveFileName",
+            return_value=(str(recipe_path), "WZRD.VID recipe (*.json)"),
+        ):
+            self.window.save_project_preset()
+
+        exported = json.loads(recipe_path.read_text())
+        self.assertEqual(exported["schema_version"], state_contract.SCHEMA_VERSION)
+        self.window._apply_project_state({"schema_version": 6})
+        self.assertFalse(self.window.zones)
+
+        with mock.patch.object(
+            QFileDialog,
+            "getOpenFileName",
+            return_value=(str(recipe_path), "WZRD.VID recipe (*.json)"),
+        ):
+            self.window.load_project_preset()
+
+        self.assertEqual([zone.id for zone in self.window.zones], ["one", "two"])
+        self.assertEqual(
+            self.window.effect_zone_assignments,
+            {"pixel_sorting": "one", "skrrt": "two"},
+        )
+        self.assertEqual(self.window._codec_layer_order(), reversed_layer)
+        self.assertEqual(self.window.style_begin_time.text(), "0:07")
+        self.assertEqual(
+            self.window.style_fx_coverage_mode.currentText(),
+            state_contract.STYLE_FX_MANUAL,
+        )
+        self.assertEqual(
+            [row.values() for row in self.window.style_fx_block_rows],
+            [("0:01", "0:02")],
+        )
+
     def test_reset_clears_spatial_state_and_restores_layer(self) -> None:
+        self.assertEqual(
+            tuple(key for key, _label, _tooltip in app.EFFECTS),
+            state_contract.PERSISTED_EFFECT_ORDER,
+        )
         self.window._set_zone_state(
             self.valid_zones(),
             {"pixel_sorting": "one", "skrrt": "two"},
             warn_on_repair=False,
         )
         self.window._set_codec_layer_order(tuple(reversed(renderer.CODEC_LAYER_ORDER)))
+        self.window.style_begin_time.setText("0:09")
+        self.window.max_video_length.setText("30")
+        self.window.random_clip_assembly.setChecked(True)
+        self.window.resolution_slider.setValue(2)
+        self.window._set_combo_text(self.window.preview_from, "Custom timestamp")
+        self.window.preview_duration.setCurrentText("10s")
+        self.window.preview_custom.setText("0:37")
         with mock.patch.object(
             QMessageBox,
             "question",
@@ -199,6 +262,13 @@ class StateContractTests(unittest.TestCase):
         self.assertFalse(self.window.zones)
         self.assertFalse(self.window.effect_zone_assignments)
         self.assertEqual(self.window._codec_layer_order(), renderer.CODEC_LAYER_ORDER)
+        self.assertEqual(self.window.style_begin_time.text(), "0:00")
+        self.assertEqual(self.window.max_video_length.text(), "")
+        self.assertFalse(self.window.random_clip_assembly.isChecked())
+        self.assertEqual(self.window.resolution_slider.value(), 2)
+        self.assertEqual(self.window.preview_from.currentText(), "Custom timestamp")
+        self.assertEqual(self.window.preview_duration.currentText(), "5s")
+        self.assertEqual(self.window.preview_custom.text(), "0:37")
 
 
 if __name__ == "__main__":

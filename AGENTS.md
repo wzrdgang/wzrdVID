@@ -34,7 +34,8 @@ Product boundaries:
 
 ## 3. Repo Structure
 
-- `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling (including the persistent five-mode codec Layer order), render worker threads, drag/drop and file picker wiring.
+- `app.py`: PySide6 desktop application entry point, UI construction, widget application/collection for settings and recipe JSON, render worker threads, drag/drop and file picker wiring.
+- `state_contract.py`: stdlib-only desktop persisted-state boundary. Owns schema 6, schema-3/4/5 migration, canonical defaults/Reset/serialization, malformed state repair, persisted effect activation identifiers/defaults, Zone definitions/eligibility/normalization, codec Layer identifiers/order normalization, Style FX persisted normalization, max-length load repair, and legacy audio/transition identities. It must not import Qt, renderer/codec/media modules, probe paths/media, or perform runtime planning.
 - `app_i18n.py`: lightweight desktop UI localization resources and language fallback helpers.
 - `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, explicit saved codec Layer dispatch, and optimization handoff.
 - `datamosh.py`: authentic desktop MPEG-4 Part 2 I/P-VOP parsing/manipulation, canonical/persisted-order DATAMOSHING/Overflow/SKRRT/Scatter/Bleed operations, order-independent frozen event plans, deterministic last-writer execution, shared bounded temporal indexing, controlled-stream SKRRT reverse-prediction (Full Frame or Zone-composed full-size auxiliaries) and Scatter fragment preparation, a shared one-I/P-only auxiliary encoding/validation contract, and one safe silent H.264 transcode when any codec mode is enabled.
@@ -91,6 +92,7 @@ High-risk files/directories:
 - `still_cache.py`: affects still-image loading, HEIC/HEIF proxy generation, `StillCache` paths, cache keys, and cache cleanup targets.
 - `ffmpeg_utils.py`: affects ffmpeg command construction, audio muxing/mixing, file size optimization, path safety.
 - `app.py`: affects desktop UI, project settings, source timeline handling, render settings, worker threads.
+- `state_contract.py`: affects settings/recipe migration, defaults, Reset, canonical JSON, Zones/assignments, codec Layer persistence, Style FX persisted state, and legacy identity repair. Keep it stdlib-only and preserve schema 6 unless an explicitly authorized schema phase says otherwise.
 - `build_app.sh`: affects packaged macOS app, asset generation, Qt pruning and companion links, signing, strict bundle integrity, bundle version, and bundle identifier.
 - `docs/index.html`, `docs/styles.css`, `docs/CNAME`: affect public site and custom-domain Pages behavior.
 - `docs/lite/app.js`: affects browser-only Lite rendering, file privacy, MediaRecorder behavior.
@@ -190,7 +192,7 @@ python3 apple-lite/scripts/run_simulator_smoke.py
 Syntax/static checks:
 
 ```bash
-python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
+python3 -m py_compile app.py state_contract.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
 node --check docs/i18n.js
 node --check docs/lite/app.js
 git diff --check
@@ -225,7 +227,7 @@ Deploy/preview:
 | Docs-only | `git status --short --branch`, `git diff --check`, targeted `rg` for required sections/terms. |
 | UI/content-only desktop | Docs-only checks plus `python3 -m py_compile app.py theme.py`; offscreen screenshot if layout/wrapping may change. |
 | UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
-| Component logic desktop | `python3 -m py_compile app.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; run the tracked desktop regression suite when Material effects, Zones, schema/project state, codec execution/Layer persistence, render transport/failure classification, or final audio/media handling are in scope; focused smoke for changed flow where practical. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
+| Component logic desktop | `python3 -m py_compile app.py state_contract.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; run the tracked desktop regression suite when Material effects, Zones, schema/project state, codec execution/Layer persistence, render transport/failure classification, or final audio/media handling are in scope; focused smoke for changed flow where practical. Persisted-state changes additionally require direct pure `state_contract.py` schema-3/4/5/6, malformed/default/Reset/canonicalization/idempotence tests plus at least one isolated offscreen MainWindow save/load or recipe integration check. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
 | Tracked desktop regression tests | Run `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`; preserve the exact 18-case Material oracle hash, exact canonical spILL! counts, strict controlled/auxiliary VOP rules, deterministic generated fixtures/media, isolated temporary settings, zero network/private media, source immutability, and zero repository output. Run twice when changing the tests or their fixture/oracle definitions, and include a reverse-module-order run. |
 | Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. Lite audio changes also require source-off/source-only/Add-only/mixed output checks, source-to-visual-cut sync including still silence, and repeated-render/reset graph cleanup. |
 | Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator UI behavior is in scope; for audio changes require exported-file track and PCM/frequency evidence rather than track count alone; keep generated `LiteWeb/` and `DerivedData/` out of git. |

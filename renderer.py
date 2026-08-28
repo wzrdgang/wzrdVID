@@ -21,6 +21,19 @@ import datamosh
 import ffmpeg_utils
 import still_cache
 from presets import get_preset
+from state_contract import (
+    CODEC_LAYER_ORDER,
+    MAX_ZONES,
+    STYLE_FX_FULL,
+    STYLE_FX_MANUAL,
+    STYLE_FX_MANUAL_RANDOM,
+    STYLE_FX_RANDOM,
+    ZONE_ASSIGNMENT_EFFECT_ORDER,
+    ZoneDefinition,
+    normalize_codec_layer_order,
+    normalize_style_fx_coverage_mode,
+    normalize_zone_state,
+)
 
 
 ProgressCallback = Callable[[int], None] | None
@@ -36,10 +49,6 @@ BYPASS_FULL_ANSI = "Full ANSI"
 BYPASS_RANDOM = "Random normal sections"
 BYPASS_MANUAL = "Manual normal time blocks"
 BYPASS_MANUAL_RANDOM = "Manual + random"
-STYLE_FX_FULL = "Full effects"
-STYLE_FX_RANDOM = "Random clean sections"
-STYLE_FX_MANUAL = "Manual clean time blocks"
-STYLE_FX_MANUAL_RANDOM = "Manual + random"
 AUDIO_SILENT = "Silent"
 AUDIO_EXTERNAL = "External only"
 AUDIO_SOURCE = "Source audio only"
@@ -47,7 +56,6 @@ AUDIO_MIX = "External + selected source audio"
 MATCH_SPEED = "Speed up/down timeline"
 MATCH_TRIM = "Trim timeline to music"
 MATCH_LOOP = "Loop timeline to music"
-CODEC_LAYER_ORDER = datamosh.DATAMOSH_MODE_ORDER
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
 LONG_MEDIA_WARNING_SECONDS = 30 * 60
@@ -59,129 +67,11 @@ PHASE2_FRAME_EFFECT_ORDER = (
     "hex_editing",
     "random_noise_bw",
 )
-ZONE_ASSIGNMENT_EFFECT_ORDER = (*PHASE2_FRAME_EFFECT_ORDER, datamosh.DATAMOSH_MODE_SKRRT)
 _PIXEL_SORTING_SALT = 0x50_49_58_45_4C
 _DATABENDING_SALT = 0x44_41_54_41_42
 _CIRCUIT_BENDING_SALT = 0x43_49_52_43_55
 _HEX_EDITING_SALT = 0x48_45_58_45_44
 _RANDOM_NOISE_BW_SALT = 0x42_57_4E_4F_49
-MAX_ZONES = 3
-
-
-def normalize_codec_layer_order(value: object) -> tuple[str, ...]:
-    """Normalize persisted Layer state to the canonical five codec identifiers."""
-    return datamosh.normalize_datamosh_mode_order(value)
-
-
-@dataclass(frozen=True)
-class ZoneDefinition:
-    """One static named rectangle in normalized final-output coordinates."""
-
-    id: str
-    name: str
-    x: float
-    y: float
-    width: float
-    height: float
-
-    def as_dict(self) -> dict[str, object]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "x": float(self.x),
-            "y": float(self.y),
-            "width": float(self.width),
-            "height": float(self.height),
-        }
-
-
-def normalize_zone_state(
-    zones_value: object,
-    assignments_value: object,
-) -> tuple[tuple[ZoneDefinition, ...], dict[str, str], bool]:
-    """Validate schema-6 Zone fields and report whether repair was required."""
-    repaired = False
-    raw_zones: list[object]
-    if isinstance(zones_value, list):
-        raw_zones = zones_value
-    else:
-        raw_zones = []
-        repaired = zones_value not in (None, ())
-
-    zones: list[ZoneDefinition] = []
-    seen_ids: set[str] = set()
-    for record in raw_zones:
-        if len(zones) >= MAX_ZONES:
-            repaired = True
-            break
-        if isinstance(record, ZoneDefinition):
-            record = record.as_dict()
-        if not isinstance(record, dict):
-            repaired = True
-            continue
-        zone_id = record.get("id")
-        name = record.get("name")
-        geometry = tuple(record.get(key) for key in ("x", "y", "width", "height"))
-        if (
-            not isinstance(zone_id, str)
-            or not zone_id.strip()
-            or zone_id in seen_ids
-            or not isinstance(name, str)
-            or not name.strip()
-            or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in geometry)
-        ):
-            repaired = True
-            continue
-        x, y, width, height = (float(value) for value in geometry)
-        if (
-            not all(math.isfinite(value) for value in (x, y, width, height))
-            or width <= 0.0
-            or height <= 0.0
-        ):
-            repaired = True
-            continue
-        left = max(0.0, min(1.0, x))
-        top = max(0.0, min(1.0, y))
-        right = max(0.0, min(1.0, x + width))
-        bottom = max(0.0, min(1.0, y + height))
-        if right <= left or bottom <= top:
-            repaired = True
-            continue
-        in_bounds = x >= 0.0 and y >= 0.0 and x + width <= 1.0 and y + height <= 1.0
-        if not in_bounds:
-            repaired = True
-        zone = ZoneDefinition(
-            id=zone_id,
-            name=name.strip(),
-            x=x if in_bounds else left,
-            y=y if in_bounds else top,
-            width=width if in_bounds else right - left,
-            height=height if in_bounds else bottom - top,
-        )
-        zones.append(zone)
-        seen_ids.add(zone.id)
-
-    assignments: dict[str, str] = {}
-    if assignments_value is None:
-        raw_assignments: dict[object, object] = {}
-    elif isinstance(assignments_value, dict):
-        raw_assignments = assignments_value
-    else:
-        raw_assignments = {}
-        repaired = True
-    valid_ids = {zone.id for zone in zones}
-    for raw_effect, raw_zone_id in raw_assignments.items():
-        if (
-            raw_effect not in ZONE_ASSIGNMENT_EFFECT_ORDER
-            or not isinstance(raw_zone_id, str)
-            or raw_zone_id not in valid_ids
-        ):
-            repaired = True
-            continue
-        assignments[str(raw_effect)] = raw_zone_id
-    return tuple(zones), assignments, repaired
-
-
 def rasterize_zone(
     zone: ZoneDefinition,
     output_size: tuple[int, int],
@@ -1164,20 +1054,6 @@ def build_bypass_intervals(
         )
 
     return _merge_intervals(intervals, duration)
-
-
-def normalize_style_fx_coverage_mode(value: object) -> str:
-    """Return a known persisted Style FX coverage mode, defaulting fail-safe to Full."""
-    if not isinstance(value, str):
-        return STYLE_FX_FULL
-    normalized = value.strip().lower()
-    aliases = {
-        STYLE_FX_FULL.lower(): STYLE_FX_FULL,
-        STYLE_FX_RANDOM.lower(): STYLE_FX_RANDOM,
-        STYLE_FX_MANUAL.lower(): STYLE_FX_MANUAL,
-        STYLE_FX_MANUAL_RANDOM.lower(): STYLE_FX_MANUAL_RANDOM,
-    }
-    return aliases.get(normalized, STYLE_FX_FULL)
 
 
 def build_style_fx_clean_intervals(

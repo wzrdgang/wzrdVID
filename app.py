@@ -84,25 +84,33 @@ from renderer import (
     BYPASS_MANUAL,
     BYPASS_MANUAL_RANDOM,
     BYPASS_RANDOM,
-    CODEC_LAYER_ORDER,
     MATCH_LOOP,
     MATCH_SPEED,
     MATCH_TRIM,
-    MAX_ZONES,
     RenderSettings,
+    TimelineItem,
+    build_bypass_intervals,
+    build_style_fx_clean_intervals,
+    fit_frame_to_output,
+    render_project,
+)
+from state_contract import (
+    CODEC_LAYER_ORDER,
+    DEFAULT_OFF_EFFECTS,
+    MAX_ZONES,
+    SCHEMA_VERSION,
     STYLE_FX_FULL,
     STYLE_FX_MANUAL,
     STYLE_FX_MANUAL_RANDOM,
     STYLE_FX_RANDOM,
-    TimelineItem,
     ZoneDefinition,
-    build_bypass_intervals,
-    build_style_fx_clean_intervals,
-    fit_frame_to_output,
+    canonical_transition_mode,
+    canonicalize_persisted_state,
     normalize_codec_layer_order,
-    normalize_zone_state,
+    normalize_persisted_state,
     normalize_style_fx_coverage_mode,
-    render_project,
+    normalize_zone_state,
+    reset_project_state,
 )
 from theme import MONO_FONT_STACK, PALETTE, app_stylesheet
 
@@ -627,21 +635,6 @@ LOCALIZED_EFFECT_KEYS = PHASE2_FRAME_EFFECT_KEYS | {
 }
 CODEC_LAYER_LABEL_KEYS = {
     mode: f"effect.{mode}.label" for mode in CODEC_LAYER_ORDER
-}
-DEFAULT_OFF_EFFECTS = {
-    "tunnel_zoom",
-    "datamoshing",
-    "overflow",
-    "skrrt",
-    "scatter",
-    "bleed",
-    *PHASE2_FRAME_EFFECT_KEYS,
-    "stutter_hold",
-    "motion_melt",
-    "terminal_scroll",
-    "tape_damage",
-    "mosaic_collapse",
-    "audio_reactive",
 }
 DEFAULT_TRANSITION_MODE = "CRT Flash"
 DEFAULT_ENDING_MODE = "Fade Out"
@@ -5427,74 +5420,20 @@ class MainWindow(QMainWindow):
             if response != QMessageBox.StandardButton.Reset:
                 return
 
-        self.timeline_items.clear()
-        self._refresh_timeline_table()
-        self.video_path.clear()
-        self.audio_path.clear()
-        self.output_path.clear()
+        current_state = self._project_state()
+        canonical_reset = reset_project_state(
+            current_state,
+            random_seed=random.SystemRandom().randint(1, 2_147_483_647),
+            style_fx_random_seed=random.SystemRandom().randint(1, 2_147_483_647),
+            weird_seed=random.SystemRandom().randint(1, 2_147_483_647),
+        )
+        self._apply_project_state(canonical_reset)
+        self._max_video_length_user_edited = False
+
         self.audio_duration_seconds = None
         self.audio_duration.setText(self.tr("status.duration_empty"))
         self.video_duration_seconds = None
         self.video_duration.setText(self.tr("status.timeline_none"))
-        self.video_start.setText("0:00")
-        self.video_end.setText("auto")
-        self.audio_start.setText("0:00")
-        self.audio_end.setText("auto")
-        self.audio_timeline_start.setText("0:00")
-        self.audio_timeline_end.setText("auto")
-        self.style_begin_time.setText("0:00")
-        self.max_video_length.clear()
-        self._max_video_length_user_edited = False
-        self._set_combo_text(self.audio_mode, AUDIO_SILENT)
-        self.worky_music_mode.setChecked(False)
-        self.match_timeline_to_audio.setChecked(False)
-        self.random_clip_assembly.setChecked(False)
-        self._set_combo_text(self.match_timeline_mode, MATCH_SPEED)
-
-        self._set_combo_text(self.preset, "Classic ANSI")
-        self.chunky_blocks.setChecked(False)
-        for key, checkbox in self.effect_checks.items():
-            checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
-        self._set_zone_state([], {}, warn_on_repair=False)
-        self._set_codec_layer_order(CODEC_LAYER_ORDER)
-        self.width_slider.setValue(120)
-        self.intensity_slider.setValue(65)
-
-        self._set_combo_text(self.fit_mode, "Fill/Crop")
-        self._set_combo_text(self.anchor_mode, "Center")
-        self._set_combo_text(self.letterbox_background, "Black")
-        self.upper_bias.setChecked(True)
-        self.framing_x_slider.setValue(0)
-        self.framing_y_slider.setValue(0)
-        self.framing_zoom_slider.setValue(0)
-
-        self._set_combo_text(self.dither_mode, "None")
-        self._set_transition_mode(DEFAULT_TRANSITION_MODE)
-        self.transition_intensity_slider.setValue(55)
-        self._set_combo_text(self.ending_mode, DEFAULT_ENDING_MODE)
-        self.loop_friendly.setChecked(False)
-
-        self._set_combo_text(self.bypass_mode, BYPASS_FULL_ANSI)
-        self.random_percent.setValue(10)
-        self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self._set_combo_text(self.style_fx_coverage_mode, STYLE_FX_FULL)
-        self.style_fx_random_percent.setValue(10)
-        self.style_fx_random_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
-        self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
-        for row in list(self.block_rows):
-            self.remove_manual_block(row)
-        for row in list(self.style_fx_block_rows):
-            self.remove_style_fx_manual_block(row)
-
-        self._set_combo_text(self.output_size_preset, "Full Quality")
-        self.target_size_enabled.setChecked(False)
-        self._set_combo_text(self.optimize_preset, "29 MB Text Limit")
-        self.target_size_mb.setValue(29.0)
-        self.batch_enabled.setChecked(False)
-        for name, checkbox in self.batch_checks.items():
-            checkbox.setChecked(name in {"29 MB Text Limit", "Chunkcore"})
-        self.batch_status_label.setText(self.tr("status.batch_off"))
 
         self.preview_label.setPixmap(QPixmap())
         self.preview_label.setText(self.tr("status.no_source"))
@@ -5625,20 +5564,12 @@ class MainWindow(QMainWindow):
         self._max_video_length_user_edited = False
         return True
 
-    def _max_video_length_text_from_state(self, value: object) -> str:
-        if value is None:
-            return ""
-        text = str(value).strip()
-        if text.lower() in {"", "auto", "none", "null"}:
-            return ""
-        return text
-
     def _project_state(self, *, normalize_noop_max: bool = False) -> dict:
         self._sync_timeline_from_table()
         output_values = self._output_size_values()
-        return {
+        return canonicalize_persisted_state({
             "app": APP_NAME,
-            "schema_version": 6,
+            "schema_version": SCHEMA_VERSION,
             "ui_language": self.ui_language,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
@@ -5710,9 +5641,17 @@ class MainWindow(QMainWindow):
             "batch_variants": [
                 name for name, checkbox in self.batch_checks.items() if checkbox.isChecked()
             ],
-        }
+        })
 
     def _apply_project_state(self, data: dict, *, mark_explicit_max_length: bool = False) -> None:
+        data, zone_repaired = normalize_persisted_state(
+            data,
+            current_effects={
+                key: checkbox.isChecked()
+                for key, checkbox in self.effect_checks.items()
+            },
+            style_fx_random_seed_fallback=self.style_fx_random_seed,
+        )
         language = str(data.get("ui_language", self.ui_language or "system"))
         self.ui_language = language if language in {code for code, _name in SUPPORTED_LANGUAGES} else "system"
         self.video_path.setText(str(data.get("video_path", "")))
@@ -5726,14 +5665,12 @@ class MainWindow(QMainWindow):
         self.audio_end.setText(str(data.get("audio_end", "auto")))
         self.audio_timeline_start.setText(str(data.get("audio_timeline_start", "0:00")))
         self.audio_timeline_end.setText(str(data.get("audio_timeline_end", "auto")))
-        self.style_begin_time.setText(str(data.get("style_begin_time", "0:00")))
-        loaded_max_video_length = self._max_video_length_text_from_state(data.get("max_video_length", ""))
+        self.style_begin_time.setText(str(data["style_begin_time"]))
+        loaded_max_video_length = str(data["max_video_length"])
         self._max_video_length_user_edited = bool(mark_explicit_max_length and loaded_max_video_length)
         self.max_video_length.setText(loaded_max_video_length)
         self.random_clip_assembly.setChecked(bool(data.get("random_clip_assembly", False)))
-        loaded_audio_mode = self._canonical_audio_mode(
-            str(data.get("audio_mode", AUDIO_EXTERNAL if self.audio_path.text().strip() else AUDIO_SOURCE))
-        )
+        loaded_audio_mode = str(data["audio_mode"])
         self._set_combo_text(self.audio_mode, loaded_audio_mode)
         self.worky_music_mode.setChecked(bool(data.get("worky_music_mode", False)))
         self.match_timeline_to_audio.setChecked(bool(data.get("match_timeline_to_audio", False)))
@@ -5742,7 +5679,7 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.bypass_mode, str(data.get("bypass_mode", BYPASS_FULL_ANSI)))
         self._set_combo_text(
             self.style_fx_coverage_mode,
-            normalize_style_fx_coverage_mode(data.get("style_fx_coverage_mode")),
+            str(data["style_fx_coverage_mode"]),
         )
         self.chunky_blocks.setChecked(bool(data.get("chunky_blocks", False)))
 
@@ -5771,20 +5708,8 @@ class MainWindow(QMainWindow):
         self.target_size_mb.setValue(float(data.get("target_size_mb", 29.0)))
         self.random_percent.setValue(int(data.get("random_percent", 10)))
         self.random_seed = int(data.get("random_seed", self.random_seed))
-        try:
-            self.style_fx_random_percent.setValue(
-                int(data.get("style_fx_random_percent", 10))
-            )
-        except (TypeError, ValueError):
-            self.style_fx_random_percent.setValue(10)
-        try:
-            self.style_fx_random_seed = int(
-                data.get("style_fx_random_seed", self.style_fx_random_seed)
-            )
-        except (TypeError, ValueError):
-            self.style_fx_random_seed = random.SystemRandom().randint(
-                1, 2_147_483_647
-            )
+        self.style_fx_random_percent.setValue(int(data["style_fx_random_percent"]))
+        self.style_fx_random_seed = int(data["style_fx_random_seed"])
         self.weird_seed = int(data.get("weird_seed", self.weird_seed))
         self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         self._set_combo_text(self.fit_mode, str(data.get("framing_fit_mode", "Fill/Crop")))
@@ -5809,24 +5734,19 @@ class MainWindow(QMainWindow):
         for name, checkbox in self.batch_checks.items():
             checkbox.setChecked(name in selected_variants)
 
-        effects = data.get("effects", {})
-        if isinstance(effects, dict):
-            for key, checkbox in self.effect_checks.items():
-                checkbox.setChecked(bool(effects.get(key, key not in DEFAULT_OFF_EFFECTS)))
-        try:
-            schema_version = int(data.get("schema_version", 0))
-        except (TypeError, ValueError):
-            schema_version = 0
-        supports_zones = schema_version >= 6
+        effects = data["effects"]
+        for key, checkbox in self.effect_checks.items():
+            checkbox.setChecked(bool(effects[key]))
         self._set_zone_state(
-            data.get("zones", []) if supports_zones else [],
-            data.get("effect_zone_assignments", {}) if supports_zones else {},
-            warn_on_repair=(
-                supports_zones
-                and ("zones" in data or "effect_zone_assignments" in data)
-            ),
+            data["zones"],
+            data["effect_zone_assignments"],
+            warn_on_repair=False,
         )
-        self._set_codec_layer_order(data.get("codec_layer_order", CODEC_LAYER_ORDER))
+        if zone_repaired:
+            self.append_log(
+                "Zone state warning: malformed or missing references were repaired; invalid assignments use Full Frame."
+            )
+        self._set_codec_layer_order(data["codec_layer_order"])
 
         for row in list(self.block_rows):
             self.remove_manual_block(row)
@@ -5835,14 +5755,8 @@ class MainWindow(QMainWindow):
                 self.add_manual_block(str(block.get("start", "0:12")), str(block.get("end", "0:18")))
         for row in list(self.style_fx_block_rows):
             self.remove_style_fx_manual_block(row)
-        raw_style_fx_blocks = data.get("style_fx_manual_blocks", [])
-        if isinstance(raw_style_fx_blocks, list):
-            for block in raw_style_fx_blocks:
-                if isinstance(block, dict):
-                    self.add_style_fx_manual_block(
-                        str(block.get("start", "0:12")),
-                        str(block.get("end", "0:18")),
-                    )
+        for block in data["style_fx_manual_blocks"]:
+            self.add_style_fx_manual_block(block["start"], block["end"])
 
         self.last_output_path = None
         self.last_preview_path = None
@@ -5935,15 +5849,6 @@ class MainWindow(QMainWindow):
             ]
         return []
 
-    def _canonical_audio_mode(self, value: str) -> str:
-        aliases = {
-            "External Music/Audio": AUDIO_EXTERNAL,
-            "Keep source audio": AUDIO_SOURCE,
-            "Source audio": AUDIO_SOURCE,
-            "External + source audio": AUDIO_MIX,
-        }
-        return aliases.get(value, value)
-
     def _set_combo_text(self, combo: QComboBox, value: str) -> None:
         index = combo.findText(value)
         if index >= 0:
@@ -5954,7 +5859,7 @@ class MainWindow(QMainWindow):
         return str(value or self.transition_mode.currentText() or "Hard Cut")
 
     def _set_transition_mode(self, value: object) -> None:
-        internal = "Hard Cut" if str(value or "").strip() in {"", "None", "Hard Cut"} else str(value)
+        internal = canonical_transition_mode(value)
         index = self.transition_mode.findData(internal, Qt.ItemDataRole.UserRole)
         if index < 0:
             index = self.transition_mode.findText(internal)
