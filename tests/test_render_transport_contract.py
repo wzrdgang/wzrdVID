@@ -426,15 +426,17 @@ class RenderTransportContractTests(unittest.TestCase):
             def __exit__(inner_self, *args: object) -> object:
                 return inner_self.inner.__exit__(*args)
 
-        def fail_zone(*_args: object, **_kwargs: object) -> None:
-            raise renderer.RenderError("synthetic Zone contract failure")
+        def fail_zone_motion(*_args: object, **_kwargs: object) -> None:
+            raise MemoryError("synthetic Zone geometry allocation failure")
 
         def count_png(*args: object, **kwargs: object) -> object:
             nonlocal png_calls
             png_calls += 1
             return original_png(*args, **kwargs)
 
-        zone = renderer.ZoneDefinition("zone-a", "Tracked", 0.2, 0.2, 0.5, 0.5)
+        zone = renderer.ZoneDefinition(
+            "zone-a", "Tracked", 0.2, 0.2, 0.5, 0.5, "drift", 25.0, 2
+        )
         failing = replace(
             self.settings,
             output_path=str(output),
@@ -447,7 +449,7 @@ class RenderTransportContractTests(unittest.TestCase):
             {renderer.FRAME_PIPE_FORCE_PNG_ENV_VAR: "0"},
             clear=False,
         ), mock.patch.object(
-            renderer, "_apply_phase2_zone_effect", side_effect=fail_zone
+            renderer.zone_motion, "resolve_zone_motion", side_effect=fail_zone_motion
         ), mock.patch.object(
             renderer, "_render_silent_video_with_png_frames", side_effect=count_png
         ), mock.patch.object(
@@ -457,7 +459,9 @@ class RenderTransportContractTests(unittest.TestCase):
         ):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", ResourceWarning)
-                with self.assertRaisesRegex(renderer.RenderError, "synthetic Zone"):
+                with self.assertRaisesRegex(
+                    renderer.RenderError, "synthetic Zone geometry allocation failure"
+                ):
                     renderer.render_project(failing, log=logs.append)
                 gc.collect()
         self.assertEqual(png_calls, 0)

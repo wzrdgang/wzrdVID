@@ -22,6 +22,7 @@ import datamosh
 import ffmpeg_utils
 import still_cache
 import timeline_math
+import zone_motion
 from presets import get_preset
 from state_contract import (
     CODEC_LAYER_ORDER,
@@ -432,6 +433,12 @@ class _FrameEffectControl:
     event: _FrameEffectEvent | None = None
 
 
+@dataclass(frozen=True)
+class _ZoneFrameHistory:
+    rgb: np.ndarray
+    rectangle: tuple[int, int, int, int]
+
+
 _PHASE2_EVENT_SALT = 0x45_56_45_4E_54
 _PHASE2_TRANSITION_SALT = 0x54_52_41_4E_53
 _PHASE2_ORGANIC_SALT = 0x4F_52_47_41_4E_49_43
@@ -462,8 +469,7 @@ class _FrameEffectChoreographer:
         self.previous_scores: dict[str, float] = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
         self.previous_luma: np.ndarray | None = None
         self.previous_rgb: np.ndarray | None = None
-        self.zone_previous_luma: dict[tuple[int, int, int, int], np.ndarray] = {}
-        self.zone_previous_rgb: dict[tuple[int, int, int, int], np.ndarray] = {}
+        self.zone_history: dict[str, _ZoneFrameHistory] = {}
         self.organic_instability = 0.0
         self.organic_aftershock = 0.0
         self.organic_drive = 0.0
@@ -486,6 +492,8 @@ class _FrameEffectChoreographer:
         self.recorded_events: list[_FrameEffectEvent] = []
         self.recorded_organic_states: list[dict[str, float | int | bool]] = []
         self.peak_analysis_bytes = 0
+        self.peak_zone_history_bytes = 0
+        self.zone_motion_seconds = 0.0
 
     def _select_transition_effects(
         self,
@@ -522,12 +530,43 @@ class _FrameEffectChoreographer:
         self,
         frame: np.ndarray,
         rectangle: tuple[int, int, int, int],
+        previous_rgb: np.ndarray | None,
     ) -> _FrameMaterialAnalysis:
+        try:
+            left, top, right, bottom = rectangle
+            return _FrameMaterialAnalysis(
+                rgb=np.ascontiguousarray(frame[top:bottom, left:right], dtype=np.uint8),
+                previous_luma=(
+                    _phase2_luma(previous_rgb) if previous_rgb is not None else None
+                ),
+            )
+        except Exception as exc:
+            raise RenderError(f"Zone history analysis failed: {exc}") from exc
+
+    def previous_rgb_for_zone(
+        self,
+        zone_id: str,
+        rectangle: tuple[int, int, int, int],
+    ) -> np.ndarray | None:
+        history = self.zone_history.get(zone_id)
+        if history is None:
+            return None
         left, top, right, bottom = rectangle
-        return _FrameMaterialAnalysis(
-            rgb=np.ascontiguousarray(frame[top:bottom, left:right], dtype=np.uint8),
-            previous_luma=self.zone_previous_luma.get(rectangle),
-        )
+        target_size = (right - left, bottom - top)
+        previous = history.rgb
+        if previous.shape[1::-1] != target_size:
+            try:
+                previous = cv2.resize(
+                    previous,
+                    target_size,
+                    interpolation=cv2.INTER_AREA,
+                )
+            except Exception as exc:
+                raise RenderError(f"Zone history resize failed: {exc}") from exc
+        try:
+            return np.ascontiguousarray(previous, dtype=np.uint8)
+        except Exception as exc:
+            raise RenderError(f"Zone history preparation failed: {exc}") from exc
 
     def controls_for(
         self,
@@ -730,19 +769,32 @@ class _FrameEffectChoreographer:
 
     def commit_zones(
         self,
-        analyses: dict[tuple[int, int, int, int], _FrameMaterialAnalysis],
+        analyses: dict[
+            str,
+            tuple[tuple[int, int, int, int], _FrameMaterialAnalysis],
+        ],
         effect_input: np.ndarray,
     ) -> None:
-        for rectangle, analysis in analyses.items():
-            left, top, right, bottom = rectangle
-            self.zone_previous_luma[rectangle] = analysis.luma.copy()
-            self.zone_previous_rgb[rectangle] = np.ascontiguousarray(
-                effect_input[top:bottom, left:right],
-                dtype=np.uint8,
-            )
-        history_bytes = sum(array.nbytes for array in self.zone_previous_luma.values())
-        history_bytes += sum(array.nbytes for array in self.zone_previous_rgb.values())
-        analysis_bytes = sum(analysis.cached_bytes for analysis in analyses.values())
+        if len(analyses) > MAX_ZONES:
+            raise RenderError("Zone history exceeded the three-Zone limit.")
+        try:
+            for zone_id, (rectangle, _analysis) in analyses.items():
+                left, top, right, bottom = rectangle
+                self.zone_history[zone_id] = _ZoneFrameHistory(
+                    rgb=np.ascontiguousarray(
+                        effect_input[top:bottom, left:right],
+                        dtype=np.uint8,
+                    ),
+                    rectangle=rectangle,
+                )
+        except Exception as exc:
+            raise RenderError(f"Zone history commit failed: {exc}") from exc
+        history_bytes = sum(history.rgb.nbytes for history in self.zone_history.values())
+        analysis_bytes = sum(analysis.cached_bytes for _rectangle, analysis in analyses.values())
+        self.peak_zone_history_bytes = max(
+            self.peak_zone_history_bytes,
+            int(history_bytes),
+        )
         self.peak_analysis_bytes = max(
             self.peak_analysis_bytes,
             int(history_bytes + analysis_bytes),
@@ -755,8 +807,7 @@ class _FrameEffectChoreographer:
         self.previous_scores = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
         self.previous_luma = None
         self.previous_rgb = None
-        self.zone_previous_luma.clear()
-        self.zone_previous_rgb.clear()
+        self.zone_history.clear()
         self.organic_instability = 0.0
         self.organic_aftershock = 0.0
         self.organic_drive = 0.0
@@ -2850,6 +2901,8 @@ def _render_frames(
                     phase2_material=phase2_material,
                     zones=settings.zones,
                     effect_zone_assignments=settings.effect_zone_assignments,
+                    absolute_output_time=absolute_output_t,
+                    full_output_duration=full_output_duration,
                 )
                 output_frame = _apply_ending_effect(
                     output_frame,
@@ -2901,6 +2954,14 @@ def _render_frames(
             f"ImageDraw.text/glyph draw {timing_detail.image_draw_text_seconds:.2f}s, "
             f"ANSI output effects {timing_detail.ansi_output_effect_seconds:.2f}s.",
         )
+        if any(zone.motion_mode in {"drift", "pulse"} for zone in settings.zones):
+            _emit(
+                log,
+                "Zone Motion timing: "
+                f"geometry {phase2_choreographer.zone_motion_seconds:.6f}s, "
+                f"history peak {phase2_choreographer.peak_zone_history_bytes} bytes, "
+                f"analysis/history peak {phase2_choreographer.peak_analysis_bytes} bytes.",
+            )
         source.close()
 
 
@@ -3282,6 +3343,8 @@ def _apply_global_artifact_effects(
     phase2_material: np.ndarray | Image.Image | None = None,
     zones: tuple[ZoneDefinition, ...] = (),
     effect_zone_assignments: dict[str, str] | None = None,
+    absolute_output_time: float = 0.0,
+    full_output_duration: float = 0.0,
 ) -> Image.Image:
     if _effect_on(effects, "motion_melt") and previous is not None:
         image = _apply_motion_melt(image, previous, frame_index, intensity)
@@ -3303,6 +3366,8 @@ def _apply_global_artifact_effects(
         material=phase2_material,
         zones=zones,
         effect_zone_assignments=effect_zone_assignments,
+        absolute_output_time=absolute_output_time,
+        full_output_duration=full_output_duration,
     )
 
 
@@ -3857,6 +3922,8 @@ def _apply_phase2_frame_effects(
     material: np.ndarray | Image.Image | None = None,
     zones: tuple[ZoneDefinition, ...] = (),
     effect_zone_assignments: dict[str, str] | None = None,
+    absolute_output_time: float = 0.0,
+    full_output_duration: float = 0.0,
 ) -> Image.Image:
     if not any(_effect_on(effects, key) for key in PHASE2_FRAME_EFFECT_ORDER):
         return image
@@ -3873,12 +3940,37 @@ def _apply_phase2_frame_effects(
     )
     zone_by_id = {zone.id: zone for zone in normalized_zones}
     effect_rectangles: dict[str, tuple[int, int, int, int]] = {}
+    effect_zone_ids: dict[str, str] = {}
+    resolved_zone_by_id: dict[str, ZoneDefinition] = {}
     for effect, zone_id in normalized_assignments.items():
         if not _effect_on(effects, effect):
             continue
-        rectangle = rasterize_zone(zone_by_id[zone_id], image.size)
+        base_zone = zone_by_id[zone_id]
+        resolved_zone = base_zone
+        if effect in PHASE2_FRAME_EFFECT_ORDER:
+            resolved_zone = resolved_zone_by_id.get(zone_id)
+            if resolved_zone is None:
+                try:
+                    motion_started = time.perf_counter()
+                    resolved_zone = zone_motion.resolve_zone_motion(
+                        base_zone,
+                        local_choreographer.seed,
+                        absolute_output_time,
+                        full_output_duration,
+                    )
+                    local_choreographer.zone_motion_seconds += max(
+                        0.0, time.perf_counter() - motion_started
+                    )
+                    resolved_zone_by_id[zone_id] = resolved_zone
+                except Exception as exc:
+                    raise RenderError(f"Zone motion geometry failed: {exc}") from exc
+        try:
+            rectangle = rasterize_zone(resolved_zone, image.size)
+        except Exception as exc:
+            raise RenderError(f"Zone motion rasterization failed: {exc}") from exc
         if rectangle is not None:
             effect_rectangles[effect] = rectangle
+            effect_zone_ids[effect] = zone_id
 
     # Full Frame is the compatibility oracle: keep the pre-Zones path byte-for-byte.
     if not effect_rectangles:
@@ -3950,17 +4042,33 @@ def _apply_phase2_frame_effects(
             interpolation=cv2.INTER_AREA,
         )
     analysis = local_choreographer.analysis_for(image if material is None else material)
-    zone_analyses: dict[tuple[int, int, int, int], _FrameMaterialAnalysis] = {}
+    zone_analyses: dict[
+        str,
+        tuple[tuple[int, int, int, int], _FrameMaterialAnalysis],
+    ] = {}
+    zone_previous_rgb: dict[str, np.ndarray | None] = {}
     effect_analyses: dict[str, _FrameMaterialAnalysis] = {}
+    circuit_zone_id = effect_zone_ids.get("circuit_bending")
     for effect, rectangle in effect_rectangles.items():
-        if rectangle not in zone_analyses:
+        zone_id = effect_zone_ids[effect]
+        if zone_id not in zone_analyses:
             if len(zone_analyses) >= MAX_ZONES:
                 raise RenderError("Zone analysis cache exceeded the three-Zone limit.")
-            zone_analyses[rectangle] = local_choreographer.analysis_for_zone(
-                material_input,
-                rectangle,
+            previous_zone = (
+                local_choreographer.previous_rgb_for_zone(zone_id, rectangle)
+                if zone_id == circuit_zone_id
+                else None
             )
-        effect_analyses[effect] = zone_analyses[rectangle]
+            zone_previous_rgb[zone_id] = previous_zone
+            zone_analyses[zone_id] = (
+                rectangle,
+                local_choreographer.analysis_for_zone(
+                    material_input,
+                    rectangle,
+                    previous_zone,
+                ),
+            )
+        effect_analyses[effect] = zone_analyses[zone_id][1]
     controls = local_choreographer.controls_for(analysis, frame_index, effect_analyses)
     effect_seed = local_choreographer.seed
     frame = effect_input.copy()
@@ -3971,7 +4079,7 @@ def _apply_phase2_frame_effects(
         control = controls[effect]
         if rectangle is not None:
             previous_zone = (
-                local_choreographer.zone_previous_rgb.get(rectangle)
+                zone_previous_rgb.get(effect_zone_ids[effect])
                 if effect == "circuit_bending"
                 else None
             )

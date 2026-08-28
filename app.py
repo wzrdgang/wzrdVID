@@ -2330,6 +2330,31 @@ class MainWindow(QMainWindow):
             spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
             spin.setAccessibleName(accessible_name)
             self.zone_geometry_spins[key] = spin
+        self.zone_motion_combo = QComboBox()
+        self.zone_motion_combo.addItem("Static", None)
+        self.zone_motion_combo.addItem("Drift", "drift")
+        self.zone_motion_combo.addItem("Pulse", "pulse")
+        self.zone_motion_combo.setAccessibleName("Zone motion")
+        self.zone_motion_combo.setAccessibleDescription(
+            "Choose Static, Drift, or Pulse motion for the selected Zone."
+        )
+        self.zone_motion_amount = QDoubleSpinBox()
+        self.zone_motion_amount.setRange(0.0, 50.0)
+        self.zone_motion_amount.setDecimals(2)
+        self.zone_motion_amount.setSingleStep(1.0)
+        self.zone_motion_amount.setSuffix("%")
+        self.zone_motion_amount.setValue(25.0)
+        self.zone_motion_amount.setAccessibleName("Zone motion Amount percent")
+        self.zone_motion_amount.setAccessibleDescription(
+            "Maximum Zone motion amount from zero through fifty percent; disabled for Static."
+        )
+        self.zone_motion_cycles = QSpinBox()
+        self.zone_motion_cycles.setRange(1, 8)
+        self.zone_motion_cycles.setValue(2)
+        self.zone_motion_cycles.setAccessibleName("Zone motion Cycles")
+        self.zone_motion_cycles.setAccessibleDescription(
+            "Whole-output motion cycles from one through eight; disabled for Static."
+        )
         self.zone_assignment_combos: dict[str, QComboBox] = {}
         for effect in (
             "pixel_sorting",
@@ -2374,6 +2399,19 @@ class MainWindow(QMainWindow):
             geometry.addWidget(QLabel(label), 0, index)
             geometry.addWidget(self.zone_geometry_spins[key], 1, index)
         left.addLayout(geometry)
+        motion_row = QHBoxLayout()
+        motion_row.setSpacing(5)
+        motion_row.addWidget(self._label("label.zone_motion"))
+        motion_row.addWidget(self.zone_motion_combo)
+        motion_row.addWidget(self._label("label.zone_amount"))
+        motion_row.addWidget(self.zone_motion_amount)
+        motion_row.addWidget(self._label("label.zone_cycles"))
+        motion_row.addWidget(self.zone_motion_cycles)
+        left.addLayout(motion_row)
+        self.zone_motion_note = self._label("note.zone_motion_skrrt")
+        self.zone_motion_note.setWordWrap(True)
+        self.zone_motion_note.setObjectName("zoneMotionNote")
+        left.addWidget(self.zone_motion_note)
         layout.addLayout(left, 4)
         layout.addWidget(self.zone_canvas, 4)
 
@@ -2433,6 +2471,28 @@ class MainWindow(QMainWindow):
             spin.setValue(float(getattr(selected, key)) * 100.0 if selected is not None else 0.0)
             spin.setEnabled(selected is not None)
             spin.blockSignals(False)
+        moving = selected is not None and selected.motion_mode in {"drift", "pulse"}
+        self.zone_motion_combo.blockSignals(True)
+        motion_index = (
+            self.zone_motion_combo.findData(selected.motion_mode)
+            if selected is not None
+            else 0
+        )
+        self.zone_motion_combo.setCurrentIndex(motion_index if motion_index >= 0 else 0)
+        self.zone_motion_combo.setEnabled(selected is not None)
+        self.zone_motion_combo.blockSignals(False)
+        self.zone_motion_amount.blockSignals(True)
+        self.zone_motion_amount.setValue(
+            selected.motion_amount if moving and selected is not None else 25.0
+        )
+        self.zone_motion_amount.setEnabled(moving)
+        self.zone_motion_amount.blockSignals(False)
+        self.zone_motion_cycles.blockSignals(True)
+        self.zone_motion_cycles.setValue(
+            selected.motion_cycles if moving and selected is not None else 2
+        )
+        self.zone_motion_cycles.setEnabled(moving)
+        self.zone_motion_cycles.blockSignals(False)
         self.zone_name_edit.setEnabled(selected is not None)
         self.zone_duplicate_button.setEnabled(selected is not None and len(self.zones) < MAX_ZONES)
         self.zone_delete_button.setEnabled(selected is not None)
@@ -2518,6 +2578,9 @@ class MainWindow(QMainWindow):
             y,
             selected.width,
             selected.height,
+            selected.motion_mode,
+            selected.motion_amount,
+            selected.motion_cycles,
         )
         self.zones = (*self.zones, duplicate)
         self.selected_zone_id = duplicate.id
@@ -2563,7 +2626,15 @@ class MainWindow(QMainWindow):
         if zone is None:
             return
         normalized, _assignments, _repaired = normalize_zone_state(
-            [{"id": zone.id, "name": zone.name, "x": x, "y": y, "width": width, "height": height}],
+            [
+                {
+                    **zone.as_dict(),
+                    "x": x,
+                    "y": y,
+                    "width": width,
+                    "height": height,
+                }
+            ],
             {},
         )
         if not normalized:
@@ -2590,6 +2661,47 @@ class MainWindow(QMainWindow):
             self.zone_geometry_spins["height"].value() / 100.0,
             save=True,
         )
+
+    def _zone_motion_mode_changed(self) -> None:
+        if self._zone_state_loading:
+            return
+        selected = self._selected_zone()
+        if selected is None:
+            return
+        mode = self.zone_motion_combo.currentData()
+        motion_mode = mode if mode in {"drift", "pulse"} else None
+        self.zones = tuple(
+            replace(
+                zone,
+                motion_mode=motion_mode,
+                motion_amount=25.0 if motion_mode is None else zone.motion_amount,
+                motion_cycles=2 if motion_mode is None else zone.motion_cycles,
+            )
+            if zone.id == selected.id
+            else zone
+            for zone in self.zones
+        )
+        self._refresh_zone_ui()
+        self._save_settings()
+
+    def _zone_motion_values_changed(self) -> None:
+        if self._zone_state_loading:
+            return
+        selected = self._selected_zone()
+        if selected is None or selected.motion_mode not in {"drift", "pulse"}:
+            return
+        self.zones = tuple(
+            replace(
+                zone,
+                motion_amount=float(self.zone_motion_amount.value()),
+                motion_cycles=int(self.zone_motion_cycles.value()),
+            )
+            if zone.id == selected.id
+            else zone
+            for zone in self.zones
+        )
+        self._refresh_zone_ui()
+        self._save_settings()
 
     def _assignment_changed(self, effect: str) -> None:
         if self._zone_state_loading:
@@ -3037,6 +3149,15 @@ class MainWindow(QMainWindow):
         self.zone_name_edit.editingFinished.connect(self._rename_zone)
         for spin in self.zone_geometry_spins.values():
             spin.valueChanged.connect(lambda _value: self._zone_geometry_spin_changed())
+        self.zone_motion_combo.currentIndexChanged.connect(
+            lambda _index: self._zone_motion_mode_changed()
+        )
+        self.zone_motion_amount.valueChanged.connect(
+            lambda _value: self._zone_motion_values_changed()
+        )
+        self.zone_motion_cycles.valueChanged.connect(
+            lambda _value: self._zone_motion_values_changed()
+        )
         for effect, combo in self.zone_assignment_combos.items():
             combo.currentIndexChanged.connect(
                 lambda _index, effect_key=effect: self._assignment_changed(effect_key)

@@ -12,6 +12,7 @@ from unittest import mock
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PIL import Image
 
 import app
 import renderer
@@ -184,10 +185,120 @@ class StateContractTests(unittest.TestCase):
         self.window._apply_project_state({"schema_version": 6})
         self.assertEqual(self.window._codec_layer_order(), renderer.CODEC_LAYER_ORDER)
 
+    def test_zone_motion_controls_persistence_duplicate_and_static_canonicalization(self) -> None:
+        base = self.valid_zones()[0]
+        self.window._set_zone_state([base], {"pixel_sorting": "one", "skrrt": "one"}, warn_on_repair=False)
+        self.window.selected_zone_id = "one"
+        self.window._refresh_zone_ui()
+        self.assertEqual(self.window.zone_motion_combo.currentText(), "Static")
+        self.assertFalse(self.window.zone_motion_amount.isEnabled())
+        self.assertFalse(self.window.zone_motion_cycles.isEnabled())
+        self.assertEqual(self.window.zone_motion_amount.value(), 25.0)
+        self.assertEqual(self.window.zone_motion_cycles.value(), 2)
+        self.assertEqual(
+            self.window.zone_motion_note.text(),
+            "Drift/Pulse moves the five Material effects only. SKRRT keeps the Zone’s static base rectangle.",
+        )
+        self.assertIn("disabled for Static", self.window.zone_motion_amount.accessibleDescription())
+        self.assertIn("disabled for Static", self.window.zone_motion_cycles.accessibleDescription())
+
+        self.window.zone_motion_combo.setCurrentIndex(
+            self.window.zone_motion_combo.findData("drift")
+        )
+        self.window.zone_motion_amount.setValue(37.5)
+        self.window.zone_motion_cycles.setValue(6)
+        moving = self.window._selected_zone()
+        self.assertEqual(
+            (moving.motion_mode, moving.motion_amount, moving.motion_cycles),
+            ("drift", 37.5, 6),
+        )
+        self.assertTrue(self.window.zone_motion_amount.isEnabled())
+        self.assertTrue(self.window.zone_motion_cycles.isEnabled())
+
+        self.window._duplicate_zone()
+        duplicate = self.window._selected_zone()
+        self.assertNotEqual(duplicate.id, moving.id)
+        self.assertEqual(
+            (duplicate.motion_mode, duplicate.motion_amount, duplicate.motion_cycles),
+            ("drift", 37.5, 6),
+        )
+
+        self.window._save_settings()
+        first_bytes = app.SETTINGS_PATH.read_bytes()
+        second = app.MainWindow()
+        try:
+            self.assertEqual(second.zones[0].motion_mode, "drift")
+            self.assertEqual(second.zones[0].motion_amount, 37.5)
+            self.assertEqual(second.zones[0].motion_cycles, 6)
+            second._save_settings()
+            self.assertEqual(app.SETTINGS_PATH.read_bytes(), first_bytes)
+        finally:
+            second.close()
+
+        self.window.selected_zone_id = "one"
+        self.window._refresh_zone_ui()
+        self.window.zone_motion_combo.setCurrentIndex(
+            self.window.zone_motion_combo.findData(None)
+        )
+        self.assertEqual(self.window._selected_zone().as_dict(), base)
+        self.assertEqual(self.window.zone_motion_amount.value(), 25.0)
+        self.assertEqual(self.window.zone_motion_cycles.value(), 2)
+
+    def test_preview_collects_current_unsaved_moving_zone_state(self) -> None:
+        source = self.root / "preview-zone-source.png"
+        Image.new("RGB", (64, 36), (90, 140, 210)).save(source)
+        self.window.timeline_items = [
+            {
+                "path": str(source),
+                "kind": "photo",
+                "duration": 8.0,
+                "photo_hold_duration": "8.0",
+                "trim_start": "0:00",
+                "trim_end": "auto",
+                "has_audio": False,
+                "include_audio": False,
+            }
+        ]
+        self.window._refresh_timeline_table()
+        self.window._set_zone_state(
+            [self.valid_zones()[0]],
+            {"pixel_sorting": "one"},
+            warn_on_repair=False,
+        )
+        self.window.effect_checks["pixel_sorting"].setChecked(True)
+        self.window.zone_motion_combo.setCurrentIndex(
+            self.window.zone_motion_combo.findData("pulse")
+        )
+        self.window.zone_motion_amount.setValue(41.0)
+        self.window.zone_motion_cycles.setValue(7)
+        self.window._set_combo_text(self.window.preview_from, "Custom timestamp")
+        self.window.preview_custom.setText("0:02")
+
+        settings = self.window._collect_preview_settings()
+        self.assertEqual(settings.output_time_offset, 2.0)
+        self.assertEqual(settings.effect_zone_assignments, {"pixel_sorting": "one"})
+        self.assertEqual(len(settings.zones), 1)
+        self.assertEqual(
+            (
+                settings.zones[0].motion_mode,
+                settings.zones[0].motion_amount,
+                settings.zones[0].motion_cycles,
+            ),
+            ("pulse", 41.0, 7),
+        )
+
     def test_recipe_export_import_uses_the_same_canonical_boundary(self) -> None:
         recipe_path = self.root / "phase13-recipe.json"
+        recipe_zones = self.valid_zones()
+        recipe_zones[0].update(
+            {
+                "motion_mode": "pulse",
+                "motion_amount": 32.0,
+                "motion_cycles": 4,
+            }
+        )
         self.window._set_zone_state(
-            self.valid_zones(),
+            recipe_zones,
             {"pixel_sorting": "one", "skrrt": "two"},
             warn_on_repair=False,
         )
@@ -220,6 +331,14 @@ class StateContractTests(unittest.TestCase):
             self.window.load_project_preset()
 
         self.assertEqual([zone.id for zone in self.window.zones], ["one", "two"])
+        self.assertEqual(
+            (
+                self.window.zones[0].motion_mode,
+                self.window.zones[0].motion_amount,
+                self.window.zones[0].motion_cycles,
+            ),
+            ("pulse", 32.0, 4),
+        )
         self.assertEqual(
             self.window.effect_zone_assignments,
             {"pixel_sorting": "one", "skrrt": "two"},

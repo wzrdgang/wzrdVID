@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import unittest
+from unittest import mock
 
 import numpy as np
 from PIL import Image
@@ -140,7 +141,7 @@ class ZoneContractTests(unittest.TestCase):
                 digest.update(output.tobytes())
             run_hashes.append(digest.hexdigest())
         self.assertEqual(run_hashes[0], run_hashes[1])
-        self.assertEqual(len(choreographer.zone_previous_rgb), 3)
+        self.assertEqual(len(choreographer.zone_history), 3)
 
     def test_overlap_uses_fixed_effect_order(self) -> None:
         self.assertEqual(
@@ -284,17 +285,17 @@ class ZoneContractTests(unittest.TestCase):
                 effect_zone_assignments={"circuit_bending": zone.id},
             )
             np.testing.assert_array_equal(
-                choreographer.zone_previous_rgb[rectangle],
+                choreographer.zone_history[zone.id].rgb,
                 source[top:bottom, left:right],
             )
             self.assertEqual(
-                choreographer.zone_previous_rgb[rectangle].shape,
+                choreographer.zone_history[zone.id].rgb.shape,
                 (bottom - top, right - left, 3),
             )
+            self.assertEqual(choreographer.zone_history[zone.id].rectangle, rectangle)
 
         choreographer.reset_temporal_state()
-        self.assertFalse(choreographer.zone_previous_rgb)
-        self.assertFalse(choreographer.zone_previous_luma)
+        self.assertFalse(choreographer.zone_history)
         fresh = renderer._FrameEffectChoreographer(effects, 1.45, 24, 8_099)
         source = zone_source_frame(0)
         reset_output = renderer._apply_phase2_frame_effects(
@@ -326,8 +327,180 @@ class ZoneContractTests(unittest.TestCase):
             np.asarray(fresh_output, dtype=np.uint8),
         )
         np.testing.assert_array_equal(
-            choreographer.zone_previous_rgb[rectangle], fresh.zone_previous_rgb[rectangle]
+            choreographer.zone_history[zone.id].rgb,
+            fresh.zone_history[zone.id].rgb,
         )
+
+    def test_moving_zones_keep_all_five_effects_contained(self) -> None:
+        source = zone_source_frame(7)
+        for mode in ("drift", "pulse"):
+            for effect in renderer.PHASE2_FRAME_EFFECT_ORDER:
+                with self.subTest(mode=mode, effect=effect):
+                    zone = renderer.ZoneDefinition(
+                        "moving",
+                        "Moving",
+                        0.24,
+                        0.18,
+                        0.42,
+                        0.48,
+                        mode,
+                        50.0,
+                        4,
+                    )
+                    resolved = renderer.zone_motion.resolve_zone_motion(
+                        zone, 91_117, 3.25, 8.0
+                    )
+                    rectangle = renderer.rasterize_zone(resolved, (160, 90))
+                    self.assertIsNotNone(rectangle)
+                    choreographer = renderer._FrameEffectChoreographer(
+                        {effect: True}, 1.45, 24, 91_117
+                    )
+                    choreographer.controls_for = (
+                        lambda _analysis, _frame, _effect_analyses=None, effect_key=effect: {
+                            effect_key: forced_control(91_117)
+                        }
+                    )
+                    output = np.asarray(
+                        renderer._apply_phase2_frame_effects(
+                            Image.fromarray(source, mode="RGB"),
+                            {effect: True},
+                            1.45,
+                            78,
+                            24,
+                            91_117,
+                            choreographer=choreographer,
+                            material=source,
+                            zones=(zone,),
+                            effect_zone_assignments={effect: zone.id},
+                            absolute_output_time=3.25,
+                            full_output_duration=8.0,
+                        ),
+                        dtype=np.uint8,
+                    )
+                    changed = np.any(output != source, axis=2)
+                    self.assertTrue(changed.any())
+                    self.assertFalse(changed[outside_mask(source.shape, rectangle)].any())
+
+    def test_three_mixed_moving_zones_overlap_deterministically_with_bounded_history(self) -> None:
+        zones = (
+            renderer.ZoneDefinition("a", "A", 0.08, 0.12, 0.42, 0.48, "drift", 25.0, 2),
+            renderer.ZoneDefinition("b", "B", 0.48, 0.18, 0.40, 0.52, "pulse", 35.0, 4),
+            renderer.ZoneDefinition("c", "C", 0.30, 0.48, 0.42, 0.38),
+        )
+        assignments = {
+            effect: zones[index % 3].id
+            for index, effect in enumerate(renderer.PHASE2_FRAME_EFFECT_ORDER)
+        }
+        effects = {effect: True for effect in renderer.PHASE2_FRAME_EFFECT_ORDER}
+        digests: list[str] = []
+        final_choreographer: renderer._FrameEffectChoreographer | None = None
+        for _run in range(2):
+            choreographer = renderer._FrameEffectChoreographer(effects, 1.45, 24, 66_501)
+            digest = hashlib.sha256()
+            for frame_index in range(24):
+                source = zone_source_frame(frame_index, 192, 108)
+                union = np.zeros(source.shape[:2], dtype=bool)
+                for zone in zones:
+                    resolved = renderer.zone_motion.resolve_zone_motion(
+                        zone, 66_501, frame_index / 24.0, 1.0
+                    )
+                    left, top, right, bottom = renderer.rasterize_zone(
+                        resolved, (192, 108)
+                    )
+                    union[top:bottom, left:right] = True
+                output = np.asarray(
+                    renderer._apply_phase2_frame_effects(
+                        Image.fromarray(source, mode="RGB"),
+                        effects,
+                        1.45,
+                        frame_index,
+                        24,
+                        66_501,
+                        choreographer=choreographer,
+                        material=source,
+                        zones=zones,
+                        effect_zone_assignments=assignments,
+                        absolute_output_time=frame_index / 24.0,
+                        full_output_duration=1.0,
+                    ),
+                    dtype=np.uint8,
+                )
+                np.testing.assert_array_equal(output[~union], source[~union])
+                digest.update(output.tobytes())
+            digests.append(digest.hexdigest())
+            final_choreographer = choreographer
+        self.assertEqual(digests[0], digests[1])
+        self.assertIsNotNone(final_choreographer)
+        self.assertLessEqual(len(final_choreographer.zone_history), 3)
+        self.assertGreater(final_choreographer.peak_zone_history_bytes, 0)
+
+    def test_amount_zero_matches_static_zone_output_exactly(self) -> None:
+        source = zone_source_frame(11)
+        for effect in renderer.PHASE2_FRAME_EFFECT_ORDER:
+            static = renderer.ZoneDefinition("same", "Same", 0.2, 0.2, 0.5, 0.5)
+            moving = renderer.ZoneDefinition(
+                "same", "Same", 0.2, 0.2, 0.5, 0.5, "pulse", 0.0, 8
+            )
+            outputs = []
+            for zone in (static, moving):
+                choreographer = renderer._FrameEffectChoreographer(
+                    {effect: True}, 1.45, 24, 55_123
+                )
+                outputs.append(
+                    np.asarray(
+                        renderer._apply_phase2_frame_effects(
+                            Image.fromarray(source, mode="RGB"),
+                            {effect: True},
+                            1.45,
+                            11,
+                            24,
+                            55_123,
+                            choreographer=choreographer,
+                            material=source,
+                            zones=(zone,),
+                            effect_zone_assignments={effect: zone.id},
+                            absolute_output_time=4.75,
+                            full_output_duration=9.0,
+                        ),
+                        dtype=np.uint8,
+                    )
+                )
+            np.testing.assert_array_equal(outputs[0], outputs[1], err_msg=effect)
+
+    def test_moving_circuit_history_resize_failure_is_a_render_error(self) -> None:
+        source = zone_source_frame(0)
+        zone = renderer.ZoneDefinition(
+            "pulse-history", "Pulse", 0.2, 0.2, 0.4, 0.4, "pulse", 50.0, 2
+        )
+        choreographer = renderer._FrameEffectChoreographer(
+            {"circuit_bending": True}, 1.45, 24, 90_007
+        )
+        renderer._apply_phase2_frame_effects(
+            Image.fromarray(source, mode="RGB"),
+            {"circuit_bending": True},
+            1.45,
+            0,
+            24,
+            90_007,
+            choreographer=choreographer,
+            material=source,
+            zones=(zone,),
+            effect_zone_assignments={"circuit_bending": zone.id},
+            absolute_output_time=0.0,
+            full_output_duration=8.0,
+        )
+        with mock.patch.object(
+            renderer.cv2,
+            "resize",
+            side_effect=MemoryError("synthetic history allocation failure"),
+        ):
+            with self.assertRaisesRegex(
+                renderer.RenderError, "synthetic history allocation failure"
+            ):
+                choreographer.previous_rgb_for_zone(
+                    zone.id,
+                    (0, 0, source.shape[1], source.shape[0]),
+                )
 
 
 if __name__ == "__main__":

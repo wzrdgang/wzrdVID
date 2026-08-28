@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added deterministic Drift and Pulse motion to desktop Zones for the five frame-domain Material effects. Motion follows absolute full-output time in full renders and Preview slices, preserves hard Zone containment and Loop closure, keeps moving Circuit history bounded by stable Zone ID, and deliberately leaves SKRRT on each Zone's saved static base rectangle.
 - Fixed desktop Preview so Random source selection, transitions, delayed audio, ending/Loop behavior, audio fades, and Stutter timing match the selected interval of the planned full output.
 
 ## v0.4.0 — 2026-08-27

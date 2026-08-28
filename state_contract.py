@@ -98,7 +98,7 @@ RESET_PRESERVED_KEYS = (
 
 @dataclass(frozen=True)
 class ZoneDefinition:
-    """One static named rectangle in normalized final-output coordinates."""
+    """One named rectangle in normalized final-output coordinates."""
 
     id: str
     name: str
@@ -106,9 +106,12 @@ class ZoneDefinition:
     y: float
     width: float
     height: float
+    motion_mode: str | None = None
+    motion_amount: float = 25.0
+    motion_cycles: int = 2
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        record: dict[str, object] = {
             "id": self.id,
             "name": self.name,
             "x": float(self.x),
@@ -116,6 +119,15 @@ class ZoneDefinition:
             "width": float(self.width),
             "height": float(self.height),
         }
+        if isinstance(self.motion_mode, str) and self.motion_mode in {"drift", "pulse"}:
+            record.update(
+                {
+                    "motion_mode": self.motion_mode,
+                    "motion_amount": float(self.motion_amount),
+                    "motion_cycles": int(self.motion_cycles),
+                }
+            )
+        return record
 
 
 def normalize_codec_layer_order(value: object) -> tuple[str, ...]:
@@ -199,6 +211,41 @@ def normalize_zone_state(
         )
         if not in_bounds:
             repaired = True
+        raw_motion_mode = record.get("motion_mode")
+        motion_mode = (
+            raw_motion_mode
+            if isinstance(raw_motion_mode, str)
+            and raw_motion_mode in {"drift", "pulse"}
+            else None
+        )
+        if "motion_mode" in record and motion_mode is None:
+            repaired = True
+        if motion_mode is None:
+            if "motion_amount" in record or "motion_cycles" in record:
+                repaired = True
+            motion_amount = 25.0
+            motion_cycles = 2
+        else:
+            raw_motion_amount = record.get("motion_amount", 25.0)
+            if (
+                isinstance(raw_motion_amount, bool)
+                or not isinstance(raw_motion_amount, (int, float))
+                or not math.isfinite(float(raw_motion_amount))
+            ):
+                motion_amount = 25.0
+                repaired = True
+            else:
+                motion_amount = max(0.0, min(50.0, float(raw_motion_amount)))
+                if motion_amount != float(raw_motion_amount):
+                    repaired = True
+            raw_motion_cycles = record.get("motion_cycles", 2)
+            if isinstance(raw_motion_cycles, bool) or not isinstance(raw_motion_cycles, int):
+                motion_cycles = 2
+                repaired = True
+            else:
+                motion_cycles = max(1, min(8, raw_motion_cycles))
+                if motion_cycles != raw_motion_cycles:
+                    repaired = True
         zone = ZoneDefinition(
             id=zone_id,
             name=name.strip(),
@@ -206,6 +253,9 @@ def normalize_zone_state(
             y=y if in_bounds else top,
             width=width if in_bounds else right - left,
             height=height if in_bounds else bottom - top,
+            motion_mode=motion_mode,
+            motion_amount=motion_amount,
+            motion_cycles=motion_cycles,
         )
         zones.append(zone)
         seen_ids.add(zone.id)
