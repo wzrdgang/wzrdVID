@@ -277,6 +277,14 @@ a.btn {
   pointer-events: none;
 }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 4px solid var(--pink-hot);
+  outline-offset: 3px;
+}
 
 label {
   display: grid;
@@ -311,6 +319,19 @@ input[type="checkbox"] {
   gap: 2px;
 }
 output { float: right; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.chaos-reroll { margin-bottom: 8px; }
+.chaos-seed {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 6px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 7px;
+  background: rgba(255, 241, 218, 0.78);
+  font: 900 12px/1 ui-monospace, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+}
+.chaos-help { margin: 0 0 18px; }
 
 .file-list-wrap h2 {
   margin: 18px 0 8px;

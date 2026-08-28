@@ -91,11 +91,11 @@ Read this before code changes. It complements `AGENTS.md`, `docs/agent-log.md`, 
 
 ## 7A. Apple Lite Packaging
 
-- Inspect first: `docs/APPLE_LITE_APP_RESEARCH.md`, `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/*`, `docs/i18n.js`.
-- Searches to run: `WKWebView`, `loadFileURL`, `LiteWeb`, `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `MediaRecorder`, `download`.
-- Common mistakes to avoid: turning Lite into a remote website wrapper, adding analytics/accounts/backend/remote config, bundling the desktop renderer or ffmpeg, committing generated `LiteWeb/`, or promising full desktop parity.
-- High-risk files: `apple-lite/WZRDVIDLite/App/LiteWebView.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/app.js`, `docs/i18n.js`.
-- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator behavior is in scope; require the smoke runner's native export plus PCM/frequency analysis when Apple Lite audio changes; `node --check docs/i18n.js docs/lite/app.js`; Lite forbidden-network grep; `git diff --check`.
+- Inspect first: `docs/APPLE_LITE_APP_RESEARCH.md`, `apple-lite/README.md`, `apple-lite/WZRDVIDLite/App/*.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/*`, `docs/i18n.js`, `tests/test_lite_chaos_contract.js`.
+- Searches to run: `WKWebView`, `loadFileURL`, `LiteWeb`, `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `MediaRecorder`, `download`, `Math.random`, project-seed lifecycle, and named chaos substreams.
+- Common mistakes to avoid: turning Lite into a remote website wrapper, adding analytics/accounts/backend/remote config, bundling the desktop renderer or ffmpeg, committing generated `LiteWeb/`, promising full desktop parity, scattering randomness outside the central chaos module, changing the seed during ordinary control/source edits, or retuning Medium/Standard away from the prior Lite baseline.
+- High-risk files: `apple-lite/WZRDVIDLite/App/LiteWebView.swift`, `apple-lite/scripts/prepare_lite_web_bundle.py`, `docs/lite/app.js`, `docs/lite/chaos.js`, `docs/i18n.js`.
+- Required checks: `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator behavior is in scope; require the smoke runner's native export plus PCM/frequency analysis when Apple Lite audio changes; run `node --check` separately for `docs/i18n.js`, `docs/lite/chaos.js`, `docs/lite/app.js`, and `tests/test_lite_chaos_contract.js`; run `node tests/test_lite_chaos_contract.js`; run Lite forbidden-network and render-path `Math.random` greps plus same/changed-seed, seed-retention/Clear, control-independence, Medium/Standard baseline, bounded-density, and `git diff --check` evidence.
 - Update `AGENTS.md` when: Apple Lite commands, boundaries, or generated paths change.
 - Update `docs/agent-impact-map.md` when: native wrapper structure, bundle prep, or Lite runtime flow changes.
 - Update `docs/agent-log.md` after the task.

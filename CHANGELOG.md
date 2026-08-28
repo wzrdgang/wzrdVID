@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expanded browser and Apple Lite with baseline-compatible Effect Strength, bounded ANSI Text Density, and deterministic per-project Reroll Chaos. Medium/Standard preserve the prior Lite look, named local PRNG substreams keep semantic plans repeatable without uploads or persistence, and Clear Project clears the in-memory seed.
+- Hardened Lite recorder finalization so MP4 and WebM paths reject empty output instead of offering a zero-byte download while preserving the existing source-only, Add-only, mixed, and silent audio modes.
 - Fixed desktop product-surface handoffs so Download Update and rendered Preview report external-open failures instead of silently doing nothing, fresh profiles label the 5-second Preview action correctly, and manual Preview cache cleanup clears the now-stale Open Preview state.
 - Added deterministic Drift and Pulse motion to desktop Zones for the five frame-domain Material effects. Motion follows absolute full-output time in full renders and Preview slices, preserves hard Zone containment and Loop closure, keeps moving Circuit history bounded by stable Zone ID, and deliberately leaves SKRRT on each Zone's saved static base rectangle.
 - Fixed desktop Preview so Random source selection, transitions, delayed audio, ending/Loop behavior, audio fades, and Stutter timing match the selected interval of the planned full output.

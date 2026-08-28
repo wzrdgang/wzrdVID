@@ -26,11 +26,11 @@ Product boundaries:
 - Rendering: OpenCV, Pillow, numpy, ffmpeg/ffprobe helpers.
 - Packaging: PyInstaller, macOS `.app`, ad-hoc codesign in `build_app.sh`.
 - Public site: static HTML/CSS/JS under `docs/`.
-- Lite prototype: vanilla browser JavaScript, Canvas, MediaRecorder, object URLs; no backend and no uploads.
+- Lite prototype: vanilla browser JavaScript, Canvas, MediaRecorder, object URLs, and a dependency-free deterministic chaos-plan module; no backend and no uploads.
 - Apple Lite groundwork: SwiftUI/WKWebView shell and Xcode project under `apple-lite/`; bundled web resources are generated locally from `docs/lite/`.
 - Package manager: `pip` with `requirements.txt`; shell launchers create/use `.venv`.
 - Hosting target: GitHub Pages from `docs/`.
-- Test/lint tools: the standard-library `unittest` suite under `tests/` preserves the tracked desktop frame/state, Preview planning, and codec/Layer/transport contracts; no formatter is configured. Use that suite plus the syntax/static checks listed below.
+- Test/lint tools: the standard-library `unittest` suite under `tests/` preserves the tracked desktop frame/state, Preview planning, and codec/Layer/transport contracts; the Node Lite contract test preserves deterministic seed/plan, baseline-strength, and bounded ANSI-density behavior. No formatter is configured. Use those suites plus the syntax/static checks listed below.
 
 ## 3. Repo Structure
 
@@ -53,11 +53,12 @@ Product boundaries:
 - `scripts/generate_branding.py`, `scripts/generate_icon.py`, `scripts/generate_logo.py`, `scripts/generate_ui_textures.py`: generated branding/icon/texture asset scripts.
 - `assets/`: desktop app assets, generated branding/icon/UI textures, public demo screenshots and demo video.
 - `docs/`: GitHub Pages static site and project documentation. `docs/index.html` is the landing page; `docs/lite/` is the Lite app.
+- `docs/lite/chaos.js`: dependency-free deterministic Lite project-seed, named-substream PRNG, strength/density mapping, and plain-data semantic render-plan contract. It must remain browser/Node compatible and contain no media, DOM, network, storage, or native-wrapper ownership.
 - `docs/i18n.js`: static UI localization resources shared by the landing page and Lite.
 - `docs/I18N.md`: UI localization notes, fallback behavior, and language-addition workflow.
 - `docs/assets/`: Pages copies of selected public assets.
 - `apple-lite/`: WZRD.VID Lite Apple wrapper groundwork. The simulator-ready Xcode project lives at `apple-lite/WZRDVIDLite.xcodeproj`; SwiftUI/WKWebView sources live under `apple-lite/WZRDVIDLite/App/`; generated local web resources live under ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
-- `tests/`: tracked, rights-safe, deterministic desktop regression contracts for the pure timeline-math and coverage-interval boundaries, Full Frame Material oracle, Material seed behavior, frame-effect Zones, schema-6 migration/repair, isolated settings state, the canonical full-output/Preview planning oracle, controlled MPEG-4 structure/modes, Layer ordering, frame transport/failure classification, final H.264/AAC identity, source immutability, and temporary cleanup. It generates all frame/media fixtures at runtime in temporary directories, uses the Python standard-library `unittest` runner plus existing runtime dependencies/tools, and must not contain private media or generated evidence.
+- `tests/`: tracked, rights-safe, deterministic regression contracts for the pure timeline-math and coverage-interval boundaries, Full Frame Material oracle, Material seed behavior, frame-effect Zones, schema-6 migration/repair, isolated settings state, the canonical full-output/Preview planning oracle, controlled MPEG-4 structure/modes, Layer ordering, frame transport/failure classification, final H.264/AAC identity, source immutability, temporary cleanup, and the Node-based Lite chaos-plan contract. It generates fixtures at runtime or uses symbolic inputs, uses the Python standard-library `unittest` runner plus normal runtime dependencies/tools and Node for the Lite contract, and must not contain private media or generated evidence.
 - `examples/`: placeholder docs for safe example media.
 - `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`: generated/local outputs; do not edit or commit.
 - `demo/`: ignored local staging for demo media; do not treat as release-safe source.
@@ -101,7 +102,7 @@ High-risk files/directories:
 - `state_contract.py`: affects settings/recipe migration, defaults, Reset, canonical JSON, Zones/assignments, codec Layer persistence, Style FX persisted state, and legacy identity repair. Keep it stdlib-only and preserve schema 6 unless an explicitly authorized schema phase says otherwise.
 - `build_app.sh`: affects packaged macOS app, asset generation, Qt pruning and companion links, signing, strict bundle integrity, bundle version, and bundle identifier.
 - `docs/index.html`, `docs/styles.css`, `docs/CNAME`: affect public site and custom-domain Pages behavior.
-- `docs/lite/app.js`: affects browser-only Lite rendering, file privacy, MediaRecorder behavior.
+- `docs/lite/app.js` and `docs/lite/chaos.js`: affect browser-only Lite rendering, project-seed lifecycle, semantic plan repeatability, file privacy, and MediaRecorder behavior. Preserve the central PRNG and named substreams; do not reintroduce render-path `Math.random`.
 - `apple-lite/`: affects future WZRD.VID Lite Apple app packaging. Keep it a local bundled Lite shell; do not add desktop renderer parity, ffmpeg, backend calls, analytics, accounts, or remote config.
 - `assets/` and `docs/assets/`: public branding/demo assets and bundled app UI assets.
 - `requirements.txt`: affects every source run and PyInstaller bundle.
@@ -116,7 +117,7 @@ Persistent data rules:
 
 - Desktop settings live outside the repo: macOS `~/Library/Application Support/WZRD.VID/settings.json`, Windows `%APPDATA%/WZRD.VID/settings.json`, Linux `$XDG_CONFIG_HOME/wzrdvid/settings.json` or `~/.config/wzrdvid/settings.json`.
 - Project presets are user-selected JSON files.
-- Lite uses in-memory browser state, object URLs, Canvas, Web Audio, and MediaRecorder. Do not add uploads or persistence without explicit permission.
+- Lite uses in-memory browser state, object URLs, Canvas, Web Audio, and MediaRecorder. Its chaos seed is generated from browser cryptographic entropy only after usable media first arms the project, remains stable across settings/source changes and repeated renders, changes only through Reroll Chaos, and clears with Clear Project. Do not add uploads or persistence without explicit permission.
 
 Asset/media rules:
 
@@ -200,7 +201,10 @@ Syntax/static checks:
 ```bash
 python3 -m py_compile app.py state_contract.py timeline_math.py coverage_intervals.py zone_motion.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py scripts/generate_logo.py scripts/generate_icon.py scripts/generate_ui_textures.py scripts/generate_branding.py
 node --check docs/i18n.js
+node --check docs/lite/chaos.js
 node --check docs/lite/app.js
+node --check tests/test_lite_chaos_contract.js
+node tests/test_lite_chaos_contract.js
 git diff --check
 ```
 
@@ -235,7 +239,7 @@ Deploy/preview:
 | UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
 | Component logic desktop | `python3 -m py_compile app.py state_contract.py timeline_math.py coverage_intervals.py zone_motion.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; run the tracked desktop regression suite when Material effects, Zones, schema/project state, Preview/playback/transition/tail/coverage planning, codec execution/Layer persistence, render transport/failure classification, or final audio/media handling are in scope; focused smoke for changed flow where practical. Persisted-state changes additionally require direct pure `state_contract.py` schema-3/4/5/6, malformed/default/Reset/canonicalization/idempotence tests plus at least one isolated offscreen MainWindow save/load or recipe integration check. Timeline-math changes additionally require `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest tests.test_timeline_math_contract`, stdlib-only import inspection, and exact unchanged Material/planning oracles. Coverage-policy changes additionally require `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest tests.test_coverage_intervals_contract`, caller-neutral/stdlib-only import inspection, focused Preview/codec-protection tests, exact unchanged Material/planning oracles, and the full suite twice plus reverse order. Zone Motion changes additionally require `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest tests.test_zone_motion_contract`, stdlib-only import inspection, exact absolute-time Preview geometry, all-five Material containment, stable-ID Circuit history, unchanged static SKRRT, same/changed-seed and exact closure checks, source/frozen renders, and a three-run static-versus-moving performance comparison at 960x540 and 1280x720. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
 | Tracked desktop regression tests | Run `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`; preserve the exact 18-case Material oracle SHA-256 `441f9150b0f8c2d79fadb5a653a4b930d777959c37e458099a3b28eee3baa80a` and the exact 31,416-byte canonical full-output/Preview planning oracle SHA-256 `85477bbf54769f2fdabd2ffe05ac3b7fa34017216068c80beb6d107a502e0dc3`, exact canonical spILL! counts, direct case-level planning assertions, strict controlled/auxiliary VOP rules, deterministic generated fixtures/media, isolated temporary settings, zero network/private media, source immutability, and zero repository output. Run twice when changing the tests or their fixture/oracle definitions, and include a reverse-module-order run. |
-| Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. Lite audio changes also require source-off/source-only/Add-only/mixed output checks, source-to-visual-cut sync including still silence, and repeated-render/reset graph cleanup. |
+| Lite/browser logic | Run `node --check` separately for `docs/i18n.js`, `docs/lite/chaos.js`, `docs/lite/app.js`, and `tests/test_lite_chaos_contract.js`; run `node tests/test_lite_chaos_contract.js`; use a local static server and browser/headless smoke if practical; grep for forbidden upload APIs and render-path `Math.random`. Deterministic-plan changes require same-seed equality, changed-seed divergence, seed-retention/Clear evidence, exact Medium/Standard baseline compatibility, control independence, and bounded Fine-grid checks. Lite audio changes also require source-off/source-only/Add-only/mixed output checks, source-to-visual-cut sync including still silence, and repeated-render/reset graph cleanup. |
 | Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator UI behavior is in scope; for audio changes require exported-file track and PCM/frequency evidence rather than track count alone; keep generated `LiteWeb/` and `DerivedData/` out of git. |
 | Routing/navigation | Local static server; `curl` changed pages; verify relative asset/link paths. |
 | Build/deploy config | `git diff --check`; inspect affected build/package or Pages config; run `./build_app.sh` when packaging behavior changed; require a clean `find -L dist/WZRD.VID.app -type l -print`, successful `codesign --verify --deep --strict --verbose=4`, and normal app launch. DMG changes also require `bash -n scripts/package_dmg.sh`, two structural package passes when practical, mounted-image app/link/content validation, failure cleanup, and an isolated replacement/user-data preservation smoke. |

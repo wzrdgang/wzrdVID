@@ -108,18 +108,29 @@ TXT FEED</div>
         </label>
 
         <label>
+          <span data-i18n="lite.effect_strength">Effect Strength</span>
+          <select id="effectStrength">
+            <option value="low" data-i18n="lite.strength.low">Low</option>
+            <option value="medium" selected data-i18n="lite.strength.medium">Medium</option>
+            <option value="high" data-i18n="lite.strength.high">High</option>
+          </select>
+          <small data-i18n="lite.effect_strength_help">Adjusts the preset's overall visual treatment. Medium preserves the original Lite look.</small>
+        </label>
+
+        <label>
           <span><span data-i18n="lite.ansi_coverage">ANSI Coverage</span> <output id="ansiValue">70%</output></span>
           <input id="ansiAmount" type="range" min="0" max="100" value="70">
           <small data-i18n="lite.ansi_help">Random portions of the final clip become ANSI/text-art. 0% = normal, 100% = full ANSI.</small>
         </label>
 
         <label>
-          <span data-i18n="lite.clip_length">Clip Length</span>
-          <select id="durationSelect">
-            <option value="15" data-i18n="lite.sec">15 sec</option>
-            <option value="30" selected data-i18n="lite.sec">30 sec</option>
-            <option value="60" data-i18n="lite.sec">60 sec</option>
+          <span data-i18n="lite.ansi_density">ANSI Text Density</span>
+          <select id="ansiDensity">
+            <option value="coarse" data-i18n="lite.density.coarse">Coarse</option>
+            <option value="standard" selected data-i18n="lite.density.standard">Standard</option>
+            <option value="fine" data-i18n="lite.density.fine">Fine</option>
           </select>
+          <small data-i18n="lite.ansi_density_help">Changes ANSI glyph size and detail only. Standard preserves the original Lite grid.</small>
         </label>
 
         <label class="checkbox-field">
@@ -128,6 +139,19 @@ TXT FEED</div>
             <span data-i18n="lite.random_clip_assembly">Random clip assembly</span>
           </span>
           <small data-i18n="lite.random_clip_help">Builds the clip from random sections of your selected local media.</small>
+        </label>
+
+        <button id="rerollChaos" class="btn btn-secondary chaos-reroll" type="button" disabled data-i18n="lite.reroll_chaos">REROLL CHAOS</button>
+        <p id="chaosSeedStatus" class="chaos-seed" aria-live="polite" data-i18n="lite.chaos_unarmed">CHAOS UNARMED</p>
+        <p class="small-note chaos-help" data-i18n="lite.reroll_help">Keeps every setting and source, then replaces only this project's chaos seed.</p>
+
+        <label>
+          <span data-i18n="lite.clip_length">Clip Length</span>
+          <select id="durationSelect">
+            <option value="15" data-i18n="lite.sec">15 sec</option>
+            <option value="30" selected data-i18n="lite.sec">30 sec</option>
+            <option value="60" data-i18n="lite.sec">60 sec</option>
+          </select>
         </label>
 
         <label>
@@ -166,6 +190,7 @@ waiting for files _</pre>
     </footer>
   </div>
   <script src="../i18n.js" defer></script>
+  <script src="chaos.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

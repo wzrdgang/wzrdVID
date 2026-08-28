@@ -12,7 +12,10 @@ Current export behavior:
 - Falls back to WebM when MP4 recording is unavailable.
 - In the Apple Lite wrapper, rendered blobs are handed to Swift for local Photos saving because iOS WKWebView download/share handling is not reliable enough by itself.
 - Clip length is capped by the selected duration: 15, 30, or 60 seconds.
+- Effect Strength offers bounded Low/Medium/High treatment over each existing preset; Medium is the pre-control Lite baseline.
 - ANSI Coverage controls random time coverage across the final clip. It is not a gradual intensity ramp: 0% is normal video, 100% is full ANSI/text-art, and values between those build scattered ANSI intervals.
+- ANSI Text Density offers bounded Coarse/Standard/Fine glyph grids without changing ANSI Coverage; Standard is the pre-control grid and Fine is capped at 5,600 sampled cells.
+- The first usable local medium arms one in-memory project seed from browser cryptographic entropy. Settings/source changes and repeated renders retain it, Reroll Chaos replaces only it, and Clear Project clears it. Named deterministic substreams drive the semantic render plan; the seed is neither uploaded nor persisted.
 - The PUBLIC ACCESS preset applies browser-side public-access/VHS source treatment before ANSI Coverage is applied, so 0%, 50%, and 100% ANSI remain meaningful.
 - Videos are sampled as random short clips. Images become 1-3 second held/animated segments. Random assembly shuffles through all loaded media before reusing a source, then sources can repeat to fill the selected length.
 - Lite targets 30 fps browser recording for Fast 480p and 24 fps for Better 720p while applying browser-side texture: tunnel zoom, punch/wobble, tape/RGB treatment, hard ANSI overlays, short ending fade, and optional added-audio bump.
