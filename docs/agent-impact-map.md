@@ -12,6 +12,14 @@ This map describes the current repository so future agents can edit with context
 - Outbound dependencies: `renderer.py`, `ffmpeg_utils.py`, `presets.py`, Qt widgets/styles/assets, local filesystem, temp preview/output folders.
 - High-risk notes: UI controls feed render settings and audio behavior. Small copy/style changes are usually safe; widget wiring, settings keys, Zone identity/geometry/assignment handling, thread behavior, table columns, cache cleanup safety boundaries, and localization keys can break render, save/load, cleanup, spatial containment, or audio mix flows.
 
+### Desktop Frame/State Regression Foundation
+
+- Owning files/directories: `tests/test_material_contract.py`, `tests/test_zone_contract.py`, `tests/test_state_contract.py`, and deterministic generated helpers under `tests/fixtures/`.
+- Purpose: preserves the authoritative 18-case v0.4.0 Full Frame Material oracle, same/changed-seed Material behavior, binary Random Noise B/W output, five frame-effect Zone containment/order/material isolation, Circuit Bending Zone history/reset, schema-3/4/5/6 migration and malformed repair, exact Zone eligibility, isolated state round-trip, Reset, and codec Layer persistence at the state level.
+- Fixture/data boundary: all frames are generated at runtime with NumPy/Pillow; offscreen GUI state uses a task-owned `TemporaryDirectory` and patched startup checks. The suite uses no network, private media, real user settings, committed media, generated evidence, codec execution, package artifacts, or release assets.
+- Command: from repository root, run `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`. Run it twice when its tests, fixtures, or oracle definition change.
+- High-risk notes: the accepted serialized oracle SHA-256 is `441f9150b0f8c2d79fadb5a653a4b930d777959c37e458099a3b28eee3baa80a`. Do not regenerate or weaken expected behavior to accommodate a production change. Phase 12 codec/transport/package assertions remain intentionally outside this suite.
+
 ### Render Engine
 
 - Owning files/directories: `renderer.py`, `datamosh.py`, `presets.py`.
@@ -279,7 +287,7 @@ This map describes the current repository so future agents can edit with context
 
 - Inspect affected UI wiring and downstream render/settings consumers.
 - Keep changes narrow; update save/load project JSON only when necessary and backward-compatible.
-- Run `py_compile` and targeted workflow smoke tests.
+- Run `py_compile` and targeted workflow smoke tests. Run the tracked desktop frame/state suite when Material effects, Zones, schema/project state, or codec Layer persistence are affected.
 
 ### Routing/navigation changes
 
@@ -319,8 +327,9 @@ This map describes the current repository so future agents can edit with context
 | Copy/style-only desktop | Docs-only checks; `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; GUI launch/screenshot if practical |
 | Copy/style-only Pages/Lite | Docs-only checks; local static preview; `node --check docs/i18n.js`; `node --check docs/lite/app.js` if Lite JS touched |
 | Component UI | `py_compile`; targeted GUI smoke; save/load smoke if settings/project controls touched |
-| App logic/state | `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; focused render/preview/project smoke; check settings backward compatibility |
-| Video/media handling | `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tiny render or still/HEIC cache smoke with relevant media; authentic VOP and failure-boundary tests if DATAMOSHING changed; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI changed; ffprobe final codec/audio where output changed |
+| App logic/state | `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tracked desktop frame/state suite when schema, Zones, Material state, or Layer persistence are affected; focused render/preview/project smoke; check settings backward compatibility |
+| Video/media handling | `python3 -m py_compile app.py app_i18n.py renderer.py datamosh.py ffmpeg_utils.py still_cache.py presets.py theme.py run.py`; tracked desktop frame/state suite when frame-domain effects or Zones are affected; tiny render or still/HEIC cache smoke with relevant media; authentic VOP and failure-boundary tests if DATAMOSHING changed; `node --check docs/i18n.js docs/lite/app.js` if Lite/media UI changed; ffprobe final codec/audio where output changed |
+| Tracked desktop frame/state tests | Run `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`; require exact oracle hash, rights-safe deterministic fixtures, isolated settings/temp cleanup, no repository artifacts, and repeat execution when the suite or oracle changes |
 | Routing/navigation | local static preview from `docs/`; check relative links and `docs/CNAME` only if domain-related |
 | Asset/media | file-size check; path/reference check; README/site/app preview if asset is visible |
 | Dependency/package | install check in venv; `py_compile`; build/source-run smoke; packaging smoke if PyInstaller impact |
@@ -335,7 +344,7 @@ No unresolved evidence gaps remain from the current static repo inspection.
 Explicitly not present in the current checkout:
 
 - `.github` GitHub Actions workflows.
-- A formal Python test suite or configured test runner.
+- Broader tracked desktop codec/transport/package regression coverage beyond the current frame/state `unittest` foundation.
 - A configured markdown lint tool.
 - Backend/server runtime for the Pages site or Lite app.
 - Official packaged Windows/Linux builds.

@@ -30,7 +30,7 @@ Product boundaries:
 - Apple Lite groundwork: SwiftUI/WKWebView shell and Xcode project under `apple-lite/`; bundled web resources are generated locally from `docs/lite/`.
 - Package manager: `pip` with `requirements.txt`; shell launchers create/use `.venv`.
 - Hosting target: GitHub Pages from `docs/`.
-- Test/lint tools: no formal test runner or formatter is configured. Use syntax/static checks listed below.
+- Test/lint tools: the standard-library `unittest` suite under `tests/` preserves the tracked desktop frame/state contract; no formatter is configured. Use that suite plus the syntax/static checks listed below.
 
 ## 3. Repo Structure
 
@@ -53,6 +53,7 @@ Product boundaries:
 - `docs/I18N.md`: UI localization notes, fallback behavior, and language-addition workflow.
 - `docs/assets/`: Pages copies of selected public assets.
 - `apple-lite/`: WZRD.VID Lite Apple wrapper groundwork. The simulator-ready Xcode project lives at `apple-lite/WZRDVIDLite.xcodeproj`; SwiftUI/WKWebView sources live under `apple-lite/WZRDVIDLite/App/`; generated local web resources live under ignored `apple-lite/WZRDVIDLite/Resources/LiteWeb/`.
+- `tests/`: tracked, rights-safe, deterministic desktop frame/state regression contracts for the Full Frame Material oracle, Material seed behavior, frame-effect Zones, schema-6 migration/repair, and isolated settings state. It uses generated NumPy/Pillow fixtures and the Python standard-library `unittest` runner; it must not contain private media or generated evidence.
 - `examples/`: placeholder docs for safe example media.
 - `dist/`, `build/`, `.venv/`, `.pip-cache/`, `.pyinstaller-cache/`, `__pycache__/`: generated/local outputs; do not edit or commit.
 - `demo/`: ignored local staging for demo media; do not treat as release-safe source.
@@ -195,6 +196,14 @@ node --check docs/lite/app.js
 git diff --check
 ```
 
+Tracked desktop frame/state regression:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Run this from the repository root. It requires the normal development environment from `requirements.txt`, uses no network or user settings, and must leave no repository artifacts. Run it after changes to frame-domain Material behavior, Zone normalization/rendering, schema/project state, codec Layer persistence, or the tracked tests themselves.
+
 Docs/link checks:
 
 ```bash
@@ -216,7 +225,8 @@ Deploy/preview:
 | Docs-only | `git status --short --branch`, `git diff --check`, targeted `rg` for required sections/terms. |
 | UI/content-only desktop | Docs-only checks plus `python3 -m py_compile app.py theme.py`; offscreen screenshot if layout/wrapping may change. |
 | UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
-| Component logic desktop | `python3 -m py_compile app.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke for changed flow where practical. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
+| Component logic desktop | `python3 -m py_compile app.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; run the tracked desktop frame/state suite when Material effects, Zones, schema/project state, or codec Layer persistence are in scope; focused smoke for changed flow where practical. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
+| Tracked desktop frame/state tests | Run `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'`; preserve the exact 18-case oracle hash, deterministic generated fixtures, isolated temporary settings, zero network/private media, and zero repository output. Run twice when changing the tests or their fixture/oracle definitions. |
 | Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. Lite audio changes also require source-off/source-only/Add-only/mixed output checks, source-to-visual-cut sync including still silence, and repeated-render/reset graph cleanup. |
 | Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator UI behavior is in scope; for audio changes require exported-file track and PCM/frequency evidence rather than track count alone; keep generated `LiteWeb/` and `DerivedData/` out of git. |
 | Routing/navigation | Local static server; `curl` changed pages; verify relative asset/link paths. |
