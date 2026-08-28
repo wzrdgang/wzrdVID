@@ -1800,6 +1800,7 @@ class MainWindow(QMainWindow):
         self._apply_style()
         self._load_settings()
         self._refresh_slider_labels()
+        self._update_preview_controls()
         self._apply_output_size_preset()
         self._apply_optimize_preset()
         self._update_preset_description()
@@ -4850,6 +4851,10 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _preview_cache_cleanup_finished(self, summary: CacheCleanupSummary, manual: bool) -> None:
+        if manual and self.last_preview_path and not Path(self.last_preview_path).expanduser().exists():
+            self.last_preview_path = None
+            self.open_preview_button.setEnabled(False)
+            self.open_preview_button.hide()
         if summary.items:
             key = "log.preview_cache_cleanup_deleted" if manual else "log.preview_cache_auto_deleted"
             self.append_log(
@@ -5377,7 +5382,15 @@ class MainWindow(QMainWindow):
         self.update_worker = None
 
     def open_update_download(self) -> None:
-        QDesktopServices.openUrl(QUrl(self.latest_release_url or RELEASES_LATEST_URL))
+        url = QUrl(self.latest_release_url or RELEASES_LATEST_URL)
+        if QDesktopServices.openUrl(url):
+            return
+        QMessageBox.warning(
+            self,
+            APP_NAME,
+            self.tr("dialog.update_open_failed", url=url.toString()),
+        )
+        self.append_log(f"Could not open update page: {url.toString()}")
 
     def _file_size_text(self, path: str) -> str:
         try:
@@ -5576,7 +5589,14 @@ class MainWindow(QMainWindow):
         if not preview_path.exists():
             QMessageBox.warning(self, APP_NAME, self.tr("dialog.preview_file_missing", path=preview_path))
             return
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(preview_path)))
+        if QDesktopServices.openUrl(QUrl.fromLocalFile(str(preview_path))):
+            return
+        QMessageBox.warning(
+            self,
+            APP_NAME,
+            self.tr("dialog.preview_open_failed", path=preview_path),
+        )
+        self.append_log(f"Could not open preview: {preview_path}")
 
     def _load_settings(self) -> None:
         if not SETTINGS_PATH.exists():

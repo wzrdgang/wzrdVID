@@ -302,6 +302,8 @@ EN: dict[str, str] = {
     "dialog.recipe_invalid": "Recipe JSON must contain an object.",
     "dialog.output_folder_missing": "Output folder does not exist:\n{folder}",
     "dialog.preview_file_missing": "Preview file does not exist:\n{path}",
+    "dialog.preview_open_failed": "Could not open the rendered preview.\n\n{path}",
+    "dialog.update_open_failed": "Could not open the update page in your browser.\n\n{url}",
     "dialog.no_output": "No output file has been rendered yet.",
     "dialog.no_preview": "No preview has been rendered yet.",
     "dialog.render_running": "A render is still running. Wait for it to finish before quitting.",
