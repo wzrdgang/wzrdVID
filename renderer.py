@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 import datamosh
 import ffmpeg_utils
 import still_cache
+import timeline_math
 from presets import get_preset
 from state_contract import (
     CODEC_LAYER_ORDER,
@@ -1040,7 +1041,7 @@ def build_bypass_intervals(
         for block in manual_blocks or []:
             start, end = _coerce_block(block)
             intervals.append((start, end))
-    intervals = _merge_intervals(intervals, duration)
+    intervals = timeline_math.merge_intervals(intervals, duration)
 
     if use_random:
         random_percent = max(0.0, min(100.0, float(random_percent)))
@@ -1054,7 +1055,7 @@ def build_bypass_intervals(
             seed=seed,
         )
 
-    return _merge_intervals(intervals, duration)
+    return timeline_math.merge_intervals(intervals, duration)
 
 
 def build_style_fx_clean_intervals(
@@ -1276,7 +1277,7 @@ def render_project(
         max_len=settings.random_max_len,
         seed=settings.random_seed,
     )
-    bypass_seconds = _interval_total(bypass_intervals)
+    bypass_seconds = timeline_math.interval_total(bypass_intervals)
     if bypass_intervals:
         _emit(
             log,
@@ -1295,7 +1296,7 @@ def render_project(
         max_len=settings.random_max_len,
         seed=settings.style_fx_random_seed,
     )
-    style_fx_clean_seconds = _interval_total(style_fx_clean_intervals)
+    style_fx_clean_seconds = timeline_math.interval_total(style_fx_clean_intervals)
     if style_fx_clean_intervals:
         _emit(
             log,
@@ -1420,13 +1421,18 @@ def render_project(
             key for key in datamosh_mode_keys if _effect_on(settings.effects, key)
         )
         if enabled_datamosh_modes:
-            eligible_start_frame = _datamosh_eligible_start_frame(settings, frame_count)
+            eligible_start_frame = timeline_math.style_eligible_start_frame(
+                settings.style_begin_time,
+                settings.output_time_offset,
+                settings.fps,
+                frame_count,
+            )
             protected_intervals = _style_fx_clean_frame_intervals(
                 style_fx_clean_intervals,
                 settings.fps,
                 frame_count,
             )
-            if eligible_start_frame >= frame_count or _frames_fully_protected(
+            if eligible_start_frame >= frame_count or timeline_math.frames_fully_covered(
                 eligible_start_frame,
                 frame_count,
                 protected_intervals,
@@ -1442,8 +1448,8 @@ def render_project(
                     target
                     for target in source_transition_targets
                     if target.frame > eligible_start_frame
-                    and not _frame_in_intervals(target.frame, protected_intervals)
-                    and not _frame_in_intervals(target.frame - 1, protected_intervals)
+                    and not timeline_math.frame_in_intervals(target.frame, protected_intervals)
+                    and not timeline_math.frame_in_intervals(target.frame - 1, protected_intervals)
                 )
                 _emit(
                     log,
@@ -2139,12 +2145,11 @@ def _external_audio_match_duration(settings: RenderSettings, selected_clip_durat
 
 def _render_window_duration(settings: RenderSettings, full_output_duration: float) -> float:
     """Return the local render length after canonical full-output planning."""
-    if settings.preview_duration is None:
-        return full_output_duration
-    available = full_output_duration - settings.output_time_offset
-    if available <= 0.05:
-        raise ValueError("Preview start is outside the planned output timeline.")
-    return min(float(settings.preview_duration), available)
+    return timeline_math.render_window_duration(
+        full_output_duration,
+        settings.output_time_offset,
+        settings.preview_duration,
+    )
 
 
 def _preview_audio_execution_settings(
@@ -2213,12 +2218,12 @@ def _preview_audio_fade(
 ) -> tuple[float, float | None]:
     """Return the canonical fade duration and its Preview-local start."""
     fade_duration = _audio_fade_duration(settings, full_output_duration)
-    if fade_duration <= 0.05:
-        return 0.0, None
-    local_start = full_output_duration - fade_duration - settings.output_time_offset
-    if local_start >= render_duration or local_start + fade_duration <= 0.0:
-        return 0.0, None
-    return fade_duration, local_start
+    return timeline_math.preview_fade(
+        full_output_duration,
+        settings.output_time_offset,
+        render_duration,
+        fade_duration,
+    )
 
 
 def _preview_loop_protected_tail_start(
@@ -2228,9 +2233,12 @@ def _preview_loop_protected_tail_start(
     fps: int,
 ) -> int:
     """Rebase the canonical Loop-protected frame tail into the render window."""
-    full_frame_count = max(1, math.ceil(full_output_duration * fps))
-    canonical_start = datamosh._loop_protected_tail_start(full_frame_count, fps)
-    return max(0, min(frame_count, canonical_start - absolute_frame_offset))
+    return timeline_math.preview_loop_protected_tail_start(
+        full_output_duration,
+        absolute_frame_offset,
+        frame_count,
+        fps,
+    )
 
 
 def _randomized_timeline_segments(
@@ -2900,9 +2908,10 @@ def _render_frames(
 
 def _absolute_output_frame(settings: RenderSettings, local_frame: int) -> int:
     """Map a render-window frame to its canonical full-output clock."""
-    return max(
-        0,
-        int(round(settings.output_time_offset * settings.fps)) + int(local_frame),
+    return timeline_math.absolute_output_frame(
+        local_frame,
+        settings.output_time_offset,
+        settings.fps,
     )
 
 
@@ -2989,37 +2998,7 @@ def _style_fx_clean_frame_intervals(
     frame_count: int,
 ) -> tuple[tuple[int, int], ...]:
     """Map half-open output-time coverage to the rendered frame indices it contains."""
-    mapped: list[tuple[int, int]] = []
-    for start, end in intervals:
-        start_frame = max(0, min(frame_count, int(math.ceil(start * fps - 1e-9))))
-        end_frame = max(start_frame, min(frame_count, int(math.ceil(end * fps - 1e-9))))
-        if end_frame > start_frame:
-            mapped.append((start_frame, end_frame))
-    return tuple(mapped)
-
-
-def _frames_fully_protected(
-    start_frame: int,
-    end_frame: int,
-    intervals: tuple[tuple[int, int], ...],
-) -> bool:
-    cursor = start_frame
-    for protected_start, protected_end in intervals:
-        if protected_end <= cursor:
-            continue
-        if protected_start > cursor:
-            return False
-        cursor = max(cursor, protected_end)
-        if cursor >= end_frame:
-            return True
-    return cursor >= end_frame
-
-
-def _frame_in_intervals(
-    frame: int,
-    intervals: tuple[tuple[int, int], ...],
-) -> bool:
-    return any(start <= frame < end for start, end in intervals)
+    return timeline_math.time_intervals_to_frame_intervals(intervals, fps, frame_count)
 
 
 def _datamosh_transition_targets(
@@ -4113,10 +4092,11 @@ def _apply_ending_effect(
     mode = settings.ending_mode or "Hard Cut"
     if mode == "Hard Cut" or render_duration <= 0:
         return image
-    tail = min(1.5, render_duration)
-    if output_t < render_duration - tail:
+    tail = timeline_math.ending_tail_duration(render_duration)
+    tail_interval = timeline_math.ending_tail_interval(render_duration)
+    if tail_interval is None or output_t < tail_interval[0]:
         return image
-    progress = (output_t - (render_duration - tail)) / max(0.001, tail)
+    progress = (output_t - tail_interval[0]) / max(0.001, tail)
     arr = np.array(image, dtype=np.uint8)
     if mode == "Fade Out" or mode == "Loop Freeze":
         arr = (arr.astype(np.float32) * (1.0 - 0.82 * progress)).astype(np.uint8)
@@ -4146,17 +4126,18 @@ def _apply_ending_effect(
 
 
 def _apply_loop_friendly(image: Image.Image, first_output: Image.Image, render_duration: float, output_t: float) -> Image.Image:
-    tail = min(0.75, render_duration / 3.0)
-    if tail <= 0.05 or output_t < render_duration - tail:
+    tail = timeline_math.loop_tail_duration(render_duration)
+    tail_interval = timeline_math.loop_tail_interval(render_duration)
+    if tail_interval is None or output_t < tail_interval[0]:
         return image
-    progress = (output_t - (render_duration - tail)) / tail
+    progress = (output_t - tail_interval[0]) / tail
     return Image.blend(image, first_output.resize(image.size), max(0.0, min(0.85, progress * 0.85)))
 
 
 def _audio_fade_duration(settings: RenderSettings, render_duration: float) -> float:
     if settings.ending_mode == "Hard Cut" and not settings.loop_friendly:
         return 0.0
-    return min(1.5, max(0.0, render_duration))
+    return timeline_math.ending_tail_duration(render_duration)
 
 
 def make_text_layout(
@@ -4884,11 +4865,11 @@ def _add_random_intervals(
     rng = random.Random(seed)
     result = list(intervals)
     available = _available_gaps(result, duration)
-    available_seconds = _interval_total(available)
+    available_seconds = timeline_math.interval_total(available)
     if available_seconds <= 0:
         return result
     if target_seconds >= available_seconds - 0.02:
-        return _merge_intervals(result + available, duration)
+        return timeline_math.merge_intervals(result + available, duration)
 
     random_added = 0.0
     attempts = 0
@@ -4917,13 +4898,13 @@ def _add_random_intervals(
         else:
             start = rng.uniform(gap[0], gap[1] - chunk_len)
         candidate = (start, start + chunk_len)
-        result = _merge_intervals(result + [candidate], duration)
+        result = timeline_math.merge_intervals(result + [candidate], duration)
         random_added += chunk_len
     return result
 
 
 def _weighted_gap_choice(gaps: list[Interval], rng: random.Random) -> Interval:
-    total = _interval_total(gaps)
+    total = timeline_math.interval_total(gaps)
     pick = rng.random() * total
     cursor = 0.0
     for gap in gaps:
@@ -4934,7 +4915,7 @@ def _weighted_gap_choice(gaps: list[Interval], rng: random.Random) -> Interval:
 
 
 def _available_gaps(intervals: list[Interval], duration: float) -> list[Interval]:
-    merged = _merge_intervals(intervals, duration)
+    merged = timeline_math.merge_intervals(intervals, duration)
     gaps: list[Interval] = []
     cursor = 0.0
     for start, end in merged:
@@ -4946,36 +4927,8 @@ def _available_gaps(intervals: list[Interval], duration: float) -> list[Interval
     return gaps
 
 
-def _merge_intervals(intervals: Iterable[Interval], duration: float) -> list[Interval]:
-    cleaned: list[Interval] = []
-    for start, end in intervals:
-        start = max(0.0, min(float(start), duration))
-        end = max(0.0, min(float(end), duration))
-        if end - start > 0.001:
-            cleaned.append((start, end))
-    cleaned.sort(key=lambda item: item[0])
-
-    merged: list[Interval] = []
-    for start, end in cleaned:
-        if not merged or start > merged[-1][1] + 0.001:
-            merged.append((start, end))
-        else:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-    return merged
-
-
-def _interval_total(intervals: Iterable[Interval]) -> float:
-    return sum(max(0.0, end - start) for start, end in intervals)
-
-
 def _effect_on(effects: dict[str, bool], key: str) -> bool:
     return bool(effects.get(key, False))
-
-
-def _datamosh_eligible_start_frame(settings: RenderSettings, frame_count: int) -> int:
-    local_style_time = max(0.0, settings.style_begin_time - settings.output_time_offset)
-    frame = math.ceil(local_style_time * settings.fps - 1e-9)
-    return max(0, min(frame_count, frame))
 
 
 def _emit(log: LogCallback, message: str) -> None:

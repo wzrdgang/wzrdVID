@@ -17,6 +17,7 @@ from typing import Callable
 
 import ffmpeg_utils
 import numpy as np
+import timeline_math
 
 
 LogCallback = Callable[[str], None] | None
@@ -4161,10 +4162,7 @@ def _transition_persistence_policy(intensity: float, score: int) -> tuple[int, i
 
 
 def _loop_protected_tail_start(frame_count: int, fps: int) -> int:
-    duration = frame_count / max(1, fps)
-    protected_seconds = min(0.75, duration / 3.0)
-    protected_frames = max(1, int(math.ceil(protected_seconds * fps - 1e-9)))
-    return max(0, frame_count - protected_frames)
+    return timeline_math.loop_protected_tail_start(frame_count, fps)
 
 
 def _encode_prediction_stream(

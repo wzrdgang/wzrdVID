@@ -74,6 +74,7 @@ from PySide6.QtWidgets import (
 
 import ffmpeg_utils
 import still_cache
+import timeline_math
 from presets import get_preset, preset_description, preset_names
 from renderer import (
     AUDIO_EXTERNAL,
@@ -4970,14 +4971,12 @@ class MainWindow(QMainWindow):
             max_len=settings.random_max_len,
             seed=settings.random_seed,
         )
-        preview_end = preview_offset + preview_length
-        shifted: list[tuple[float, float]] = []
-        for start, end in full_intervals:
-            overlap_start = max(start, preview_offset)
-            overlap_end = min(end, preview_end)
-            if overlap_end > overlap_start:
-                shifted.append((overlap_start - preview_offset, overlap_end - preview_offset))
-        return shifted
+        preview_end = timeline_math.absolute_time(preview_length, preview_offset)
+        return timeline_math.rebase_intervals(
+            full_intervals,
+            preview_offset,
+            preview_end,
+        )
 
     def _preview_style_fx_blocks(
         self,
@@ -4995,12 +4994,12 @@ class MainWindow(QMainWindow):
             max_len=settings.random_max_len,
             seed=settings.style_fx_random_seed,
         )
-        preview_end = preview_offset + preview_length
-        return [
-            (max(start, preview_offset) - preview_offset, min(end, preview_end) - preview_offset)
-            for start, end in full_intervals
-            if min(end, preview_end) > max(start, preview_offset)
-        ]
+        preview_end = timeline_math.absolute_time(preview_length, preview_offset)
+        return timeline_math.rebase_intervals(
+            full_intervals,
+            preview_offset,
+            preview_end,
+        )
 
     def _new_preview_path(self) -> Path:
         PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
