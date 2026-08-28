@@ -109,3 +109,22 @@ This records the locally prepared release candidate. It does not authorize or cl
 - [ ] Physical-iPhone Lite source-audio listening and saved-Photos playback remains manual and separate from the desktop release.
 - [ ] Human Finder DMG presentation and existing-app **Replace** wording remains manual.
 - [ ] Normal browser/Finder quarantine and Gatekeeper first-launch behavior remains manual; command-line public downloads did not receive `com.apple.quarantine`.
+
+## v0.4.0 Local Preparation Evidence — 2026-08-27
+
+This records the feature-frozen, locally prepared release candidate. It does not authorize or claim a commit, tag, upload, release, deployment, or publication.
+
+- [x] `VERSION`, desktop fallback, bundled resource, and both macOS bundle version fields report `0.4.0`; Apple Lite version/identity is unchanged.
+- [x] The complete accumulated-diff, source, syntax/static, dependency, privacy, UI/state/migration, performance, media/audio/transport/failure, and Apple Lite non-regression gates pass.
+- [x] The 18-case Full Frame oracle remains `441f9150b0f8c2d79fadb5a653a4b930d777959c37e458099a3b28eee3baa80a`; exact Zone eligibility remains the five Material Dynamics effects plus SKRRT, with ShShSHa Zone-ineligible.
+- [x] The single fresh arm64 app build has 205 thin-arm64 Mach-O files, zero dangling links, strict deep ad-hoc codesign, no TeamIdentifier, and Bundle ID `com.samhowell.wzrdvid`.
+- [x] Frozen newly built modules pass application/schema/six-row UI, Style FX, Material/organic, all five codec modes, historical/reverse Layer, Full Frame/Zone SKRRT, Preview/Random/Loop, mixed media, H.264/yuv420p/AAC, one main encode/one safe transcode, source immutability, and failure cleanup.
+- [x] Final local DMG: 82,303,287 bytes; SHA-256 `90383e2eaf877dd9121368a019b3f17a896f51750e4746936f818f45784ead03`.
+- [x] Final local ZIP fallback: 79,584,462 bytes; SHA-256 `396c3bd70ad91e446f046a488da1ea98d7d3b0878a2192121451934abe3730ff`.
+- [x] The `dist`, mounted-DMG, and freshly extracted-ZIP app trees have identical 577-entry manifests, executable SHA-256, CDHash, identity, version, architecture, signature state, and Team state.
+- [x] Isolated prior-app replacement with the final DMG app removes the old marker, validates the new bundle, and leaves nonempty external settings, ImportedMedia, StillCache, Previews, and recipe hashes unchanged.
+- [ ] Run the packaged GUI test with a suitable real Messages/Photos HEIC/HEIF readable/rejection pair when available.
+- [ ] Human-check Finder DMG presentation and the existing-app **Replace** dialog.
+- [ ] Validate normal browser/Finder quarantine and first-launch behavior; the package remains intentionally ad-hoc signed and unnotarized.
+- [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback when an iPhone and the separately required Apple release context are available.
+- [ ] Commit, push, tag, create a GitHub Release, upload the exact recorded DMG/ZIP bytes, fresh-download verify both hashes, and update public guidance only in a separately authorized publication phase.

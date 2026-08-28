@@ -176,8 +176,11 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - **Style begins at** keeps the opening clean, then starts the full WZRD treatment at an absolute rendered-output timestamp.
 - ANSI/text-art rendering with color sampled from source frames.
 - **PUBLIC ACCESS** renderer for camcorder-dub public-access texture while keeping ANSI Coverage fully adjustable.
-- Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, mosaic collapse, Pixel Sorting, in-memory Databending and Hex Editing, software-emulated Circuit Bending, luminance-driven Random Noise B/W, and authentic DATAMOSHING.
-- DATAMOSHING manipulates I/P prediction frames in a temporary MPEG-4 Part 2 stream after the visual render, then returns to a normal H.264/yuv420p MP4 before existing audio finalization. It never modifies source media or ships the temporary prediction stream.
+- Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, mosaic collapse, and five deterministic Material Dynamics effects: Pixel Sorting, Databending, Circuit Bending, Hex Editing, and Random Noise B/W.
+- Five independently enabled **DATAMOSH MODES**: transition-aware **DATAMOSHING**, recursively accumulating **spILL!**, reverse-prediction **SKRRT**, spatial-fragment **ShShSHa**, and transition-flow **FLOWs**.
+- A persistent **Layer** control orders the five DATAMOSH modes. Combined modes share one controlled MPEG-4 Part 2 encode and one safe H.264/yuv420p transcode before normal audio finalization; source media is never modified and temporary prediction streams are never shipped.
+- Independent **Style FX Coverage** can leave random, manual, or combined clean sections without changing ANSI Coverage.
+- Up to three static **Zones** can target Pixel Sorting, Databending, Circuit Bending, Hex Editing, Random Noise B/W, and SKRRT. The five frame effects stay inside their rectangles; SKRRT uses bounded spatial prediction leakage. Other codec modes, including ShShSHa, intentionally remain Full Frame only.
 - Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
 - Bypass-normal sections so chosen parts remain regular video instead of ANSI.
 - Transitions and endings for less-abrupt exports.
@@ -229,12 +232,13 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 4. Choose Audio Mix mode and per-video **Include Audio** rows.
 5. Set timeline/music trim, optional **Style begins at** time and max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
-7. Choose ANSI Coverage if you want some sections to stay normal video.
-8. Pick Output Size and optional Optimize Output target.
-9. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
-10. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
+7. Choose ANSI Coverage for normal-video sections and Style FX Coverage for clean optional-effect sections.
+8. Enable any DATAMOSH MODES, arrange their Layer order, and optionally assign the five Material Dynamics effects or SKRRT to one of up to three Zones.
+9. Pick Output Size and optional Optimize Output target.
+10. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
+11. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
 
-Recipes save timeline items, media paths, trims, Style begins at, max video length/random assembly settings, audio settings, framing, styles, effects, bypass sections, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
+Recipes save timeline items, media paths, trims, Style begins at, max video length/random assembly settings, audio settings, framing, styles, effects, ANSI and Style FX coverage, DATAMOSH Layer order, Zones, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
 
 Advanced per-clip include-section selection remains future work.
 

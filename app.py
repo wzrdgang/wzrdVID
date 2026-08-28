@@ -17,6 +17,7 @@ import time
 import traceback
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -25,8 +26,19 @@ from pathlib import Path
 from app_i18n import SUPPORTED_LANGUAGES, language_label, resolve_language, translate
 import cv2
 from PIL import Image
-from PySide6.QtCore import QFile, QThread, QTimer, QUrl, Signal, Qt
-from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QImage, QPixmap
+from PySide6.QtCore import QFile, QPointF, QRectF, QSize, QThread, QTimer, QUrl, Signal, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QDesktopServices,
+    QFont,
+    QFontDatabase,
+    QIcon,
+    QImage,
+    QPainter,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -42,6 +54,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -70,13 +84,24 @@ from renderer import (
     BYPASS_MANUAL,
     BYPASS_MANUAL_RANDOM,
     BYPASS_RANDOM,
+    CODEC_LAYER_ORDER,
     MATCH_LOOP,
     MATCH_SPEED,
     MATCH_TRIM,
+    MAX_ZONES,
     RenderSettings,
+    STYLE_FX_FULL,
+    STYLE_FX_MANUAL,
+    STYLE_FX_MANUAL_RANDOM,
+    STYLE_FX_RANDOM,
     TimelineItem,
+    ZoneDefinition,
     build_bypass_intervals,
+    build_style_fx_clean_intervals,
     fit_frame_to_output,
+    normalize_codec_layer_order,
+    normalize_zone_state,
+    normalize_style_fx_coverage_mode,
     render_project,
 )
 from theme import MONO_FONT_STACK, PALETTE, app_stylesheet
@@ -88,7 +113,7 @@ RELEASES_LATEST_URL = "https://github.com/wzrdgang/wzrdVID/releases/latest"
 LATEST_RELEASE_API_URL = "https://api.github.com/repos/wzrdgang/wzrdVID/releases/latest"
 UPDATE_CHECK_TIMEOUT_SECONDS = 6
 RELEASE_TAG_RE = re.compile(r"/releases/tag/([^/?#\"'<>]+)")
-APP_VERSION_FALLBACK = "0.3.0"
+APP_VERSION_FALLBACK = "0.4.0"
 
 
 def _resource_path(name: str) -> Path:
@@ -564,6 +589,10 @@ EFFECTS = [
     ("punch_zoom", "Punch Zooms", "Short impact zooms on a repeating pulse."),
     ("glitch", "Glitch", "Horizontal offsets, slice jumps, and damaged-frame shifts."),
     ("datamoshing", "DATAMOSHING", "Breaks MPEG-4 prediction frames so motion leaks across cuts, creating real interframe smears and frozen-motion ghosts."),
+    ("overflow", "spILL!", "Motion spills forward into digital trails."),
+    ("skrrt", "SKRRT", "Motion drags backward into warped trails."),
+    ("scatter", "ShShSHa", "Break motion into shifting digital fragments."),
+    ("bleed", "FLOWs", "Smear one clip into the next."),
     ("pixel_sorting", "Pixel Sorting", "Reorders selected pixel runs by brightness, stretching highlights and shadows into long digital streaks."),
     ("databending", "Databending", "Treats image data like the wrong kind of signal, creating byte drift, channel warping and structured digital corruption."),
     ("circuit_bending", "Circuit Bending", "Software-emulates bent video circuitry with sync loss, chroma jumps, clipping, rolling and electronic feedback."),
@@ -589,10 +618,23 @@ PHASE2_FRAME_EFFECT_KEYS = {
     "hex_editing",
     "random_noise_bw",
 }
-LOCALIZED_EFFECT_KEYS = PHASE2_FRAME_EFFECT_KEYS | {"datamoshing"}
+LOCALIZED_EFFECT_KEYS = PHASE2_FRAME_EFFECT_KEYS | {
+    "datamoshing",
+    "overflow",
+    "skrrt",
+    "scatter",
+    "bleed",
+}
+CODEC_LAYER_LABEL_KEYS = {
+    mode: f"effect.{mode}.label" for mode in CODEC_LAYER_ORDER
+}
 DEFAULT_OFF_EFFECTS = {
     "tunnel_zoom",
     "datamoshing",
+    "overflow",
+    "skrrt",
+    "scatter",
+    "bleed",
     *PHASE2_FRAME_EFFECT_KEYS,
     "stutter_hold",
     "motion_melt",
@@ -608,7 +650,7 @@ ANCHORS = ["Center", "Top", "Bottom", "Left", "Right"]
 LETTERBOX_BACKGROUNDS = ["Black", "Pastel Pink", "Blurred Source"]
 DITHER_MODES = ["None", "Bayer", "Floyd-Steinberg", "CRT dot matrix", "Pocket Camera", "Newspaper halftone"]
 TRANSITION_MODES = [
-    "Hard Cut",
+    "None",
     "CRT Flash",
     "Frame Burn",
     "Block Dissolve",
@@ -1063,6 +1105,283 @@ class ManualBlockRow(QWidget):
         self.remove_button.setText(translator("button.remove"))
 
 
+class BrandedCheckboxLabel(QLabel):
+    """Clickable rich label backed by one ordinary, keyboard-focusable checkbox."""
+
+    def __init__(self, checkbox: QCheckBox) -> None:
+        super().__init__()
+        self.checkbox = checkbox
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt API override.
+        plain = str(text)
+        if plain == "spILL!":
+            super().setText("<span style='text-decoration: line-through;'>sp</span>ILL!")
+        else:
+            super().setText(html.escape(plain))
+        self.checkbox.setAccessibleName(plain)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        if event.button() == Qt.MouseButton.LeftButton and self.checkbox.isEnabled():
+            self.checkbox.toggle()
+            self.checkbox.setFocus(Qt.FocusReason.MouseFocusReason)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
+class ZoneCanvas(QWidget):
+    """Compact fixed-output-aspect editor for up to three normalized Zones."""
+
+    selection_changed = Signal(str)
+    zone_changed = Signal(str, float, float, float, float)
+    zone_created = Signal(float, float, float, float)
+    editing_finished = Signal()
+    delete_requested = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._zones: tuple[ZoneDefinition, ...] = ()
+        self._selected_id = ""
+        self._aspect = 16.0 / 9.0
+        self._drag_mode = ""
+        self._drag_handle = ""
+        self._drag_origin = QPointF()
+        self._drag_zone: ZoneDefinition | None = None
+        self._draft: tuple[float, float, float, float] | None = None
+        self.setObjectName("zoneCanvas")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMinimumSize(260, 132)
+        self.setMaximumHeight(180)
+        self.setAccessibleName("Zone output-frame editor")
+        self.setAccessibleDescription(
+            "Drag empty canvas space to create a Zone. Drag a Zone to move it or its corner handles to resize it."
+        )
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt API override.
+        return QSize(360, 160)
+
+    def set_output_aspect(self, width: int, height: int) -> None:
+        if width > 0 and height > 0:
+            self._aspect = float(width) / float(height)
+            self.update()
+
+    def set_zones(self, zones: tuple[ZoneDefinition, ...], selected_id: str) -> None:
+        self._zones = tuple(zones)
+        self._selected_id = selected_id
+        self.update()
+
+    def _canvas_rect(self) -> QRectF:
+        bounds = QRectF(self.rect()).adjusted(7.0, 7.0, -7.0, -7.0)
+        width = bounds.width()
+        height = width / self._aspect
+        if height > bounds.height():
+            height = bounds.height()
+            width = height * self._aspect
+        return QRectF(
+            bounds.center().x() - width / 2.0,
+            bounds.center().y() - height / 2.0,
+            width,
+            height,
+        )
+
+    def _normalized_point(self, point: QPointF) -> QPointF:
+        canvas = self._canvas_rect()
+        return QPointF(
+            max(0.0, min(1.0, (point.x() - canvas.left()) / max(1.0, canvas.width()))),
+            max(0.0, min(1.0, (point.y() - canvas.top()) / max(1.0, canvas.height()))),
+        )
+
+    def _zone_rect(self, zone: ZoneDefinition) -> QRectF:
+        canvas = self._canvas_rect()
+        return QRectF(
+            canvas.left() + zone.x * canvas.width(),
+            canvas.top() + zone.y * canvas.height(),
+            zone.width * canvas.width(),
+            zone.height * canvas.height(),
+        )
+
+    def _zone_for_id(self, zone_id: str) -> ZoneDefinition | None:
+        return next((zone for zone in self._zones if zone.id == zone_id), None)
+
+    @staticmethod
+    def _handles(rectangle: QRectF) -> dict[str, QPointF]:
+        return {
+            "tl": rectangle.topLeft(),
+            "tr": rectangle.topRight(),
+            "br": rectangle.bottomRight(),
+            "bl": rectangle.bottomLeft(),
+        }
+
+    def _handle_at(self, point: QPointF, zone: ZoneDefinition) -> str:
+        for name, center in self._handles(self._zone_rect(zone)).items():
+            if abs(center.x() - point.x()) <= 7.0 and abs(center.y() - point.y()) <= 7.0:
+                return name
+        return ""
+
+    def paintEvent(self, _event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        canvas = self._canvas_rect()
+        painter.fillRect(canvas, QColor("#17151a"))
+        painter.setPen(QPen(QColor("#6d6770"), 1.0))
+        painter.drawRect(canvas)
+        painter.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
+        for fraction in (1.0 / 3.0, 2.0 / 3.0):
+            painter.drawLine(
+                QPointF(canvas.left() + canvas.width() * fraction, canvas.top()),
+                QPointF(canvas.left() + canvas.width() * fraction, canvas.bottom()),
+            )
+            painter.drawLine(
+                QPointF(canvas.left(), canvas.top() + canvas.height() * fraction),
+                QPointF(canvas.right(), canvas.top() + canvas.height() * fraction),
+            )
+        colors = (QColor("#ff4fa3"), QColor("#7ee8a8"), QColor("#ffd166"))
+        for index, zone in enumerate(self._zones):
+            rectangle = self._zone_rect(zone)
+            color = colors[index % len(colors)]
+            selected = zone.id == self._selected_id
+            fill = QColor(color)
+            fill.setAlpha(62 if selected else 38)
+            painter.fillRect(rectangle, QBrush(fill))
+            painter.setPen(QPen(color, 3.0 if selected else 2.0))
+            painter.drawRect(rectangle)
+            painter.drawText(rectangle.adjusted(5.0, 3.0, -3.0, -3.0), zone.name)
+            if selected:
+                painter.setBrush(QBrush(QColor("#fff9f0")))
+                painter.setPen(QPen(QColor("#17151a"), 1.0))
+                for center in self._handles(rectangle).values():
+                    painter.drawRect(QRectF(center.x() - 4.0, center.y() - 4.0, 8.0, 8.0))
+        if self._draft is not None:
+            x, y, width, height = self._draft
+            draft = ZoneDefinition("draft", "New Zone", x, y, width, height)
+            painter.fillRect(self._zone_rect(draft), QColor(255, 79, 163, 45))
+            painter.setPen(QPen(QColor("#ff4fa3"), 2.0, Qt.PenStyle.DashLine))
+            painter.drawRect(self._zone_rect(draft))
+        painter.end()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        self.setFocus(Qt.FocusReason.MouseFocusReason)
+        point = event.position()
+        if not self._canvas_rect().contains(point):
+            return
+        selected = self._zone_for_id(self._selected_id)
+        handle = self._handle_at(point, selected) if selected is not None else ""
+        if handle and selected is not None:
+            self._drag_mode = "resize"
+            self._drag_handle = handle
+            self._drag_zone = selected
+        else:
+            hit = next(
+                (zone for zone in reversed(self._zones) if self._zone_rect(zone).contains(point)),
+                None,
+            )
+            if hit is not None:
+                self._selected_id = hit.id
+                self.selection_changed.emit(hit.id)
+                self._drag_mode = "move"
+                self._drag_zone = hit
+            elif len(self._zones) < MAX_ZONES:
+                self._selected_id = ""
+                self.selection_changed.emit("")
+                self._drag_mode = "create"
+                self._drag_zone = None
+                origin = self._normalized_point(point)
+                self._draft = (origin.x(), origin.y(), 0.0, 0.0)
+        self._drag_origin = self._normalized_point(point)
+        self.update()
+        event.accept()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        if not self._drag_mode:
+            super().mouseMoveEvent(event)
+            return
+        point = self._normalized_point(event.position())
+        if self._drag_mode == "create":
+            left = min(self._drag_origin.x(), point.x())
+            top = min(self._drag_origin.y(), point.y())
+            self._draft = (
+                left,
+                top,
+                abs(point.x() - self._drag_origin.x()),
+                abs(point.y() - self._drag_origin.y()),
+            )
+        elif self._drag_zone is not None and self._drag_mode == "move":
+            delta_x = point.x() - self._drag_origin.x()
+            delta_y = point.y() - self._drag_origin.y()
+            x = max(0.0, min(1.0 - self._drag_zone.width, self._drag_zone.x + delta_x))
+            y = max(0.0, min(1.0 - self._drag_zone.height, self._drag_zone.y + delta_y))
+            self.zone_changed.emit(
+                self._drag_zone.id, x, y, self._drag_zone.width, self._drag_zone.height
+            )
+        elif self._drag_zone is not None:
+            left = self._drag_zone.x
+            top = self._drag_zone.y
+            right = left + self._drag_zone.width
+            bottom = top + self._drag_zone.height
+            if "l" in self._drag_handle:
+                left = min(point.x(), right - 0.01)
+            if "r" in self._drag_handle:
+                right = max(point.x(), left + 0.01)
+            if "t" in self._drag_handle:
+                top = min(point.y(), bottom - 0.01)
+            if "b" in self._drag_handle:
+                bottom = max(point.y(), top + 0.01)
+            self.zone_changed.emit(
+                self._drag_zone.id,
+                max(0.0, left),
+                max(0.0, top),
+                min(1.0, right) - max(0.0, left),
+                min(1.0, bottom) - max(0.0, top),
+            )
+        self.update()
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        if event.button() != Qt.MouseButton.LeftButton or not self._drag_mode:
+            super().mouseReleaseEvent(event)
+            return
+        if self._drag_mode == "create" and self._draft is not None:
+            x, y, width, height = self._draft
+            if width >= 0.01 and height >= 0.01:
+                self.zone_created.emit(x, y, width, height)
+        elif self._drag_mode in {"move", "resize"}:
+            self.editing_finished.emit()
+        self._drag_mode = ""
+        self._drag_handle = ""
+        self._drag_zone = None
+        self._draft = None
+        self.update()
+        event.accept()
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802, ANN001 - Qt signature.
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and self._selected_id:
+            self.delete_requested.emit()
+            event.accept()
+            return
+        zone = self._zone_for_id(self._selected_id)
+        direction = {
+            Qt.Key.Key_Left: (-1.0, 0.0),
+            Qt.Key.Key_Right: (1.0, 0.0),
+            Qt.Key.Key_Up: (0.0, -1.0),
+            Qt.Key.Key_Down: (0.0, 1.0),
+        }.get(event.key())
+        if zone is not None and direction is not None:
+            step = 0.02 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 0.005
+            x = max(0.0, min(1.0 - zone.width, zone.x + direction[0] * step))
+            y = max(0.0, min(1.0 - zone.height, zone.y + direction[1] * step))
+            self.zone_changed.emit(zone.id, x, y, zone.width, zone.height)
+            self.editing_finished.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -1074,8 +1393,10 @@ class MainWindow(QMainWindow):
         self.video_duration_seconds: float | None = None
         self.audio_duration_seconds: float | None = None
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
+        self.style_fx_random_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.block_rows: list[ManualBlockRow] = []
+        self.style_fx_block_rows: list[ManualBlockRow] = []
         self.last_output_path: str | None = None
         self.last_preview_path: str | None = None
         self.last_render_error = ""
@@ -1194,15 +1515,60 @@ class MainWindow(QMainWindow):
         self.chunky_blocks = self._checkbox("check.chunky_blocks")
         self._register_tooltip(self.chunky_blocks, "tooltip.chunky_blocks")
         self.effect_checks: dict[str, QCheckBox] = {}
+        self.effect_control_widgets: dict[str, QWidget] = {}
+        self.overflow_brand_label: BrandedCheckboxLabel | None = None
         for key, label, tooltip in EFFECTS:
-            if key in LOCALIZED_EFFECT_KEYS:
+            if key == "overflow":
+                checkbox = QCheckBox()
+                brand_label = BrandedCheckboxLabel(checkbox)
+                self._register_text(brand_label, "effect.overflow.label")
+                self._register_tooltip(checkbox, "effect.overflow.tooltip")
+                self._register_tooltip(brand_label, "effect.overflow.tooltip")
+                control = QWidget()
+                control_layout = QHBoxLayout(control)
+                control_layout.setContentsMargins(0, 0, 0, 0)
+                control_layout.setSpacing(4)
+                control_layout.addWidget(checkbox)
+                control_layout.addWidget(brand_label)
+                control.setSizePolicy(
+                    QSizePolicy.Policy.Maximum,
+                    QSizePolicy.Policy.Preferred,
+                )
+                self.overflow_brand_label = brand_label
+            elif key in LOCALIZED_EFFECT_KEYS:
                 checkbox = self._checkbox(f"effect.{key}.label")
                 self._register_tooltip(checkbox, f"effect.{key}.tooltip")
+                control = checkbox
             else:
                 checkbox = QCheckBox(label)
                 checkbox.setToolTip(tooltip)
+                control = checkbox
             checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
             self.effect_checks[key] = checkbox
+            self.effect_control_widgets[key] = control
+
+        self._codec_layer_updating = False
+        self.codec_layer_list = QListWidget()
+        self.codec_layer_list.setObjectName("codecLayerList")
+        self.codec_layer_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.codec_layer_list.setDragDropMode(
+            QAbstractItemView.DragDropMode.InternalMove
+        )
+        self.codec_layer_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.codec_layer_list.setDropIndicatorShown(True)
+        self.codec_layer_list.setMinimumHeight(148)
+        self.codec_layer_list.setMaximumHeight(168)
+        self._register_tooltip(self.codec_layer_list, "tooltip.codec_layer_order")
+        self.codec_layer_up_button = self._button("button.codec_layer_up")
+        self.codec_layer_up_button.setObjectName("secondaryButton")
+        self._register_tooltip(self.codec_layer_up_button, "tooltip.codec_layer_up")
+        self.codec_layer_down_button = self._button("button.codec_layer_down")
+        self.codec_layer_down_button.setObjectName("secondaryButton")
+        self._register_tooltip(self.codec_layer_down_button, "tooltip.codec_layer_down")
+        self._set_codec_layer_order(CODEC_LAYER_ORDER)
+        self._initialize_zone_controls()
 
         self.width_slider, self.width_value = self._make_slider(24, 260, 120)
         self.fps_slider, self.fps_value = self._make_slider(1, 60, 24)
@@ -1229,8 +1595,12 @@ class MainWindow(QMainWindow):
         self.dither_mode.addItems(DITHER_MODES)
         self._register_tooltip(self.dither_mode, "tooltip.dither_mode")
         self.transition_mode = QComboBox()
-        self.transition_mode.addItems(TRANSITION_MODES)
-        self._set_combo_text(self.transition_mode, DEFAULT_TRANSITION_MODE)
+        for display in TRANSITION_MODES:
+            self.transition_mode.addItem(
+                display,
+                "Hard Cut" if display == "None" else display,
+            )
+        self._set_transition_mode(DEFAULT_TRANSITION_MODE)
         self._register_tooltip(self.transition_mode, "tooltip.transition_mode")
         self.ending_mode = QComboBox()
         self.ending_mode.addItems(ENDING_MODES)
@@ -1341,6 +1711,32 @@ class MainWindow(QMainWindow):
         self.manual_blocks_layout.setContentsMargins(0, 0, 0, 0)
         self.manual_blocks_layout.setSpacing(8)
 
+        self.style_fx_coverage_mode = QComboBox()
+        self.style_fx_coverage_mode.addItems(
+            [STYLE_FX_FULL, STYLE_FX_RANDOM, STYLE_FX_MANUAL, STYLE_FX_MANUAL_RANDOM]
+        )
+        self.style_fx_random_percent = QSpinBox()
+        self.style_fx_random_percent.setRange(0, 100)
+        self.style_fx_random_percent.setValue(10)
+        self.style_fx_random_percent.setSuffix("%")
+        self.style_fx_reroll_button = self._button("button.reroll_random")
+        self.style_fx_reroll_button.setObjectName("secondaryButton")
+        self.style_fx_coverage_bar = QLabel(self.tr("status.style_fx_coverage_full"))
+        self.style_fx_coverage_detail = QLabel(
+            self.tr("status.style_fx_coverage_detail", count=0)
+        )
+        self.style_fx_seed_label = QLabel(
+            self.tr("status.seed", seed=self.style_fx_random_seed)
+        )
+        self.style_fx_add_block_button = self._button("button.add_block")
+        self.style_fx_add_block_button.setObjectName("secondaryButton")
+        self.style_fx_manual_blocks_widget = QWidget()
+        self.style_fx_manual_blocks_layout = QVBoxLayout(
+            self.style_fx_manual_blocks_widget
+        )
+        self.style_fx_manual_blocks_layout.setContentsMargins(0, 0, 0, 0)
+        self.style_fx_manual_blocks_layout.setSpacing(8)
+
         self.preview_label = self._label("status.no_video")
         self.preview_label.setObjectName("preview")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1414,8 +1810,10 @@ class MainWindow(QMainWindow):
         self._apply_optimize_preset()
         self._update_preset_description()
         self._update_coverage_controls()
+        self._update_style_fx_coverage_controls()
         self._after_timeline_changed(save=False)
         self._update_coverage_summary()
+        self._update_style_fx_coverage_summary()
         self._start_signal_timer()
         QTimer.singleShot(250, self.check_media_tools)
         QTimer.singleShot(1400, lambda: self.check_for_updates(manual=False))
@@ -1505,6 +1903,12 @@ class MainWindow(QMainWindow):
             self.main_tabs.setTabText(2, self.tr("tab.output"))
         for row in self.block_rows:
             row.apply_i18n(lambda key: self.tr(key))
+        for row in self.style_fx_block_rows:
+            row.apply_i18n(lambda key: self.tr(key))
+        if self.overflow_brand_label is not None:
+            overflow = self.effect_checks["overflow"]
+            overflow.setAccessibleName(self.tr("effect.overflow.label"))
+            overflow.setAccessibleDescription(self.tr("effect.overflow.tooltip"))
         self._update_preview_controls()
         self._update_timeline_duration_label()
         self._refresh_slider_labels()
@@ -1512,10 +1916,77 @@ class MainWindow(QMainWindow):
         self._update_output_size_estimate()
         self._update_optimize_estimate()
         self._update_coverage_summary()
+        self._update_style_fx_coverage_summary()
         self._refresh_timeline_table()
         self._refresh_signal_status()
+        self._refresh_codec_layer_labels()
+        self._refresh_zone_ui()
+        self.codec_layer_list.setAccessibleName(self.tr("label.codec_layer_order"))
+        self.codec_layer_list.setAccessibleDescription(self.tr("note.codec_layer_order"))
         if self.update_worker is None:
             self.update_status_label.setText(self.tr("status.update_checking", version=APP_VERSION))
+
+    def _codec_layer_order(self) -> tuple[str, ...]:
+        return normalize_codec_layer_order(
+            tuple(
+                self.codec_layer_list.item(index).data(Qt.ItemDataRole.UserRole)
+                for index in range(self.codec_layer_list.count())
+            )
+        )
+
+    def _set_codec_layer_order(self, value: object) -> None:
+        order = normalize_codec_layer_order(value)
+        self._codec_layer_updating = True
+        was_blocked = self.codec_layer_list.blockSignals(True)
+        try:
+            self.codec_layer_list.clear()
+            for mode in order:
+                item = QListWidgetItem()
+                item.setData(Qt.ItemDataRole.UserRole, mode)
+                self.codec_layer_list.addItem(item)
+            self._refresh_codec_layer_labels()
+            self.codec_layer_list.setCurrentRow(0)
+        finally:
+            self.codec_layer_list.blockSignals(was_blocked)
+            self._codec_layer_updating = False
+        self._update_codec_layer_buttons()
+
+    def _refresh_codec_layer_labels(self) -> None:
+        for index in range(self.codec_layer_list.count()):
+            item = self.codec_layer_list.item(index)
+            mode = str(item.data(Qt.ItemDataRole.UserRole) or "")
+            label_key = CODEC_LAYER_LABEL_KEYS.get(mode, mode)
+            item.setText(f"{index + 1:02d}  //  {self.tr(label_key)}")
+
+    def _codec_layer_rows_moved(self) -> None:
+        if self._codec_layer_updating:
+            return
+        self._refresh_codec_layer_labels()
+        self._update_codec_layer_buttons()
+        self._save_settings()
+
+    def _move_selected_codec_layer(self, direction: int) -> None:
+        row = self.codec_layer_list.currentRow()
+        target = row + direction
+        if row < 0 or target < 0 or target >= self.codec_layer_list.count():
+            return
+        self._codec_layer_updating = True
+        try:
+            item = self.codec_layer_list.takeItem(row)
+            self.codec_layer_list.insertItem(target, item)
+            self.codec_layer_list.setCurrentRow(target)
+            self._refresh_codec_layer_labels()
+        finally:
+            self._codec_layer_updating = False
+        self._update_codec_layer_buttons()
+        self._save_settings()
+
+    def _update_codec_layer_buttons(self) -> None:
+        row = self.codec_layer_list.currentRow()
+        self.codec_layer_up_button.setEnabled(row > 0)
+        self.codec_layer_down_button.setEnabled(
+            0 <= row < self.codec_layer_list.count() - 1
+        )
 
     def _start_signal_timer(self) -> None:
         self._rotate_signal_status()
@@ -1576,6 +2047,7 @@ class MainWindow(QMainWindow):
             self._tab_scroll([
                 self._build_style_group(),
                 self._build_slider_group(),
+                self._build_style_fx_coverage_group(),
                 self._build_coverage_group(),
                 self._build_transition_group(),
                 self._build_ending_group(),
@@ -1827,6 +2299,321 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.random_clip_assembly, 5, 2, 1, 2)
         return group
 
+    def _initialize_zone_controls(self) -> None:
+        self.zones: tuple[ZoneDefinition, ...] = ()
+        self.effect_zone_assignments: dict[str, str] = {}
+        self.selected_zone_id = ""
+        self._zone_state_loading = False
+        self.zone_canvas = ZoneCanvas()
+        self.zone_list = QListWidget()
+        self.zone_list.setObjectName("zoneList")
+        self.zone_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.zone_list.setMinimumHeight(92)
+        self.zone_list.setMaximumHeight(112)
+        self.zone_list.setAccessibleName("Zones")
+        self.zone_list.setAccessibleDescription("Static named output-frame regions; maximum three.")
+        self.zone_add_button = self._button("button.zone_add")
+        self.zone_add_button.setObjectName("secondaryButton")
+        self.zone_duplicate_button = self._button("button.zone_duplicate")
+        self.zone_duplicate_button.setObjectName("secondaryButton")
+        self.zone_delete_button = self._button("button.zone_delete")
+        self.zone_delete_button.setObjectName("dangerButton")
+        self.zone_name_edit = QLineEdit()
+        self.zone_name_edit.setAccessibleName("Zone name")
+        self.zone_name_edit.setMaximumWidth(220)
+        self.zone_geometry_spins: dict[str, QDoubleSpinBox] = {}
+        for key, accessible_name in (
+            ("x", "Zone X percent"),
+            ("y", "Zone Y percent"),
+            ("width", "Zone width percent"),
+            ("height", "Zone height percent"),
+        ):
+            spin = QDoubleSpinBox()
+            spin.setRange(0.0 if key in {"x", "y"} else 0.1, 100.0)
+            spin.setDecimals(1)
+            spin.setSingleStep(0.5)
+            spin.setSuffix("%")
+            spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+            spin.setAccessibleName(accessible_name)
+            self.zone_geometry_spins[key] = spin
+        self.zone_assignment_combos: dict[str, QComboBox] = {}
+        for effect in (
+            "pixel_sorting",
+            "databending",
+            "circuit_bending",
+            "hex_editing",
+            "random_noise_bw",
+            "skrrt",
+        ):
+            combo = QComboBox()
+            combo.setAccessibleName(f"{effect.replace('_', ' ')} Zone assignment")
+            combo.setAccessibleDescription(
+                "Choose Full Frame or one named Zone. This does not toggle the effect checkbox."
+            )
+            self.zone_assignment_combos[effect] = combo
+
+    def _build_zones_panel(self) -> QGroupBox:
+        group = self._group_box("group.zones")
+        group.setObjectName("zonesPanel")
+        layout = QHBoxLayout(group)
+        layout.setSpacing(10)
+        left = QVBoxLayout()
+        left.setSpacing(5)
+        add_row = QHBoxLayout()
+        add_row.setSpacing(6)
+        add_row.addWidget(self.zone_add_button)
+        add_row.addWidget(self.zone_duplicate_button)
+        add_row.addWidget(self.zone_delete_button)
+        add_row.addStretch(1)
+        left.addLayout(add_row)
+        left.addWidget(self.zone_list)
+        name_row = QHBoxLayout()
+        name_row.addWidget(self._label("label.zone_name"))
+        name_row.addWidget(self.zone_name_edit, stretch=1)
+        left.addLayout(name_row)
+        geometry = QGridLayout()
+        geometry.setHorizontalSpacing(5)
+        geometry.setVerticalSpacing(4)
+        for index, (key, label) in enumerate(
+            (("x", "X"), ("y", "Y"), ("width", "W"), ("height", "H"))
+        ):
+            geometry.addWidget(QLabel(label), 0, index)
+            geometry.addWidget(self.zone_geometry_spins[key], 1, index)
+        left.addLayout(geometry)
+        layout.addLayout(left, 4)
+        layout.addWidget(self.zone_canvas, 4)
+
+        assignment_grid = QGridLayout()
+        assignment_grid.setHorizontalSpacing(8)
+        assignment_grid.setVerticalSpacing(3)
+        assignment_grid.addWidget(self._label("label.zone_effect"), 0, 0)
+        assignment_grid.addWidget(self._label("label.zone_where"), 0, 1)
+        for row, effect in enumerate(self.zone_assignment_combos, start=1):
+            assignment_grid.addWidget(self._label(f"effect.{effect}.label"), row, 0)
+            assignment_grid.addWidget(self.zone_assignment_combos[effect], row, 1)
+        assignment_grid.setColumnStretch(1, 1)
+        assignments = QVBoxLayout()
+        assignments.addLayout(assignment_grid)
+        assignments.addStretch(1)
+        layout.addLayout(assignments, 4)
+        self._refresh_zone_ui()
+        return group
+
+    def _selected_zone(self) -> ZoneDefinition | None:
+        return next((zone for zone in self.zones if zone.id == self.selected_zone_id), None)
+
+    def _next_zone_name(self) -> str:
+        used = {zone.name for zone in self.zones}
+        for index in range(1, MAX_ZONES + 1):
+            name = f"Zone {index}"
+            if name not in used:
+                return name
+        return f"Zone {len(self.zones) + 1}"
+
+    def _refresh_zone_ui(self) -> None:
+        valid_ids = {zone.id for zone in self.zones}
+        if self.selected_zone_id not in valid_ids:
+            self.selected_zone_id = self.zones[0].id if self.zones else ""
+        self.zone_list.blockSignals(True)
+        self.zone_list.clear()
+        selected_row = -1
+        for row, zone in enumerate(self.zones):
+            item = QListWidgetItem(zone.name)
+            item.setData(Qt.ItemDataRole.UserRole, zone.id)
+            item.setToolTip(
+                f"X {zone.x * 100:.1f}%  Y {zone.y * 100:.1f}%  W {zone.width * 100:.1f}%  H {zone.height * 100:.1f}%"
+            )
+            self.zone_list.addItem(item)
+            if zone.id == self.selected_zone_id:
+                selected_row = row
+        if selected_row >= 0:
+            self.zone_list.setCurrentRow(selected_row)
+        self.zone_list.blockSignals(False)
+
+        selected = self._selected_zone()
+        self.zone_name_edit.blockSignals(True)
+        self.zone_name_edit.setText(selected.name if selected is not None else "")
+        self.zone_name_edit.blockSignals(False)
+        for key, spin in self.zone_geometry_spins.items():
+            spin.blockSignals(True)
+            spin.setValue(float(getattr(selected, key)) * 100.0 if selected is not None else 0.0)
+            spin.setEnabled(selected is not None)
+            spin.blockSignals(False)
+        self.zone_name_edit.setEnabled(selected is not None)
+        self.zone_duplicate_button.setEnabled(selected is not None and len(self.zones) < MAX_ZONES)
+        self.zone_delete_button.setEnabled(selected is not None)
+        self.zone_add_button.setEnabled(len(self.zones) < MAX_ZONES)
+        self.zone_canvas.set_zones(self.zones, self.selected_zone_id)
+
+        for effect, combo in self.zone_assignment_combos.items():
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem(self.tr("label.zone_full_frame"), None)
+            for zone in self.zones:
+                combo.addItem(zone.name, zone.id)
+            zone_id = self.effect_zone_assignments.get(effect)
+            index = combo.findData(zone_id) if zone_id is not None else 0
+            combo.setCurrentIndex(index if index >= 0 else 0)
+            combo.blockSignals(False)
+
+    def _set_zone_state(
+        self,
+        zones_value: object,
+        assignments_value: object,
+        *,
+        warn_on_repair: bool,
+    ) -> bool:
+        zones, assignments, repaired = normalize_zone_state(zones_value, assignments_value)
+        self._zone_state_loading = True
+        self.zones = zones
+        self.effect_zone_assignments = assignments
+        self.selected_zone_id = zones[0].id if zones else ""
+        self._refresh_zone_ui()
+        self._zone_state_loading = False
+        if repaired and warn_on_repair:
+            self.append_log(
+                "Zone state warning: malformed or missing references were repaired; invalid assignments use Full Frame."
+            )
+        return repaired
+
+    def _select_zone_from_list(self) -> None:
+        item = self.zone_list.currentItem()
+        self.selected_zone_id = str(item.data(Qt.ItemDataRole.UserRole)) if item else ""
+        self._refresh_zone_ui()
+
+    def _select_zone_from_canvas(self, zone_id: str) -> None:
+        self.selected_zone_id = zone_id
+        self._refresh_zone_ui()
+
+    def _add_zone(
+        self,
+        x: float | None = None,
+        y: float | None = None,
+        width: float | None = None,
+        height: float | None = None,
+    ) -> None:
+        if len(self.zones) >= MAX_ZONES:
+            return
+        offset = 0.08 * len(self.zones)
+        record = {
+            "id": uuid.uuid4().hex,
+            "name": self._next_zone_name(),
+            "x": 0.10 + offset if x is None else x,
+            "y": 0.10 + offset if y is None else y,
+            "width": 0.40 if width is None else width,
+            "height": 0.40 if height is None else height,
+        }
+        normalized, _assignments, _repaired = normalize_zone_state([record], {})
+        if not normalized:
+            return
+        self.zones = (*self.zones, normalized[0])
+        self.selected_zone_id = normalized[0].id
+        self._refresh_zone_ui()
+        self._save_settings()
+
+    def _duplicate_zone(self) -> None:
+        selected = self._selected_zone()
+        if selected is None or len(self.zones) >= MAX_ZONES:
+            return
+        x = min(1.0 - selected.width, selected.x + 0.03)
+        y = min(1.0 - selected.height, selected.y + 0.03)
+        duplicate = ZoneDefinition(
+            uuid.uuid4().hex,
+            self._next_zone_name(),
+            x,
+            y,
+            selected.width,
+            selected.height,
+        )
+        self.zones = (*self.zones, duplicate)
+        self.selected_zone_id = duplicate.id
+        self._refresh_zone_ui()
+        self._save_settings()
+
+    def _delete_zone(self) -> None:
+        zone_id = self.selected_zone_id
+        if not zone_id:
+            return
+        self.zones = tuple(zone for zone in self.zones if zone.id != zone_id)
+        self.effect_zone_assignments = {
+            effect: assigned
+            for effect, assigned in self.effect_zone_assignments.items()
+            if assigned != zone_id
+        }
+        self.selected_zone_id = self.zones[0].id if self.zones else ""
+        self._refresh_zone_ui()
+        self._save_settings()
+
+    def _rename_zone(self) -> None:
+        selected = self._selected_zone()
+        if selected is None:
+            return
+        name = self.zone_name_edit.text().strip() or selected.name
+        self.zones = tuple(
+            replace(zone, name=name) if zone.id == selected.id else zone for zone in self.zones
+        )
+        self._refresh_zone_ui()
+        self._save_settings()
+
+    def _update_zone_geometry(
+        self,
+        zone_id: str,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        *,
+        save: bool,
+    ) -> None:
+        zone = next((candidate for candidate in self.zones if candidate.id == zone_id), None)
+        if zone is None:
+            return
+        normalized, _assignments, _repaired = normalize_zone_state(
+            [{"id": zone.id, "name": zone.name, "x": x, "y": y, "width": width, "height": height}],
+            {},
+        )
+        if not normalized:
+            return
+        self.zones = tuple(
+            normalized[0] if candidate.id == zone_id else candidate for candidate in self.zones
+        )
+        self.selected_zone_id = zone_id
+        self._refresh_zone_ui()
+        if save:
+            self._save_settings()
+
+    def _zone_geometry_spin_changed(self) -> None:
+        if self._zone_state_loading:
+            return
+        zone = self._selected_zone()
+        if zone is None:
+            return
+        self._update_zone_geometry(
+            zone.id,
+            self.zone_geometry_spins["x"].value() / 100.0,
+            self.zone_geometry_spins["y"].value() / 100.0,
+            self.zone_geometry_spins["width"].value() / 100.0,
+            self.zone_geometry_spins["height"].value() / 100.0,
+            save=True,
+        )
+
+    def _assignment_changed(self, effect: str) -> None:
+        if self._zone_state_loading:
+            return
+        value = self.zone_assignment_combos[effect].currentData()
+        if isinstance(value, str) and any(zone.id == value for zone in self.zones):
+            self.effect_zone_assignments[effect] = value
+        else:
+            self.effect_zone_assignments.pop(effect, None)
+        self._save_settings()
+
+    def _refresh_zone_canvas_aspect(self) -> None:
+        if not hasattr(self, "zone_canvas"):
+            return
+        values = self._output_size_values()
+        width, height = self._output_dimensions(int(values["max_width"]))
+        self.zone_canvas.set_output_aspect(width, height)
+
     def _build_style_group(self) -> QGroupBox:
         group = self._group_box("group.style")
         group.setObjectName("stylePanel")
@@ -1853,12 +2640,53 @@ class MainWindow(QMainWindow):
         layout.addLayout(weird_row)
 
         effects_grid = QGridLayout()
+        effects_grid.setObjectName("styleEffectsGrid")
         effects_grid.setHorizontalSpacing(12)
         effects_grid.setVerticalSpacing(4)
-        for index, (_key, _label, _tooltip) in enumerate(EFFECTS):
+        style_effects = (
+            effect for effect in EFFECTS if effect[0] not in CODEC_LAYER_ORDER
+        )
+        for index, (_key, _label, _tooltip) in enumerate(style_effects):
             row, col = divmod(index, 4)
-            effects_grid.addWidget(self.effect_checks[_key], row, col)
+            effects_grid.addWidget(self.effect_control_widgets[_key], row, col)
         layout.addLayout(effects_grid)
+
+        layout.addWidget(self._build_zones_panel())
+
+        datamosh_modes_label = self._label("label.datamosh_modes")
+        datamosh_modes_label.setObjectName("layerHeading")
+        layout.addWidget(datamosh_modes_label)
+        datamosh_modes_container = QWidget()
+        datamosh_modes_container.setObjectName("datamoshModesContainer")
+        datamosh_modes_row = QHBoxLayout(datamosh_modes_container)
+        datamosh_modes_row.setObjectName("datamoshModesRow")
+        datamosh_modes_row.setContentsMargins(8, 4, 8, 4)
+        datamosh_modes_row.setSpacing(16)
+        for mode in CODEC_LAYER_ORDER:
+            datamosh_modes_row.addWidget(
+                self.effect_control_widgets[mode],
+                0,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            )
+        datamosh_modes_row.addStretch(1)
+        layout.addWidget(datamosh_modes_container)
+
+        layer_label = self._label("label.codec_layer_order")
+        layer_label.setObjectName("layerHeading")
+        layout.addWidget(layer_label)
+        layer_note = self._label("note.codec_layer_order")
+        layer_note.setObjectName("muted")
+        layer_note.setWordWrap(True)
+        layout.addWidget(layer_note)
+        layer_row = QHBoxLayout()
+        layer_row.setSpacing(10)
+        layer_row.addWidget(self.codec_layer_list, stretch=1)
+        layer_buttons = QVBoxLayout()
+        layer_buttons.addWidget(self.codec_layer_up_button)
+        layer_buttons.addWidget(self.codec_layer_down_button)
+        layer_buttons.addStretch(1)
+        layer_row.addLayout(layer_buttons)
+        layout.addLayout(layer_row)
         layout.addWidget(self._surface_wear_row("STYLE BANK // luma table // broken print pass 02", right_cluster=False))
         return group
 
@@ -2075,7 +2903,53 @@ class MainWindow(QMainWindow):
         manual_header.addWidget(self.add_block_button)
         layout.addLayout(manual_header)
         layout.addWidget(self.manual_blocks_widget)
+        ansi_note = self._label("note.ansi_coverage")
+        ansi_note.setObjectName("muted")
+        ansi_note.setWordWrap(True)
+        layout.addWidget(ansi_note)
         layout.addWidget(self._surface_wear_row("COVERAGE MAP // normal-video islands // reroll marks", right_cluster=False))
+        return group
+
+    def _build_style_fx_coverage_group(self) -> QGroupBox:
+        group = self._group_box("group.style_fx_coverage")
+        group.setObjectName("styleFxCoveragePanel")
+        layout = QVBoxLayout(group)
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(self._label("label.mode"))
+        mode_row.addWidget(self.style_fx_coverage_mode, stretch=1)
+        mode_row.addWidget(self._label("label.random_clean"))
+        mode_row.addWidget(self.style_fx_random_percent)
+        mode_row.addWidget(self.style_fx_reroll_button)
+        layout.addLayout(mode_row)
+
+        summary_row = QHBoxLayout()
+        summary_row.addWidget(self.style_fx_coverage_bar, stretch=1)
+        summary_row.addWidget(self.style_fx_coverage_detail)
+        summary_row.addWidget(self.style_fx_seed_label)
+        layout.addLayout(summary_row)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setObjectName("divider")
+        layout.addWidget(divider)
+
+        manual_header = QHBoxLayout()
+        manual_header.addWidget(self._label("label.manual_clean_blocks"))
+        manual_header.addStretch(1)
+        manual_header.addWidget(self.style_fx_add_block_button)
+        layout.addLayout(manual_header)
+        layout.addWidget(self.style_fx_manual_blocks_widget)
+        style_fx_note = self._label("note.style_fx_coverage")
+        style_fx_note.setObjectName("muted")
+        style_fx_note.setWordWrap(True)
+        layout.addWidget(style_fx_note)
+        layout.addWidget(
+            self._surface_wear_row(
+                "STYLE FX MAP // effect-clean islands // independent seed",
+                right_cluster=False,
+            )
+        )
         return group
 
     def _build_output_group(self) -> QGroupBox:
@@ -2155,12 +3029,45 @@ class MainWindow(QMainWindow):
         self.preset.currentTextChanged.connect(self._update_preset_description)
         self.chunky_blocks.toggled.connect(self._save_settings)
         self.output_size_preset.currentTextChanged.connect(self._apply_output_size_preset)
+        self.output_size_preset.currentTextChanged.connect(self._refresh_zone_canvas_aspect)
         self.optimize_preset.currentTextChanged.connect(self._apply_optimize_preset)
         self.target_size_enabled.toggled.connect(self._update_optimize_controls)
         for checkbox in self.batch_checks.values():
             checkbox.toggled.connect(self._save_settings)
         for checkbox in self.effect_checks.values():
             checkbox.toggled.connect(self._save_settings)
+        self.zone_add_button.clicked.connect(lambda _checked=False: self._add_zone())
+        self.zone_duplicate_button.clicked.connect(self._duplicate_zone)
+        self.zone_delete_button.clicked.connect(self._delete_zone)
+        self.zone_list.itemSelectionChanged.connect(self._select_zone_from_list)
+        self.zone_name_edit.editingFinished.connect(self._rename_zone)
+        for spin in self.zone_geometry_spins.values():
+            spin.valueChanged.connect(lambda _value: self._zone_geometry_spin_changed())
+        for effect, combo in self.zone_assignment_combos.items():
+            combo.currentIndexChanged.connect(
+                lambda _index, effect_key=effect: self._assignment_changed(effect_key)
+            )
+        self.zone_canvas.selection_changed.connect(self._select_zone_from_canvas)
+        self.zone_canvas.zone_created.connect(self._add_zone)
+        self.zone_canvas.zone_changed.connect(
+            lambda zone_id, x, y, width, height: self._update_zone_geometry(
+                zone_id, x, y, width, height, save=False
+            )
+        )
+        self.zone_canvas.editing_finished.connect(self._save_settings)
+        self.zone_canvas.delete_requested.connect(self._delete_zone)
+        self.codec_layer_list.itemSelectionChanged.connect(
+            self._update_codec_layer_buttons
+        )
+        self.codec_layer_list.model().rowsMoved.connect(
+            lambda *_args: self._codec_layer_rows_moved()
+        )
+        self.codec_layer_up_button.clicked.connect(
+            lambda: self._move_selected_codec_layer(-1)
+        )
+        self.codec_layer_down_button.clicked.connect(
+            lambda: self._move_selected_codec_layer(1)
+        )
         for widget in (
             self.max_width_spin,
             self.output_fps_spin,
@@ -2170,6 +3077,7 @@ class MainWindow(QMainWindow):
         ):
             widget.valueChanged.connect(self._update_output_size_estimate)
             widget.valueChanged.connect(self._update_optimize_estimate)
+        self.max_width_spin.valueChanged.connect(self._refresh_zone_canvas_aspect)
         for widget in (
             self.fit_mode,
             self.anchor_mode,
@@ -2194,10 +3102,25 @@ class MainWindow(QMainWindow):
         self.bypass_mode.currentTextChanged.connect(self._update_coverage_summary)
         self.random_percent.valueChanged.connect(self._update_coverage_summary)
         self.reroll_button.clicked.connect(self.reroll_random_sections)
+        self.style_fx_coverage_mode.currentTextChanged.connect(
+            self._update_style_fx_coverage_controls
+        )
+        self.style_fx_coverage_mode.currentTextChanged.connect(
+            self._update_style_fx_coverage_summary
+        )
+        self.style_fx_random_percent.valueChanged.connect(
+            self._update_style_fx_coverage_summary
+        )
+        self.style_fx_reroll_button.clicked.connect(self.reroll_style_fx_sections)
         self.reroll_weirdness_button.clicked.connect(self.reroll_weirdness)
         self.add_block_button.clicked.connect(lambda: self.add_manual_block())
+        self.style_fx_add_block_button.clicked.connect(
+            lambda: self.add_style_fx_manual_block()
+        )
         self.video_start.textChanged.connect(self._update_coverage_summary)
         self.video_end.textChanged.connect(self._update_coverage_summary)
+        self.video_start.textChanged.connect(self._update_style_fx_coverage_summary)
+        self.video_end.textChanged.connect(self._update_style_fx_coverage_summary)
         self.video_start.textChanged.connect(self._update_output_size_estimate)
         self.video_end.textChanged.connect(self._update_output_size_estimate)
         self.audio_path.textChanged.connect(lambda _text: self._update_audio_controls())
@@ -2214,15 +3137,21 @@ class MainWindow(QMainWindow):
         self.audio_end.textChanged.connect(self._update_coverage_summary)
         self.audio_timeline_start.textChanged.connect(self._update_coverage_summary)
         self.audio_timeline_end.textChanged.connect(self._update_coverage_summary)
+        self.audio_start.textChanged.connect(self._update_style_fx_coverage_summary)
+        self.audio_end.textChanged.connect(self._update_style_fx_coverage_summary)
+        self.audio_timeline_start.textChanged.connect(self._update_style_fx_coverage_summary)
+        self.audio_timeline_end.textChanged.connect(self._update_style_fx_coverage_summary)
         self.audio_timeline_start.textChanged.connect(lambda _text: self._save_settings())
         self.audio_timeline_end.textChanged.connect(lambda _text: self._save_settings())
         self.style_begin_time.textChanged.connect(lambda _text: self._save_settings())
         self.max_video_length.textChanged.connect(self._update_coverage_summary)
+        self.max_video_length.textChanged.connect(self._update_style_fx_coverage_summary)
         self.max_video_length.textChanged.connect(self._update_output_size_estimate)
         self.max_video_length.textChanged.connect(self._update_optimize_estimate)
         self.max_video_length.textEdited.connect(lambda _text: self._mark_max_video_length_user_edited())
         self.max_video_length.textChanged.connect(lambda _text: self._save_settings())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._update_coverage_summary())
+        self.random_clip_assembly.toggled.connect(lambda _checked: self._update_style_fx_coverage_summary())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._update_output_size_estimate())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._update_optimize_estimate())
         self.random_clip_assembly.toggled.connect(lambda _checked: self._save_settings())
@@ -2235,10 +3164,12 @@ class MainWindow(QMainWindow):
         self.audio_mode.currentTextChanged.connect(lambda _text: self._update_optimize_estimate())
         self.match_timeline_to_audio.toggled.connect(lambda _checked: self._update_audio_controls())
         self.match_timeline_to_audio.toggled.connect(lambda _checked: self._update_coverage_summary())
+        self.match_timeline_to_audio.toggled.connect(lambda _checked: self._update_style_fx_coverage_summary())
         self.match_timeline_to_audio.toggled.connect(lambda _checked: self._update_output_size_estimate())
         self.match_timeline_to_audio.toggled.connect(lambda _checked: self._update_optimize_estimate())
         self.match_timeline_to_audio.toggled.connect(lambda _checked: self._save_settings())
         self.match_timeline_mode.currentTextChanged.connect(lambda _text: self._update_coverage_summary())
+        self.match_timeline_mode.currentTextChanged.connect(lambda _text: self._update_style_fx_coverage_summary())
         self.match_timeline_mode.currentTextChanged.connect(lambda _text: self._update_output_size_estimate())
         self.match_timeline_mode.currentTextChanged.connect(lambda _text: self._update_optimize_estimate())
         self.match_timeline_mode.currentTextChanged.connect(lambda _text: self._save_settings())
@@ -2561,9 +3492,11 @@ class MainWindow(QMainWindow):
         self._sync_legacy_video_path()
         self._update_timeline_duration_label()
         self._update_coverage_summary()
+        self._update_style_fx_coverage_summary()
         self._update_audio_controls()
         self._update_output_size_estimate()
         self._update_optimize_estimate()
+        self._refresh_zone_canvas_aspect()
         self.preview_selected_source()
         self.open_output_button.hide()
         self.open_output_button.setEnabled(False)
@@ -3014,6 +3947,14 @@ class MainWindow(QMainWindow):
         self._update_coverage_summary()
         self._save_settings()
 
+    def reroll_style_fx_sections(self) -> None:
+        self.style_fx_random_seed = random.SystemRandom().randint(1, 2_147_483_647)
+        self.style_fx_seed_label.setText(
+            self.tr("status.seed", seed=self.style_fx_random_seed)
+        )
+        self._update_style_fx_coverage_summary()
+        self._save_settings()
+
     def reroll_weirdness(self) -> None:
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
@@ -3038,6 +3979,26 @@ class MainWindow(QMainWindow):
         row.setParent(None)
         row.deleteLater()
         self._update_coverage_summary()
+
+    def add_style_fx_manual_block(
+        self,
+        start: str = "0:12",
+        end: str = "0:18",
+    ) -> None:
+        row = ManualBlockRow(start, end, translator=lambda key: self.tr(key))
+        row.remove_requested.connect(self.remove_style_fx_manual_block)
+        row.changed.connect(self._update_style_fx_coverage_summary)
+        self.style_fx_block_rows.append(row)
+        self.style_fx_manual_blocks_layout.addWidget(row)
+        self._update_style_fx_coverage_controls()
+        self._update_style_fx_coverage_summary()
+
+    def remove_style_fx_manual_block(self, row: ManualBlockRow) -> None:
+        if row in self.style_fx_block_rows:
+            self.style_fx_block_rows.remove(row)
+        row.setParent(None)
+        row.deleteLater()
+        self._update_style_fx_coverage_summary()
 
     def _source_has_audio(self) -> bool:
         for item in self.timeline_items:
@@ -3251,6 +4212,67 @@ class MainWindow(QMainWindow):
         self.coverage_detail.setText(self.tr("status.coverage_detail", count=len(intervals)))
         self.seed_label.setText(self.tr("status.seed", seed=self.random_seed))
 
+    def _update_style_fx_coverage_controls(self) -> None:
+        mode = normalize_style_fx_coverage_mode(
+            self.style_fx_coverage_mode.currentText()
+        )
+        random_enabled = mode in {STYLE_FX_RANDOM, STYLE_FX_MANUAL_RANDOM}
+        manual_enabled = mode in {STYLE_FX_MANUAL, STYLE_FX_MANUAL_RANDOM}
+        self.style_fx_random_percent.setEnabled(random_enabled)
+        self.style_fx_reroll_button.setEnabled(random_enabled)
+        self.style_fx_add_block_button.setEnabled(manual_enabled)
+        self.style_fx_manual_blocks_widget.setEnabled(manual_enabled)
+
+    def _update_style_fx_coverage_summary(self) -> None:
+        duration = self._current_render_duration(strict=False)
+        if duration is None or duration <= 0:
+            self.style_fx_coverage_bar.setText(
+                self.tr("status.style_fx_coverage_full")
+            )
+            self.style_fx_coverage_detail.setText(
+                self.tr("status.style_fx_coverage_add_source")
+            )
+            self.style_fx_seed_label.setText(
+                self.tr("status.seed", seed=self.style_fx_random_seed)
+            )
+            return
+        try:
+            intervals = build_style_fx_clean_intervals(
+                duration=duration,
+                mode=self.style_fx_coverage_mode.currentText(),
+                manual_blocks=self._style_fx_manual_blocks(strict=False),
+                random_percent=self.style_fx_random_percent.value(),
+                min_len=0.5,
+                max_len=3.0,
+                seed=self.style_fx_random_seed,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.style_fx_coverage_bar.setText(
+                self.tr("status.coverage_unavailable")
+            )
+            self.style_fx_coverage_detail.setText(str(exc))
+            return
+
+        clean_seconds = sum(end - start for start, end in intervals)
+        clean_pct = min(100.0, max(0.0, clean_seconds / duration * 100.0))
+        effects_pct = 100.0 - clean_pct
+        filled = int(round(20 * effects_pct / 100.0))
+        bar = "█" * filled + "░" * (20 - filled)
+        self.style_fx_coverage_bar.setText(
+            self.tr(
+                "status.style_fx_coverage_bar",
+                bar=bar,
+                effects_pct=effects_pct,
+                clean_pct=clean_pct,
+            )
+        )
+        self.style_fx_coverage_detail.setText(
+            self.tr("status.style_fx_coverage_detail", count=len(intervals))
+        )
+        self.style_fx_seed_label.setText(
+            self.tr("status.seed", seed=self.style_fx_random_seed)
+        )
+
     def _refresh_slider_labels(self) -> None:
         self.width_value.setText(f"{self.width_slider.value()} chars")
         self.intensity_value.setText(f"{self.intensity_slider.value()}%")
@@ -3287,6 +4309,7 @@ class MainWindow(QMainWindow):
             widget.setEnabled(is_custom)
         self._update_output_size_estimate()
         self._update_optimize_estimate()
+        self._refresh_zone_canvas_aspect()
 
     def _apply_optimize_preset(self) -> None:
         preset_name = self.optimize_preset.currentText()
@@ -3842,6 +4865,9 @@ class MainWindow(QMainWindow):
             optimize_target_mb=float(optimize_values["target_mb"]),
             chunky_blocks=self.chunky_blocks.isChecked(),
             effects={key: checkbox.isChecked() for key, checkbox in self.effect_checks.items()},
+            zones=self.zones,
+            effect_zone_assignments=dict(self.effect_zone_assignments),
+            codec_layer_order=self._codec_layer_order(),
             effect_intensity=self.intensity_slider.value() / 50.0,
             bypass_mode=self.bypass_mode.currentText(),
             manual_blocks=self._manual_blocks(strict=True),
@@ -3849,6 +4875,12 @@ class MainWindow(QMainWindow):
             random_seed=self.random_seed,
             random_min_len=0.5,
             random_max_len=3.0,
+            style_fx_coverage_mode=normalize_style_fx_coverage_mode(
+                self.style_fx_coverage_mode.currentText()
+            ),
+            style_fx_manual_blocks=self._style_fx_manual_blocks(strict=True),
+            style_fx_random_percent=float(self.style_fx_random_percent.value()),
+            style_fx_random_seed=self.style_fx_random_seed,
             weird_seed=self.weird_seed,
             framing_fit_mode=self.fit_mode.currentText(),
             framing_anchor=self.anchor_mode.currentText(),
@@ -3858,7 +4890,7 @@ class MainWindow(QMainWindow):
             letterbox_background=self.letterbox_background.currentText(),
             preserve_upper_bias=self.upper_bias.isChecked(),
             dither_mode=self.dither_mode.currentText(),
-            transition_mode=self.transition_mode.currentText(),
+            transition_mode=self._transition_internal_mode(),
             transition_intensity=self.transition_intensity_slider.value() / 50.0,
             ending_mode=self.ending_mode.currentText(),
             loop_friendly=self.loop_friendly.isChecked(),
@@ -3890,6 +4922,12 @@ class MainWindow(QMainWindow):
             raise ValueError("Preview start is outside the selected timeline trim range.")
 
         shifted_blocks = self._preview_bypass_blocks(settings, render_duration, preview_offset, preview_length)
+        shifted_style_fx_blocks = self._preview_style_fx_blocks(
+            settings,
+            render_duration,
+            preview_offset,
+            preview_length,
+        )
 
         audio_path = settings.audio_path
         audio_start = settings.audio_start
@@ -3967,6 +5005,11 @@ class MainWindow(QMainWindow):
             bypass_mode=BYPASS_MANUAL if shifted_blocks else BYPASS_FULL_ANSI,
             manual_blocks=shifted_blocks,
             random_percent=0.0,
+            style_fx_coverage_mode=(
+                STYLE_FX_MANUAL if shifted_style_fx_blocks else STYLE_FX_FULL
+            ),
+            style_fx_manual_blocks=shifted_style_fx_blocks,
+            style_fx_random_percent=0.0,
             output_time_offset=preview_offset,
         )
 
@@ -4006,6 +5049,29 @@ class MainWindow(QMainWindow):
                 shifted.append((overlap_start - preview_offset, overlap_end - preview_offset))
         return shifted
 
+    def _preview_style_fx_blocks(
+        self,
+        settings: RenderSettings,
+        render_duration: float,
+        preview_offset: float,
+        preview_length: float,
+    ) -> list[tuple[float, float]]:
+        full_intervals = build_style_fx_clean_intervals(
+            duration=render_duration,
+            mode=settings.style_fx_coverage_mode,
+            manual_blocks=settings.style_fx_manual_blocks,
+            random_percent=settings.style_fx_random_percent,
+            min_len=settings.random_min_len,
+            max_len=settings.random_max_len,
+            seed=settings.style_fx_random_seed,
+        )
+        preview_end = preview_offset + preview_length
+        return [
+            (max(start, preview_offset) - preview_offset, min(end, preview_end) - preview_offset)
+            for start, end in full_intervals
+            if min(end, preview_end) > max(start, preview_offset)
+        ]
+
     def _new_preview_path(self) -> Path:
         PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -4027,6 +5093,31 @@ class MainWindow(QMainWindow):
             except Exception as exc:  # noqa: BLE001
                 if strict:
                     raise ValueError(f"Manual block {index} is invalid: {exc}") from exc
+                continue
+            blocks.append((start, end))
+        return blocks
+
+    def _style_fx_manual_blocks(self, strict: bool) -> list[tuple[float, float]]:
+        blocks: list[tuple[float, float]] = []
+        mode = normalize_style_fx_coverage_mode(
+            self.style_fx_coverage_mode.currentText()
+        )
+        if mode not in {STYLE_FX_MANUAL, STYLE_FX_MANUAL_RANDOM}:
+            return blocks
+        for index, row in enumerate(self.style_fx_block_rows, start=1):
+            raw_start, raw_end = row.values()
+            try:
+                start = ffmpeg_utils.parse_timecode(raw_start)
+                end = ffmpeg_utils.parse_timecode(raw_end)
+                if start is None or end is None:
+                    raise ValueError("manual block times cannot be auto")
+                if end <= start:
+                    raise ValueError("end must be after start")
+            except Exception as exc:  # noqa: BLE001
+                if strict:
+                    raise ValueError(
+                        f"Style FX manual block {index} is invalid: {exc}"
+                    ) from exc
                 continue
             blocks.append((start, end))
         return blocks
@@ -4141,6 +5232,11 @@ class MainWindow(QMainWindow):
             f"Random clip assembly: {'on' if self.random_clip_assembly.isChecked() else 'off'}",
             f"Style begins at: {style_begin_time}",
             f"Style preset: {self.preset.currentText()}",
+            f"Style FX Coverage: {normalize_style_fx_coverage_mode(self.style_fx_coverage_mode.currentText())}",
+            f"Style FX clean map: {self.style_fx_coverage_detail.text()}",
+            f"ANSI Coverage: {self.bypass_mode.currentText()}",
+            f"Transition: {self.transition_mode.currentText()}",
+            f"DATAMOSH Layer: {', '.join(self.tr(CODEC_LAYER_LABEL_KEYS[mode]) for mode in self._codec_layer_order())}",
             f"Chunky blocks: {'on' if self.chunky_blocks.isChecked() else 'off'}",
             (
                 "Output settings: "
@@ -4241,7 +5337,7 @@ class MainWindow(QMainWindow):
         return f"{size_mb:.2f} MB"
 
     def _has_resettable_project_state(self) -> bool:
-        if self.timeline_items or self.block_rows:
+        if self.timeline_items or self.block_rows or self.style_fx_block_rows:
             return True
         text_defaults = (
             (self.audio_path.text(), ""),
@@ -4295,7 +5391,17 @@ class MainWindow(QMainWindow):
         for key, checkbox in self.effect_checks.items():
             if checkbox.isChecked() != (key not in DEFAULT_OFF_EFFECTS):
                 return True
+        if self.zones or self.effect_zone_assignments:
+            return True
+        if self._codec_layer_order() != CODEC_LAYER_ORDER:
+            return True
         if self.bypass_mode.currentText() != BYPASS_FULL_ANSI or self.random_percent.value() != 10:
+            return True
+        if (
+            normalize_style_fx_coverage_mode(self.style_fx_coverage_mode.currentText())
+            != STYLE_FX_FULL
+            or self.style_fx_random_percent.value() != 10
+        ):
             return True
         if (
             self.output_size_preset.currentText() != "Full Quality"
@@ -4349,6 +5455,8 @@ class MainWindow(QMainWindow):
         self.chunky_blocks.setChecked(False)
         for key, checkbox in self.effect_checks.items():
             checkbox.setChecked(key not in DEFAULT_OFF_EFFECTS)
+        self._set_zone_state([], {}, warn_on_repair=False)
+        self._set_codec_layer_order(CODEC_LAYER_ORDER)
         self.width_slider.setValue(120)
         self.intensity_slider.setValue(65)
 
@@ -4361,7 +5469,7 @@ class MainWindow(QMainWindow):
         self.framing_zoom_slider.setValue(0)
 
         self._set_combo_text(self.dither_mode, "None")
-        self._set_combo_text(self.transition_mode, DEFAULT_TRANSITION_MODE)
+        self._set_transition_mode(DEFAULT_TRANSITION_MODE)
         self.transition_intensity_slider.setValue(55)
         self._set_combo_text(self.ending_mode, DEFAULT_ENDING_MODE)
         self.loop_friendly.setChecked(False)
@@ -4369,10 +5477,15 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.bypass_mode, BYPASS_FULL_ANSI)
         self.random_percent.setValue(10)
         self.random_seed = random.SystemRandom().randint(1, 2_147_483_647)
+        self._set_combo_text(self.style_fx_coverage_mode, STYLE_FX_FULL)
+        self.style_fx_random_percent.setValue(10)
+        self.style_fx_random_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed = random.SystemRandom().randint(1, 2_147_483_647)
         self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         for row in list(self.block_rows):
             self.remove_manual_block(row)
+        for row in list(self.style_fx_block_rows):
+            self.remove_style_fx_manual_block(row)
 
         self._set_combo_text(self.output_size_preset, "Full Quality")
         self.target_size_enabled.setChecked(False)
@@ -4525,7 +5638,7 @@ class MainWindow(QMainWindow):
         output_values = self._output_size_values()
         return {
             "app": APP_NAME,
-            "schema_version": 5,
+            "schema_version": 6,
             "ui_language": self.ui_language,
             "timeline_items": self.timeline_items,
             "video_path": self.video_path.text().strip(),
@@ -4559,9 +5672,17 @@ class MainWindow(QMainWindow):
             "target_size_mb": self.target_size_mb.value(),
             "optimize_preset": self.optimize_preset.currentText(),
             "effects": {key: checkbox.isChecked() for key, checkbox in self.effect_checks.items()},
+            "zones": [zone.as_dict() for zone in self.zones],
+            "effect_zone_assignments": dict(self.effect_zone_assignments),
+            "codec_layer_order": list(self._codec_layer_order()),
             "bypass_mode": self.bypass_mode.currentText(),
             "random_percent": self.random_percent.value(),
             "random_seed": self.random_seed,
+            "style_fx_coverage_mode": normalize_style_fx_coverage_mode(
+                self.style_fx_coverage_mode.currentText()
+            ),
+            "style_fx_random_percent": self.style_fx_random_percent.value(),
+            "style_fx_random_seed": self.style_fx_random_seed,
             "weird_seed": self.weird_seed,
             "framing_fit_mode": self.fit_mode.currentText(),
             "framing_anchor": self.anchor_mode.currentText(),
@@ -4571,7 +5692,7 @@ class MainWindow(QMainWindow):
             "letterbox_background": self.letterbox_background.currentText(),
             "preserve_upper_bias": self.upper_bias.isChecked(),
             "dither_mode": self.dither_mode.currentText(),
-            "transition_mode": self.transition_mode.currentText(),
+            "transition_mode": self._transition_internal_mode(),
             "transition_intensity": self.transition_intensity_slider.value(),
             "ending_mode": self.ending_mode.currentText(),
             "loop_friendly": self.loop_friendly.isChecked(),
@@ -4580,6 +5701,10 @@ class MainWindow(QMainWindow):
             "preview_custom": self.preview_custom.text().strip(),
             "manual_blocks": [
                 {"start": start, "end": end} for start, end in (row.values() for row in self.block_rows)
+            ],
+            "style_fx_manual_blocks": [
+                {"start": start, "end": end}
+                for start, end in (row.values() for row in self.style_fx_block_rows)
             ],
             "batch_enabled": self.batch_enabled.isChecked(),
             "batch_variants": [
@@ -4615,6 +5740,10 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.match_timeline_mode, str(data.get("match_timeline_mode", MATCH_SPEED)))
         self._set_combo_text(self.preset, str(data.get("preset", "Classic ANSI")))
         self._set_combo_text(self.bypass_mode, str(data.get("bypass_mode", BYPASS_FULL_ANSI)))
+        self._set_combo_text(
+            self.style_fx_coverage_mode,
+            normalize_style_fx_coverage_mode(data.get("style_fx_coverage_mode")),
+        )
         self.chunky_blocks.setChecked(bool(data.get("chunky_blocks", False)))
 
         self.width_slider.setValue(int(data.get("width_chars", 120)))
@@ -4642,6 +5771,20 @@ class MainWindow(QMainWindow):
         self.target_size_mb.setValue(float(data.get("target_size_mb", 29.0)))
         self.random_percent.setValue(int(data.get("random_percent", 10)))
         self.random_seed = int(data.get("random_seed", self.random_seed))
+        try:
+            self.style_fx_random_percent.setValue(
+                int(data.get("style_fx_random_percent", 10))
+            )
+        except (TypeError, ValueError):
+            self.style_fx_random_percent.setValue(10)
+        try:
+            self.style_fx_random_seed = int(
+                data.get("style_fx_random_seed", self.style_fx_random_seed)
+            )
+        except (TypeError, ValueError):
+            self.style_fx_random_seed = random.SystemRandom().randint(
+                1, 2_147_483_647
+            )
         self.weird_seed = int(data.get("weird_seed", self.weird_seed))
         self.weird_seed_label.setText(self.tr("status.weird_seed", seed=self.weird_seed))
         self._set_combo_text(self.fit_mode, str(data.get("framing_fit_mode", "Fill/Crop")))
@@ -4652,7 +5795,7 @@ class MainWindow(QMainWindow):
         self._set_combo_text(self.letterbox_background, str(data.get("letterbox_background", "Black")))
         self.upper_bias.setChecked(bool(data.get("preserve_upper_bias", True)))
         self._set_combo_text(self.dither_mode, str(data.get("dither_mode", "None")))
-        self._set_combo_text(self.transition_mode, str(data.get("transition_mode", DEFAULT_TRANSITION_MODE)))
+        self._set_transition_mode(data.get("transition_mode", DEFAULT_TRANSITION_MODE))
         self.transition_intensity_slider.setValue(int(data.get("transition_intensity", 55)))
         self._set_combo_text(self.ending_mode, str(data.get("ending_mode", DEFAULT_ENDING_MODE)))
         self.loop_friendly.setChecked(bool(data.get("loop_friendly", False)))
@@ -4670,12 +5813,36 @@ class MainWindow(QMainWindow):
         if isinstance(effects, dict):
             for key, checkbox in self.effect_checks.items():
                 checkbox.setChecked(bool(effects.get(key, key not in DEFAULT_OFF_EFFECTS)))
+        try:
+            schema_version = int(data.get("schema_version", 0))
+        except (TypeError, ValueError):
+            schema_version = 0
+        supports_zones = schema_version >= 6
+        self._set_zone_state(
+            data.get("zones", []) if supports_zones else [],
+            data.get("effect_zone_assignments", {}) if supports_zones else {},
+            warn_on_repair=(
+                supports_zones
+                and ("zones" in data or "effect_zone_assignments" in data)
+            ),
+        )
+        self._set_codec_layer_order(data.get("codec_layer_order", CODEC_LAYER_ORDER))
 
         for row in list(self.block_rows):
             self.remove_manual_block(row)
         for block in data.get("manual_blocks", []):
             if isinstance(block, dict):
                 self.add_manual_block(str(block.get("start", "0:12")), str(block.get("end", "0:18")))
+        for row in list(self.style_fx_block_rows):
+            self.remove_style_fx_manual_block(row)
+        raw_style_fx_blocks = data.get("style_fx_manual_blocks", [])
+        if isinstance(raw_style_fx_blocks, list):
+            for block in raw_style_fx_blocks:
+                if isinstance(block, dict):
+                    self.add_style_fx_manual_block(
+                        str(block.get("start", "0:12")),
+                        str(block.get("end", "0:18")),
+                    )
 
         self.last_output_path = None
         self.last_preview_path = None
@@ -4691,6 +5858,8 @@ class MainWindow(QMainWindow):
         self._update_preset_description()
         self._update_coverage_controls()
         self._update_coverage_summary()
+        self._update_style_fx_coverage_controls()
+        self._update_style_fx_coverage_summary()
         self._apply_translations()
 
     def _state_timeline_items(self, data: dict) -> list[dict[str, object]]:
@@ -4779,6 +5948,18 @@ class MainWindow(QMainWindow):
         index = combo.findText(value)
         if index >= 0:
             combo.setCurrentIndex(index)
+
+    def _transition_internal_mode(self) -> str:
+        value = self.transition_mode.currentData(Qt.ItemDataRole.UserRole)
+        return str(value or self.transition_mode.currentText() or "Hard Cut")
+
+    def _set_transition_mode(self, value: object) -> None:
+        internal = "Hard Cut" if str(value or "").strip() in {"", "None", "Hard Cut"} else str(value)
+        index = self.transition_mode.findData(internal, Qt.ItemDataRole.UserRole)
+        if index < 0:
+            index = self.transition_mode.findText(internal)
+        if index >= 0:
+            self.transition_mode.setCurrentIndex(index)
 
     def closeEvent(self, event) -> None:  # noqa: ANN001 - Qt signature.
         if self.worker and self.worker.isRunning():

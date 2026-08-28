@@ -36,6 +36,10 @@ BYPASS_FULL_ANSI = "Full ANSI"
 BYPASS_RANDOM = "Random normal sections"
 BYPASS_MANUAL = "Manual normal time blocks"
 BYPASS_MANUAL_RANDOM = "Manual + random"
+STYLE_FX_FULL = "Full effects"
+STYLE_FX_RANDOM = "Random clean sections"
+STYLE_FX_MANUAL = "Manual clean time blocks"
+STYLE_FX_MANUAL_RANDOM = "Manual + random"
 AUDIO_SILENT = "Silent"
 AUDIO_EXTERNAL = "External only"
 AUDIO_SOURCE = "Source audio only"
@@ -43,6 +47,7 @@ AUDIO_MIX = "External + selected source audio"
 MATCH_SPEED = "Speed up/down timeline"
 MATCH_TRIM = "Trim timeline to music"
 MATCH_LOOP = "Loop timeline to music"
+CODEC_LAYER_ORDER = datamosh.DATAMOSH_MODE_ORDER
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
 LONG_MEDIA_WARNING_SECONDS = 30 * 60
@@ -54,11 +59,145 @@ PHASE2_FRAME_EFFECT_ORDER = (
     "hex_editing",
     "random_noise_bw",
 )
+ZONE_ASSIGNMENT_EFFECT_ORDER = (*PHASE2_FRAME_EFFECT_ORDER, datamosh.DATAMOSH_MODE_SKRRT)
 _PIXEL_SORTING_SALT = 0x50_49_58_45_4C
 _DATABENDING_SALT = 0x44_41_54_41_42
 _CIRCUIT_BENDING_SALT = 0x43_49_52_43_55
 _HEX_EDITING_SALT = 0x48_45_58_45_44
 _RANDOM_NOISE_BW_SALT = 0x42_57_4E_4F_49
+MAX_ZONES = 3
+
+
+def normalize_codec_layer_order(value: object) -> tuple[str, ...]:
+    """Normalize persisted Layer state to the canonical five codec identifiers."""
+    return datamosh.normalize_datamosh_mode_order(value)
+
+
+@dataclass(frozen=True)
+class ZoneDefinition:
+    """One static named rectangle in normalized final-output coordinates."""
+
+    id: str
+    name: str
+    x: float
+    y: float
+    width: float
+    height: float
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "x": float(self.x),
+            "y": float(self.y),
+            "width": float(self.width),
+            "height": float(self.height),
+        }
+
+
+def normalize_zone_state(
+    zones_value: object,
+    assignments_value: object,
+) -> tuple[tuple[ZoneDefinition, ...], dict[str, str], bool]:
+    """Validate schema-6 Zone fields and report whether repair was required."""
+    repaired = False
+    raw_zones: list[object]
+    if isinstance(zones_value, list):
+        raw_zones = zones_value
+    else:
+        raw_zones = []
+        repaired = zones_value not in (None, ())
+
+    zones: list[ZoneDefinition] = []
+    seen_ids: set[str] = set()
+    for record in raw_zones:
+        if len(zones) >= MAX_ZONES:
+            repaired = True
+            break
+        if isinstance(record, ZoneDefinition):
+            record = record.as_dict()
+        if not isinstance(record, dict):
+            repaired = True
+            continue
+        zone_id = record.get("id")
+        name = record.get("name")
+        geometry = tuple(record.get(key) for key in ("x", "y", "width", "height"))
+        if (
+            not isinstance(zone_id, str)
+            or not zone_id.strip()
+            or zone_id in seen_ids
+            or not isinstance(name, str)
+            or not name.strip()
+            or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in geometry)
+        ):
+            repaired = True
+            continue
+        x, y, width, height = (float(value) for value in geometry)
+        if (
+            not all(math.isfinite(value) for value in (x, y, width, height))
+            or width <= 0.0
+            or height <= 0.0
+        ):
+            repaired = True
+            continue
+        left = max(0.0, min(1.0, x))
+        top = max(0.0, min(1.0, y))
+        right = max(0.0, min(1.0, x + width))
+        bottom = max(0.0, min(1.0, y + height))
+        if right <= left or bottom <= top:
+            repaired = True
+            continue
+        in_bounds = x >= 0.0 and y >= 0.0 and x + width <= 1.0 and y + height <= 1.0
+        if not in_bounds:
+            repaired = True
+        zone = ZoneDefinition(
+            id=zone_id,
+            name=name.strip(),
+            x=x if in_bounds else left,
+            y=y if in_bounds else top,
+            width=width if in_bounds else right - left,
+            height=height if in_bounds else bottom - top,
+        )
+        zones.append(zone)
+        seen_ids.add(zone.id)
+
+    assignments: dict[str, str] = {}
+    if assignments_value is None:
+        raw_assignments: dict[object, object] = {}
+    elif isinstance(assignments_value, dict):
+        raw_assignments = assignments_value
+    else:
+        raw_assignments = {}
+        repaired = True
+    valid_ids = {zone.id for zone in zones}
+    for raw_effect, raw_zone_id in raw_assignments.items():
+        if (
+            raw_effect not in ZONE_ASSIGNMENT_EFFECT_ORDER
+            or not isinstance(raw_zone_id, str)
+            or raw_zone_id not in valid_ids
+        ):
+            repaired = True
+            continue
+        assignments[str(raw_effect)] = raw_zone_id
+    return tuple(zones), assignments, repaired
+
+
+def rasterize_zone(
+    zone: ZoneDefinition,
+    output_size: tuple[int, int],
+) -> tuple[int, int, int, int] | None:
+    """Resolve one Zone to a clamped half-open output-pixel rectangle."""
+    output_width = max(0, int(output_size[0]))
+    output_height = max(0, int(output_size[1]))
+    if output_width <= 0 or output_height <= 0:
+        return None
+    left = max(0, min(output_width, math.floor(zone.x * output_width)))
+    top = max(0, min(output_height, math.floor(zone.y * output_height)))
+    right = max(0, min(output_width, math.ceil((zone.x + zone.width) * output_width)))
+    bottom = max(0, min(output_height, math.ceil((zone.y + zone.height) * output_height)))
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Menlo.ttc",
@@ -134,6 +273,9 @@ class RenderSettings:
     optimize_target_mb: float = 29.0
     chunky_blocks: bool = False
     effects: dict[str, bool] = field(default_factory=dict)
+    zones: tuple[ZoneDefinition, ...] = ()
+    effect_zone_assignments: dict[str, str] = field(default_factory=dict)
+    codec_layer_order: tuple[str, ...] = CODEC_LAYER_ORDER
     effect_intensity: float = 1.0
     bypass_mode: str = BYPASS_FULL_ANSI
     manual_blocks: list[Interval] = field(default_factory=list)
@@ -141,6 +283,10 @@ class RenderSettings:
     random_seed: int | None = None
     random_min_len: float = RANDOM_CHUNK_MIN
     random_max_len: float = RANDOM_CHUNK_MAX
+    style_fx_coverage_mode: str = STYLE_FX_FULL
+    style_fx_manual_blocks: list[Interval] = field(default_factory=list)
+    style_fx_random_percent: float = 0.0
+    style_fx_random_seed: int | None = None
     weird_seed: int | None = None
     framing_fit_mode: str = "Fill/Crop"
     framing_anchor: str = "Center"
@@ -189,6 +335,782 @@ class _FrameTimingDetail:
     text_prepare_seconds: float = 0.0
     image_draw_text_seconds: float = 0.0
     ansi_output_effect_seconds: float = 0.0
+
+
+@dataclass
+class _FrameMaterialAnalysis:
+    """Lazy, render-local material measurements shared by the Style effects."""
+
+    rgb: np.ndarray
+    previous_luma: np.ndarray | None = None
+    _luma: np.ndarray | None = field(default=None, init=False, repr=False)
+    _edge_x: np.ndarray | None = field(default=None, init=False, repr=False)
+    _edge_y: np.ndarray | None = field(default=None, init=False, repr=False)
+    _edge_magnitude: np.ndarray | None = field(default=None, init=False, repr=False)
+    _texture: np.ndarray | None = field(default=None, init=False, repr=False)
+    _motion: np.ndarray | None = field(default=None, init=False, repr=False)
+    _texture_activity: float | None = field(default=None, init=False, repr=False)
+    _motion_activity: float | None = field(default=None, init=False, repr=False)
+    _motion_direction: tuple[float, float, float] | None = field(default=None, init=False, repr=False)
+
+    @property
+    def luma(self) -> np.ndarray:
+        if self._luma is None:
+            self._luma = _phase2_luma(self.rgb)
+        return self._luma
+
+    def directional_edges(self) -> tuple[np.ndarray, np.ndarray]:
+        if self._edge_x is None or self._edge_y is None:
+            self._edge_x = np.abs(cv2.Sobel(self.luma, cv2.CV_32F, 1, 0, ksize=3))
+            self._edge_y = np.abs(cv2.Sobel(self.luma, cv2.CV_32F, 0, 1, ksize=3))
+        return self._edge_x, self._edge_y
+
+    @property
+    def edge_magnitude(self) -> np.ndarray:
+        if self._edge_magnitude is None:
+            edge_x, edge_y = self.directional_edges()
+            self._edge_magnitude = cv2.magnitude(edge_x, edge_y)
+        return self._edge_magnitude
+
+    @property
+    def texture(self) -> np.ndarray:
+        if self._texture is None:
+            local_mean = cv2.GaussianBlur(self.luma, (0, 0), 2.0)
+            raw_texture = np.abs(self.luma - local_mean)
+            self._texture_activity = float(np.clip(float(raw_texture.mean()) / 32.0, 0.0, 1.0))
+            self._texture = _normalized_signal(raw_texture)
+        return self._texture
+
+    @property
+    def motion(self) -> np.ndarray:
+        if self._motion is None:
+            if self.previous_luma is None or self.previous_luma.shape != self.luma.shape:
+                self._motion = np.zeros_like(self.luma, dtype=np.float32)
+                self._motion_activity = 0.0
+            else:
+                raw_motion = np.abs(self.luma - self.previous_luma)
+                self._motion_activity = float(np.clip(float(raw_motion.mean()) / 64.0, 0.0, 1.0))
+                self._motion = _normalized_signal(raw_motion)
+        return self._motion
+
+    @property
+    def edge_activity(self) -> float:
+        return float(np.clip(float(self.edge_magnitude.mean()) / 96.0, 0.0, 1.0))
+
+    @property
+    def texture_activity(self) -> float:
+        if self._texture_activity is None:
+            _ = self.texture
+        return float(self._texture_activity or 0.0)
+
+    @property
+    def motion_activity(self) -> float:
+        if self._motion_activity is None:
+            _ = self.motion
+        return float(self._motion_activity or 0.0)
+
+    def motion_direction(self) -> tuple[float, float, float]:
+        """Return a small global phase-shift signal; this is not retained optical flow."""
+        if self._motion_direction is None:
+            if self.previous_luma is None or self.previous_luma.shape != self.luma.shape:
+                self._motion_direction = (0.0, 0.0, 0.0)
+            elif self.motion_activity < 0.012:
+                self._motion_direction = (0.0, 0.0, 0.0)
+            else:
+                height, width = self.luma.shape
+                scale = min(1.0, 192.0 / max(1, width), 108.0 / max(1, height))
+                sample_size = (
+                    max(16, int(round(width * scale))),
+                    max(16, int(round(height * scale))),
+                )
+                previous = cv2.resize(
+                    self.previous_luma,
+                    sample_size,
+                    interpolation=cv2.INTER_AREA,
+                ).astype(np.float32)
+                current = cv2.resize(
+                    self.luma,
+                    sample_size,
+                    interpolation=cv2.INTER_AREA,
+                ).astype(np.float32)
+                window = cv2.createHanningWindow(sample_size, cv2.CV_32F)
+                shift, response = cv2.phaseCorrelate(previous, current, window)
+                normalized_x = float(np.clip(shift[0] / max(1.0, sample_size[0] * 0.12), -1.0, 1.0))
+                normalized_y = float(np.clip(shift[1] / max(1.0, sample_size[1] * 0.12), -1.0, 1.0))
+                confidence = float(np.clip(response, 0.0, 1.0))
+                self._motion_direction = (normalized_x, normalized_y, confidence)
+        return self._motion_direction
+
+    @property
+    def bright_fraction(self) -> float:
+        return float(np.mean(self.luma >= 205.0))
+
+    @property
+    def channel_spread(self) -> float:
+        means = self.rgb.reshape(-1, 3).mean(axis=0)
+        return float(np.clip(float(np.ptp(means)) / 128.0, 0.0, 1.0))
+
+    def activity_focus(self) -> tuple[float, float]:
+        activity = self.edge_magnitude + self.texture * 72.0
+        flat_index = int(np.argmax(activity))
+        y, x = np.unravel_index(flat_index, activity.shape)
+        height, width = activity.shape
+        return (
+            float(x) / max(1.0, float(width - 1)),
+            float(y) / max(1.0, float(height - 1)),
+        )
+
+    def scatter_regions(self, *, limit: int = 6) -> tuple[datamosh.DatamoshSpatialRegion, ...]:
+        """Return a few anonymous coarse cells ranked by structure and local motion."""
+        if limit <= 0:
+            return ()
+        edge = _normalized_signal(self.edge_magnitude)
+        signal = edge * 0.42 + self.texture * 0.28 + self.motion * 0.60
+        height, width = signal.shape
+        rows, columns = 4, 5
+        candidates: list[tuple[float, int, int, int, int]] = []
+        for row in range(rows):
+            y0 = int(round(row * height / rows))
+            y1 = int(round((row + 1) * height / rows))
+            for column in range(columns):
+                x0 = int(round(column * width / columns))
+                x1 = int(round((column + 1) * width / columns))
+                cell = signal[y0:y1, x0:x1]
+                score = float(cell.mean()) if cell.size else 0.0
+                candidates.append((score, x0, y0, x1, y1))
+        peak = max((candidate[0] for candidate in candidates), default=0.0)
+        if peak <= 0.0:
+            return ()
+        selected = sorted(candidates, key=lambda candidate: candidate[0], reverse=True)[:limit]
+        return tuple(
+            datamosh.DatamoshSpatialRegion(
+                x=x0 / max(1.0, float(width)),
+                y=y0 / max(1.0, float(height)),
+                width=(x1 - x0) / max(1.0, float(width)),
+                height=(y1 - y0) / max(1.0, float(height)),
+                weight=max(0.0, min(1.0, score / peak)),
+            )
+            for score, x0, y0, x1, y1 in selected
+        )
+
+    @property
+    def cached_bytes(self) -> int:
+        arrays = (
+            self.rgb,
+            self._luma,
+            self._edge_x,
+            self._edge_y,
+            self._edge_magnitude,
+            self._texture,
+            self._motion,
+        )
+        return sum(int(array.nbytes) for array in arrays if array is not None)
+
+
+@dataclass(frozen=True)
+class _FrameEffectEvent:
+    effect: str
+    trigger_frame: int
+    trigger_type: str
+    attack_frames: int
+    sustain_frames: int
+    decay_frames: int
+    peak_strength: float
+    event_seed: int
+    focus_x: float
+    focus_y: float
+    transition_absolute_frame: int | None
+    organic_instability: float
+    material_metrics: tuple[tuple[str, float], ...]
+
+    @property
+    def end_frame(self) -> int:
+        return self.trigger_frame + self.attack_frames + self.sustain_frames + self.decay_frames
+
+
+@dataclass(frozen=True)
+class _FrameEffectControl:
+    strength: float
+    event_strength: float
+    event_seed: int
+    event_frame: int
+    focus_x: float | None = None
+    focus_y: float | None = None
+    event: _FrameEffectEvent | None = None
+
+
+_PHASE2_EVENT_SALT = 0x45_56_45_4E_54
+_PHASE2_TRANSITION_SALT = 0x54_52_41_4E_53
+_PHASE2_ORGANIC_SALT = 0x4F_52_47_41_4E_49_43
+
+
+class _FrameEffectChoreographer:
+    """Render-local material event state for the five fixed-order frame effects."""
+
+    def __init__(
+        self,
+        effects: dict[str, bool],
+        intensity: float,
+        fps: int,
+        seed: int | None,
+        transitions: tuple[datamosh.DatamoshTransition, ...] = (),
+        *,
+        record_events: bool = False,
+    ) -> None:
+        self.enabled = tuple(key for key in PHASE2_FRAME_EFFECT_ORDER if _effect_on(effects, key))
+        self.intensity = max(0.0, float(intensity))
+        self.amount = _phase2_effect_amount(intensity)
+        self.fps = max(1, int(fps))
+        self.seed = seed
+        self.transitions = {int(target.absolute_frame): target for target in transitions}
+        self.transition_effects = self._select_transition_effects(tuple(transitions))
+        self.active_events: dict[str, _FrameEffectEvent] = {}
+        self.cooldown_until: dict[str, int] = {key: -1 for key in PHASE2_FRAME_EFFECT_ORDER}
+        self.previous_scores: dict[str, float] = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
+        self.previous_luma: np.ndarray | None = None
+        self.previous_rgb: np.ndarray | None = None
+        self.zone_previous_luma: dict[tuple[int, int, int, int], np.ndarray] = {}
+        self.zone_previous_rgb: dict[tuple[int, int, int, int], np.ndarray] = {}
+        self.organic_instability = 0.0
+        self.organic_aftershock = 0.0
+        self.organic_drive = 0.0
+        self.previous_absolute_frame: int | None = None
+        self.effect_wander: dict[str, float] = {
+            key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER
+        }
+        self.ambient_seed: dict[str, int] = {
+            key: _phase2_effect_seed(
+                self.seed,
+                _PHASE2_ORGANIC_SALT ^ _phase2_effect_salt(key),
+                0,
+            )
+            for key in PHASE2_FRAME_EFFECT_ORDER
+        }
+        self.ambient_until: dict[str, int] = {
+            key: -1 for key in PHASE2_FRAME_EFFECT_ORDER
+        }
+        self.record_events = record_events
+        self.recorded_events: list[_FrameEffectEvent] = []
+        self.recorded_organic_states: list[dict[str, float | int | bool]] = []
+        self.peak_analysis_bytes = 0
+
+    def _select_transition_effects(
+        self,
+        transitions: tuple[datamosh.DatamoshTransition, ...],
+    ) -> dict[int, frozenset[str]]:
+        selection_count = 1 + int(self.amount >= 0.34) + int(self.amount >= 0.80)
+        selected: dict[int, frozenset[str]] = {}
+        affinities = {
+            "pixel_sorting": 0.05,
+            "databending": 0.12,
+            "circuit_bending": 0.16,
+            "hex_editing": 0.02,
+            "random_noise_bw": 0.0,
+        }
+        for target in transitions:
+            ranked: list[tuple[float, str]] = []
+            for effect_index, effect in enumerate(PHASE2_FRAME_EFFECT_ORDER):
+                salt = _PHASE2_TRANSITION_SALT ^ (effect_index + 1) * 0x9E37
+                rng = _phase2_effect_rng(self.seed, salt, int(target.absolute_frame))
+                ranked.append((float(rng.random()) + affinities[effect], effect))
+            ranked.sort(reverse=True)
+            selected[int(target.absolute_frame)] = frozenset(
+                effect for _, effect in ranked[:selection_count]
+            )
+        return selected
+
+    def analysis_for(self, frame: np.ndarray | Image.Image) -> _FrameMaterialAnalysis:
+        return _FrameMaterialAnalysis(
+            rgb=_phase2_rgb_copy(frame),
+            previous_luma=self.previous_luma,
+        )
+
+    def analysis_for_zone(
+        self,
+        frame: np.ndarray,
+        rectangle: tuple[int, int, int, int],
+    ) -> _FrameMaterialAnalysis:
+        left, top, right, bottom = rectangle
+        return _FrameMaterialAnalysis(
+            rgb=np.ascontiguousarray(frame[top:bottom, left:right], dtype=np.uint8),
+            previous_luma=self.zone_previous_luma.get(rectangle),
+        )
+
+    def controls_for(
+        self,
+        analysis: _FrameMaterialAnalysis,
+        absolute_frame: int,
+        effect_analyses: dict[str, _FrameMaterialAnalysis] | None = None,
+    ) -> dict[str, _FrameEffectControl]:
+        controls: dict[str, _FrameEffectControl] = {}
+        transition = self.transitions.get(int(absolute_frame))
+        analyses = effect_analyses or {}
+        material = {
+            effect: self._material_score(effect, analyses.get(effect, analysis))
+            for effect in self.enabled
+        }
+        self._advance_organic_state(
+            absolute_frame,
+            tuple(score for score, _, _ in material.values()),
+            transition is not None,
+        )
+        for effect in self.enabled:
+            effect_analysis = analyses.get(effect, analysis)
+            score, trigger_type, metrics = material[effect]
+            event = self.active_events.get(effect)
+            if event is not None and absolute_frame >= event.end_frame:
+                self.active_events.pop(effect, None)
+                event = None
+
+            transition_selected = (
+                transition is not None
+                and effect in self.transition_effects.get(int(absolute_frame), frozenset())
+            )
+            if transition_selected:
+                event = self._start_event(
+                    effect,
+                    absolute_frame,
+                    "source_transition",
+                    max(score, 0.72),
+                    metrics,
+                    effect_analysis,
+                    transition_absolute_frame=int(absolute_frame),
+                )
+            elif event is None and absolute_frame >= self.cooldown_until[effect]:
+                threshold = self._material_threshold(effect) * (
+                    1.08 - 0.25 * self.organic_instability
+                )
+                previous_score = self.previous_scores[effect]
+                crossed = score >= threshold and (
+                    previous_score < threshold * 0.88
+                    or score >= previous_score + 0.12
+                )
+                gate_rng = _phase2_effect_rng(
+                    self.seed,
+                    _PHASE2_EVENT_SALT ^ _phase2_effect_salt(effect),
+                    absolute_frame,
+                )
+                material_gate = float(gate_rng.random()) < min(
+                    0.98,
+                    (0.46 + 0.44 * self.amount)
+                    * (0.68 + 0.55 * self.organic_instability),
+                )
+                background_gate = (
+                    score >= threshold * 0.45
+                    and float(gate_rng.random())
+                    < (0.0015 + 0.0065 * self.amount)
+                    * (0.25 + 2.30 * self.organic_instability)
+                )
+                if crossed and material_gate:
+                    event = self._start_event(
+                        effect,
+                        absolute_frame,
+                        trigger_type,
+                        score,
+                        metrics,
+                        effect_analysis,
+                    )
+                elif background_gate:
+                    event = self._start_event(
+                        effect,
+                        absolute_frame,
+                        "background_material",
+                        max(score, threshold * 0.55),
+                        metrics,
+                        effect_analysis,
+                    )
+
+            controls[effect] = self._control_for(effect, absolute_frame, event)
+            self.previous_scores[effect] = score
+        distinct_analyses = {id(candidate): candidate for candidate in analyses.values()}
+        analysis_bytes = analysis.cached_bytes + sum(
+            candidate.cached_bytes
+            for candidate in distinct_analyses.values()
+            if candidate is not analysis
+        )
+        self.peak_analysis_bytes = max(self.peak_analysis_bytes, analysis_bytes)
+        return controls
+
+    def _advance_organic_state(
+        self,
+        absolute_frame: int,
+        scores: tuple[float, ...],
+        is_transition: bool,
+    ) -> None:
+        """Evolve one shared, slow material state without synchronizing effect RNGs."""
+        frame = int(absolute_frame)
+        if self.previous_absolute_frame is not None and frame != self.previous_absolute_frame + 1:
+            self.organic_instability = 0.0
+            self.organic_aftershock = 0.0
+            self.organic_drive = 0.0
+            self.effect_wander = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
+            self.ambient_until = {key: -1 for key in PHASE2_FRAME_EFFECT_ORDER}
+
+        mean_score = float(np.mean(scores)) if scores else 0.0
+        peak_score = max(scores, default=0.0)
+        material_change = max(0.0, peak_score - self.organic_drive)
+        aftershock_decay = math.exp(-1.0 / (self.fps * (2.4 + 2.2 * self.amount)))
+        self.organic_aftershock *= aftershock_decay
+        self.organic_aftershock = max(
+            self.organic_aftershock,
+            min(1.0, material_change * 2.35),
+            0.88 if is_transition else 0.0,
+        )
+
+        wander_period = max(2, int(round(self.fps * (4.5 - 1.5 * self.amount))))
+        wander_bucket, wander_offset = divmod(frame, wander_period)
+        wander_phase = wander_offset / float(wander_period)
+        wander_phase = wander_phase * wander_phase * (3.0 - 2.0 * wander_phase)
+        wander_rng_a = _phase2_effect_rng(
+            self.seed,
+            _PHASE2_ORGANIC_SALT,
+            wander_bucket,
+        )
+        wander_rng_b = _phase2_effect_rng(
+            self.seed,
+            _PHASE2_ORGANIC_SALT,
+            wander_bucket + 1,
+        )
+        slow_wander = (
+            float(wander_rng_a.random()) * (1.0 - wander_phase)
+            + float(wander_rng_b.random()) * wander_phase
+        )
+        target = float(
+            np.clip(
+                0.03
+                + mean_score * (0.40 + 0.20 * self.amount)
+                + peak_score * 0.18
+                + self.organic_aftershock * (0.22 + 0.18 * self.amount)
+                + slow_wander * (0.10 + 0.08 * self.amount),
+                0.0,
+                1.0,
+            )
+        )
+        tau = (
+            0.45 + 0.45 * (1.0 - self.amount)
+            if target > self.organic_instability
+            else 2.8 + 2.4 * (1.0 - self.amount)
+        )
+        alpha = 1.0 - math.exp(-1.0 / (self.fps * tau))
+        self.organic_instability += (target - self.organic_instability) * alpha
+        self.organic_drive = peak_score
+
+        for effect in self.enabled:
+            effect_rng = _phase2_effect_rng(
+                self.seed,
+                _PHASE2_ORGANIC_SALT ^ _phase2_effect_salt(effect),
+                wander_bucket,
+            )
+            effect_target = float(effect_rng.random())
+            effect_alpha = 1.0 - math.exp(
+                -1.0 / (self.fps * (1.2 + float(effect_rng.random()) * 3.2))
+            )
+            self.effect_wander[effect] += (
+                effect_target - self.effect_wander[effect]
+            ) * effect_alpha
+
+        self.previous_absolute_frame = frame
+        if self.record_events:
+            self.recorded_organic_states.append(
+                {
+                    "frame": frame,
+                    "instability": round(self.organic_instability, 6),
+                    "aftershock": round(self.organic_aftershock, 6),
+                    "material_mean": round(mean_score, 6),
+                    "material_peak": round(peak_score, 6),
+                    "slow_wander": round(slow_wander, 6),
+                    "transition": bool(is_transition),
+                }
+            )
+
+    def commit(
+        self,
+        analysis: _FrameMaterialAnalysis,
+        effect_input: np.ndarray | Image.Image,
+    ) -> None:
+        self.previous_luma = analysis.luma.copy()
+        self.previous_rgb = _phase2_rgb_copy(effect_input)
+        self.peak_analysis_bytes = max(
+            self.peak_analysis_bytes,
+            analysis.cached_bytes + int(self.previous_luma.nbytes) + int(self.previous_rgb.nbytes),
+        )
+
+    def commit_zones(
+        self,
+        analyses: dict[tuple[int, int, int, int], _FrameMaterialAnalysis],
+        effect_input: np.ndarray,
+    ) -> None:
+        for rectangle, analysis in analyses.items():
+            left, top, right, bottom = rectangle
+            self.zone_previous_luma[rectangle] = analysis.luma.copy()
+            self.zone_previous_rgb[rectangle] = np.ascontiguousarray(
+                effect_input[top:bottom, left:right],
+                dtype=np.uint8,
+            )
+        history_bytes = sum(array.nbytes for array in self.zone_previous_luma.values())
+        history_bytes += sum(array.nbytes for array in self.zone_previous_rgb.values())
+        analysis_bytes = sum(analysis.cached_bytes for analysis in analyses.values())
+        self.peak_analysis_bytes = max(
+            self.peak_analysis_bytes,
+            int(history_bytes + analysis_bytes),
+        )
+
+    def reset_temporal_state(self) -> None:
+        """Drop effect history at a Style FX coverage boundary."""
+        self.active_events.clear()
+        self.cooldown_until = {key: -1 for key in PHASE2_FRAME_EFFECT_ORDER}
+        self.previous_scores = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
+        self.previous_luma = None
+        self.previous_rgb = None
+        self.zone_previous_luma.clear()
+        self.zone_previous_rgb.clear()
+        self.organic_instability = 0.0
+        self.organic_aftershock = 0.0
+        self.organic_drive = 0.0
+        self.previous_absolute_frame = None
+        self.effect_wander = {key: 0.0 for key in PHASE2_FRAME_EFFECT_ORDER}
+        self.ambient_until = {key: -1 for key in PHASE2_FRAME_EFFECT_ORDER}
+
+    def _material_score(
+        self,
+        effect: str,
+        analysis: _FrameMaterialAnalysis,
+    ) -> tuple[float, str, tuple[tuple[str, float], ...]]:
+        if effect == "pixel_sorting":
+            edge = analysis.edge_activity
+            texture = analysis.texture_activity
+            score = edge * 0.58 + texture * 0.42
+            trigger = "high_edges" if edge >= texture else "high_texture"
+            metrics = (("edge", edge), ("texture", texture))
+        elif effect == "databending":
+            texture = analysis.texture_activity
+            channels = analysis.channel_spread
+            score = texture * 0.68 + channels * 0.32
+            trigger = "data_texture" if texture >= channels else "channel_structure"
+            metrics = (("texture", texture), ("channel_spread", channels))
+        elif effect == "circuit_bending":
+            edge = analysis.edge_activity
+            motion = analysis.motion_activity
+            bright = analysis.bright_fraction
+            score = motion * 0.58 + bright * 0.24 + edge * 0.18
+            trigger = "motion_change" if motion >= max(bright, edge) else (
+                "bright_overload" if bright >= edge else "edge_energy"
+            )
+            metrics = (("motion", motion), ("bright_fraction", bright), ("edge", edge))
+        elif effect == "hex_editing":
+            edge = analysis.edge_activity
+            texture = analysis.texture_activity
+            score = edge * 0.76 + texture * 0.24
+            trigger = "structural_edges"
+            metrics = (("edge", edge), ("texture", texture))
+        else:
+            texture = analysis.texture_activity
+            motion = analysis.motion_activity
+            score = texture * 0.68 + motion * 0.32
+            trigger = "binary_activity" if texture >= motion else "signal_change"
+            metrics = (("texture", texture), ("motion", motion))
+        return float(np.clip(score, 0.0, 1.0)), trigger, metrics
+
+    @staticmethod
+    def _material_threshold(effect: str) -> float:
+        return {
+            "pixel_sorting": 0.16,
+            "databending": 0.13,
+            "circuit_bending": 0.14,
+            "hex_editing": 0.18,
+            "random_noise_bw": 0.13,
+        }[effect]
+
+    def _start_event(
+        self,
+        effect: str,
+        frame: int,
+        trigger_type: str,
+        score: float,
+        metrics: tuple[tuple[str, float], ...],
+        analysis: _FrameMaterialAnalysis,
+        transition_absolute_frame: int | None = None,
+    ) -> _FrameEffectEvent:
+        salt = _PHASE2_EVENT_SALT ^ _phase2_effect_salt(effect)
+        event_seed = _phase2_effect_seed(self.seed, salt, frame)
+        rng = np.random.default_rng(event_seed)
+        attack_seconds, sustain_seconds, decay_seconds = {
+            "pixel_sorting": ((0.18, 0.48), (0.45, 1.35), (0.35, 0.95)),
+            "databending": ((0.12, 0.36), (0.75, 1.75), (0.45, 1.05)),
+            "circuit_bending": ((0.10, 0.30), (0.55, 1.55), (0.75, 1.80)),
+            "hex_editing": ((0.06, 0.20), (0.25, 0.80), (0.22, 0.65)),
+            "random_noise_bw": ((0.15, 0.42), (0.30, 1.00), (0.45, 1.20)),
+        }[effect]
+        duration_scale = (
+            (0.72 + 0.78 * self.amount)
+            * float(rng.uniform(0.68, 1.48))
+            * (0.86 + 0.46 * self.organic_instability)
+        )
+        if trigger_type == "source_transition":
+            duration_scale *= 1.15
+        attack = max(1, int(round(self.fps * float(rng.uniform(*attack_seconds)) * duration_scale)))
+        sustain = max(1, int(round(self.fps * float(rng.uniform(*sustain_seconds)) * duration_scale)))
+        decay = max(1, int(round(self.fps * float(rng.uniform(*decay_seconds)) * duration_scale)))
+        if float(rng.random()) < 0.08 + 0.34 * self.amount * self.organic_instability:
+            sustain = max(1, int(round(sustain * float(rng.uniform(1.45, 2.65)))))
+        elif float(rng.random()) < 0.18:
+            sustain = max(1, int(round(sustain * float(rng.uniform(0.52, 0.84)))))
+        peak = float(
+            np.clip(
+                0.43
+                + 0.35 * self.amount
+                + 0.23 * score
+                + 0.13 * self.organic_instability,
+                0.48,
+                1.0,
+            )
+        )
+        focus_x, focus_y = analysis.activity_focus()
+        event = _FrameEffectEvent(
+            effect=effect,
+            trigger_frame=int(frame),
+            trigger_type=trigger_type,
+            attack_frames=attack,
+            sustain_frames=sustain,
+            decay_frames=decay,
+            peak_strength=peak,
+            event_seed=event_seed,
+            focus_x=focus_x,
+            focus_y=focus_y,
+            transition_absolute_frame=transition_absolute_frame,
+            organic_instability=round(self.organic_instability, 6),
+            material_metrics=tuple((name, round(float(value), 6)) for name, value in metrics),
+        )
+        self.active_events[effect] = event
+        cooldown_seconds = float(rng.uniform(0.08, 0.82)) * (
+            1.18 - 0.62 * self.organic_instability
+        )
+        self.cooldown_until[effect] = event.end_frame + max(
+            1,
+            int(round(self.fps * cooldown_seconds)),
+        )
+        if self.record_events:
+            self.recorded_events.append(event)
+        return event
+
+    def _control_for(
+        self,
+        effect: str,
+        frame: int,
+        event: _FrameEffectEvent | None,
+    ) -> _FrameEffectControl:
+        baseline = {
+            "pixel_sorting": 0.10,
+            "databending": 0.13,
+            "circuit_bending": 0.08,
+            "hex_editing": 0.045,
+            "random_noise_bw": 0.13,
+        }[effect] + self.amount * {
+            "pixel_sorting": 0.13,
+            "databending": 0.13,
+            "circuit_bending": 0.15,
+            "hex_editing": 0.085,
+            "random_noise_bw": 0.14,
+        }[effect]
+        organic_affinity = {
+            "pixel_sorting": 0.72,
+            "databending": 0.92,
+            "circuit_bending": 1.0,
+            "hex_editing": 0.58,
+            "random_noise_bw": 0.76,
+        }[effect]
+        organic_lift = (
+            self.organic_instability
+            * organic_affinity
+            * (0.08 + 0.17 * self.amount)
+            * (0.62 + 0.76 * self.effect_wander[effect])
+        )
+        baseline += (1.0 - baseline) * organic_lift
+        if event is None:
+            if frame >= self.ambient_until[effect]:
+                ambient_rng = _phase2_effect_rng(
+                    self.seed,
+                    _PHASE2_ORGANIC_SALT ^ _phase2_effect_salt(effect),
+                    frame,
+                )
+                self.ambient_seed[effect] = _phase2_effect_seed(
+                    self.seed,
+                    _PHASE2_EVENT_SALT ^ _phase2_effect_salt(effect),
+                    frame,
+                )
+                dwell_seconds = float(ambient_rng.uniform(0.55, 2.85)) * (
+                    1.25 - 0.58 * self.organic_instability
+                )
+                self.ambient_until[effect] = frame + max(
+                    1,
+                    int(round(self.fps * dwell_seconds)),
+                )
+            return _FrameEffectControl(
+                strength=baseline,
+                event_strength=0.0,
+                event_seed=self.ambient_seed[effect],
+                event_frame=0,
+            )
+
+        local = max(0, int(frame - event.trigger_frame))
+        if local < event.attack_frames:
+            phase = (local + 1) / max(1, event.attack_frames)
+            envelope = math.sin(phase * math.pi / 2.0)
+        elif local < event.attack_frames + event.sustain_frames:
+            sustain_local = local - event.attack_frames
+            sustain_phase = sustain_local / max(1, event.sustain_frames)
+            envelope = {
+                "pixel_sorting": 0.82 + 0.18 * math.sin(math.pi * sustain_phase),
+                "databending": 0.94 + 0.06 * math.sin(math.tau * sustain_phase),
+                "circuit_bending": 0.78 + 0.22 * math.sin(math.pi * sustain_phase),
+                "hex_editing": 1.0,
+                "random_noise_bw": 0.86 + 0.14 * math.sin(math.pi * sustain_phase),
+            }[effect]
+        else:
+            decay_local = local - event.attack_frames - event.sustain_frames
+            decay_phase = min(1.0, decay_local / max(1, event.decay_frames))
+            decay_power = {
+                "pixel_sorting": 1.25,
+                "databending": 0.85,
+                "circuit_bending": 0.62,
+                "hex_editing": 1.8,
+                "random_noise_bw": 1.05,
+            }[effect]
+            envelope = (1.0 - decay_phase) ** decay_power
+        event_strength = float(np.clip(envelope * event.peak_strength, 0.0, 1.0))
+        strength = baseline + (1.0 - baseline) * event_strength
+        return _FrameEffectControl(
+            strength=float(np.clip(strength, 0.0, 1.0)),
+            event_strength=event_strength,
+            event_seed=event.event_seed,
+            event_frame=local,
+            focus_x=event.focus_x,
+            focus_y=event.focus_y,
+            event=event,
+        )
+
+    def event_trace(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "effect": event.effect,
+                "trigger_frame": event.trigger_frame,
+                "trigger_type": event.trigger_type,
+                "attack_frames": event.attack_frames,
+                "sustain_frames": event.sustain_frames,
+                "decay_frames": event.decay_frames,
+                "end_frame": event.end_frame,
+                "peak_strength": round(event.peak_strength, 6),
+                "event_seed": event.event_seed,
+                "focus": [round(event.focus_x, 6), round(event.focus_y, 6)],
+                "transition_absolute_frame": event.transition_absolute_frame,
+                "organic_instability": event.organic_instability,
+                "material_metrics": dict(event.material_metrics),
+            }
+            for event in self.recorded_events
+        ]
+
+    def organic_state_trace(self) -> list[dict[str, float | int | bool]]:
+        return list(self.recorded_organic_states)
 
 
 class RenderError(RuntimeError):
@@ -242,6 +1164,44 @@ def build_bypass_intervals(
         )
 
     return _merge_intervals(intervals, duration)
+
+
+def normalize_style_fx_coverage_mode(value: object) -> str:
+    """Return a known persisted Style FX coverage mode, defaulting fail-safe to Full."""
+    if not isinstance(value, str):
+        return STYLE_FX_FULL
+    normalized = value.strip().lower()
+    aliases = {
+        STYLE_FX_FULL.lower(): STYLE_FX_FULL,
+        STYLE_FX_RANDOM.lower(): STYLE_FX_RANDOM,
+        STYLE_FX_MANUAL.lower(): STYLE_FX_MANUAL,
+        STYLE_FX_MANUAL_RANDOM.lower(): STYLE_FX_MANUAL_RANDOM,
+    }
+    return aliases.get(normalized, STYLE_FX_FULL)
+
+
+def build_style_fx_clean_intervals(
+    duration: float,
+    mode: object,
+    manual_blocks: list[Any],
+    random_percent: float,
+    min_len: float,
+    max_len: float,
+    seed: int | None,
+) -> list[Interval]:
+    """Build deterministic half-open intervals where optional Style effects are off."""
+    normalized = normalize_style_fx_coverage_mode(mode)
+    if normalized == STYLE_FX_FULL:
+        return []
+    return build_bypass_intervals(
+        duration,
+        normalized,
+        manual_blocks,
+        random_percent,
+        min_len,
+        max_len,
+        seed,
+    )
 
 
 def is_bypass_time(t: float, intervals: list[Interval]) -> bool:
@@ -435,6 +1395,25 @@ def render_project(
     else:
         _emit(log, "Bypass ANSI: full ANSI render.")
 
+    style_fx_clean_intervals = build_style_fx_clean_intervals(
+        duration=render_duration,
+        mode=settings.style_fx_coverage_mode,
+        manual_blocks=settings.style_fx_manual_blocks,
+        random_percent=settings.style_fx_random_percent,
+        min_len=settings.random_min_len,
+        max_len=settings.random_max_len,
+        seed=settings.style_fx_random_seed,
+    )
+    style_fx_clean_seconds = _interval_total(style_fx_clean_intervals)
+    if style_fx_clean_intervals:
+        _emit(
+            log,
+            f"Style FX Coverage: {len(style_fx_clean_intervals)} clean section(s), "
+            f"{style_fx_clean_seconds / render_duration * 100:.1f}% of output.",
+        )
+    else:
+        _emit(log, "Style FX Coverage: full effects.")
+
     _preflight_ffmpeg_decoded_stills(timeline_segments, settings.output_size, log)
 
     preset = get_preset(settings.preset_name)
@@ -443,6 +1422,17 @@ def render_project(
     chunky_blocks = settings.chunky_blocks or preset.get("render_mode") == "chunky_blocks"
     layout = make_text_layout(settings.width_chars, settings.output_size, chunky_blocks=chunky_blocks)
     frame_count = max(1, math.ceil(render_duration * settings.fps))
+    absolute_frame_offset = max(
+        0,
+        int(round(settings.output_time_offset * settings.fps)),
+    )
+    source_transition_targets = _datamosh_transition_targets(
+        timeline_segments,
+        playback,
+        settings,
+        frame_count,
+        absolute_frame_offset,
+    )
     _emit(
         log,
         f"Rendering {frame_count} frames at {settings.fps} fps "
@@ -474,14 +1464,16 @@ def render_project(
 
         if frame_pipe_enabled:
             try:
-                _render_silent_video_with_pipe(
+                datamosh_activity = _render_silent_video_with_pipe(
                     settings=settings,
                     preset=preset,
                     layout=layout,
                     timeline_segments=timeline_segments,
                     playback=playback,
                     frame_count=frame_count,
+                    source_transitions=source_transition_targets,
                     bypass_intervals=bypass_intervals,
+                    style_fx_clean_intervals=style_fx_clean_intervals,
                     silent_video=silent_video,
                     target_bitrate=target_bitrate,
                     progress=progress,
@@ -495,14 +1487,16 @@ def render_project(
                 except OSError:
                     pass
                 _emit_progress(progress, 5)
-                _render_silent_video_with_png_frames(
+                datamosh_activity = _render_silent_video_with_png_frames(
                     settings=settings,
                     preset=preset,
                     layout=layout,
                     timeline_segments=timeline_segments,
                     playback=playback,
                     frame_count=frame_count,
+                    source_transitions=source_transition_targets,
                     bypass_intervals=bypass_intervals,
+                    style_fx_clean_intervals=style_fx_clean_intervals,
                     frames_dir=temp_root_path / "frames",
                     silent_video=silent_video,
                     target_bitrate=target_bitrate,
@@ -510,14 +1504,16 @@ def render_project(
                     log=log,
                 )
         else:
-            _render_silent_video_with_png_frames(
+            datamosh_activity = _render_silent_video_with_png_frames(
                 settings=settings,
                 preset=preset,
                 layout=layout,
                 timeline_segments=timeline_segments,
                 playback=playback,
                 frame_count=frame_count,
+                source_transitions=source_transition_targets,
                 bypass_intervals=bypass_intervals,
+                style_fx_clean_intervals=style_fx_clean_intervals,
                 frames_dir=temp_root_path / "frames",
                 silent_video=silent_video,
                 target_bitrate=target_bitrate,
@@ -525,25 +1521,60 @@ def render_project(
                 log=log,
             )
 
-        if _effect_on(settings.effects, "datamoshing"):
+        datamosh_mode_keys = normalize_codec_layer_order(settings.codec_layer_order)
+        enabled_datamosh_modes = tuple(
+            key for key in datamosh_mode_keys if _effect_on(settings.effects, key)
+        )
+        if enabled_datamosh_modes:
             eligible_start_frame = _datamosh_eligible_start_frame(settings, frame_count)
-            if eligible_start_frame >= frame_count:
+            protected_intervals = _style_fx_clean_frame_intervals(
+                style_fx_clean_intervals,
+                settings.fps,
+                frame_count,
+            )
+            if eligible_start_frame >= frame_count or _frames_fully_protected(
+                eligible_start_frame,
+                frame_count,
+                protected_intervals,
+            ):
                 _emit(
                     log,
-                    "DATAMOSHING: the Style begins boundary is after this render window; "
-                    "leaving its silent visual output clean.",
+                    "DATAMOSHING: no Style-FX-eligible frame remains in this render window; "
+                    "skipping the codec stage and leaving its silent visual output clean.",
                 )
             else:
                 _emit_progress(progress, 92)
-                absolute_frame_offset = max(
-                    0,
-                    int(round(settings.output_time_offset * settings.fps)),
+                transition_targets = tuple(
+                    target
+                    for target in source_transition_targets
+                    if target.frame > eligible_start_frame
+                    and not _frame_in_intervals(target.frame, protected_intervals)
+                    and not _frame_in_intervals(target.frame - 1, protected_intervals)
                 )
                 _emit(
                     log,
-                    "DATAMOSHING: authentic MPEG-4 Part 2 prediction manipulation enabled; "
+                    "DATAMOSH MODES: authentic MPEG-4 Part 2 prediction manipulation enabled "
+                    f"for {', '.join(enabled_datamosh_modes)}; "
                     f"clean anchor at local frame {eligible_start_frame}, "
-                    f"absolute frame {absolute_frame_offset + eligible_start_frame}.",
+                    f"absolute frame {absolute_frame_offset + eligible_start_frame}; "
+                    f"{len(transition_targets)} eligible source transition target(s).",
+                )
+                for target in transition_targets:
+                    _emit(
+                        log,
+                        "DATAMOSHING transition target: "
+                        f"local frame {target.frame}, absolute frame {target.absolute_frame}, "
+                        f"{target.from_kind}->{target.to_kind}, {target.visual_transition}.",
+                    )
+                operations = _datamosh_operations(
+                    settings,
+                    enabled_datamosh_modes,
+                    eligible_start_frame,
+                    frame_count,
+                    absolute_frame_offset,
+                    transition_targets,
+                    datamosh_activity,
+                    protected_intervals,
                 )
                 datamosh_result = datamosh.apply_datamosh(
                     silent_video,
@@ -562,6 +1593,8 @@ def render_project(
                     loop_friendly=settings.loop_friendly,
                     video_crf=settings.video_crf,
                     video_bitrate=target_bitrate,
+                    transitions=transition_targets,
+                    operations=operations,
                     log=log,
                 )
                 if datamosh_result.applied:
@@ -732,14 +1765,17 @@ def _render_silent_video_with_png_frames(
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
     frame_count: int,
+    source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
+    style_fx_clean_intervals: list[Interval],
     frames_dir: Path,
     silent_video: Path,
     target_bitrate: int | None,
     progress: ProgressCallback,
     log: LogCallback,
-) -> None:
+) -> tuple[datamosh.DatamoshActivity, ...]:
     frames_dir.mkdir()
+    activity_samples: list[datamosh.DatamoshActivity] = []
 
     def write_png_frame(index: int, output_frame: Image.Image) -> None:
         output_frame.save(frames_dir / f"frame_{index:06d}.png", optimize=False)
@@ -752,11 +1788,18 @@ def _render_silent_video_with_png_frames(
         timeline_segments=timeline_segments,
         playback=playback,
         frame_count=frame_count,
+        source_transitions=source_transitions,
         bypass_intervals=bypass_intervals,
+        style_fx_clean_intervals=style_fx_clean_intervals,
         write_frame=write_png_frame,
         write_frame_label="PNG frame save",
         progress=progress,
         log=log,
+        activity_samples=(
+            activity_samples
+            if any(_effect_on(settings.effects, key) for key in ("overflow", "skrrt", "scatter"))
+            else None
+        ),
     )
     _emit_elapsed(log, "Frame render stage", frame_stage_started)
 
@@ -772,6 +1815,7 @@ def _render_silent_video_with_png_frames(
         video_bitrate=target_bitrate,
     )
     _emit_elapsed(log, "Frame encode stage", encode_started)
+    return tuple(activity_samples)
 
 
 def _render_silent_video_with_pipe(
@@ -782,14 +1826,17 @@ def _render_silent_video_with_pipe(
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
     frame_count: int,
+    source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
+    style_fx_clean_intervals: list[Interval],
     silent_video: Path,
     target_bitrate: int | None,
     progress: ProgressCallback,
     log: LogCallback,
-) -> None:
+) -> tuple[datamosh.DatamoshActivity, ...]:
     width, height = settings.output_size
     frames_written = 0
+    activity_samples: list[datamosh.DatamoshActivity] = []
 
     def stream_frames(stdin: Any) -> None:
         nonlocal frames_written
@@ -812,11 +1859,18 @@ def _render_silent_video_with_pipe(
             timeline_segments=timeline_segments,
             playback=playback,
             frame_count=frame_count,
+            source_transitions=source_transitions,
             bypass_intervals=bypass_intervals,
+            style_fx_clean_intervals=style_fx_clean_intervals,
             write_frame=write_raw_frame,
             write_frame_label="frame pipe write",
             progress=progress,
             log=log,
+            activity_samples=(
+                activity_samples
+                if any(_effect_on(settings.effects, key) for key in ("overflow", "skrrt", "scatter"))
+                else None
+            ),
         )
 
     _emit(log, "Frame pipe transport: streaming rendered frames directly to ffmpeg.")
@@ -848,6 +1902,7 @@ def _render_silent_video_with_pipe(
     throughput = frames_written / elapsed if elapsed > 0 else 0.0
     _emit(log, f"Frame pipe render/encode stage completed in {elapsed:.2f}s ({throughput:.2f} fps).")
     _emit_progress(progress, 90)
+    return tuple(activity_samples)
 
 
 def _emit_elapsed(log: LogCallback, label: str, started_at: float) -> None:
@@ -1115,6 +2170,14 @@ def _expanded_settings(settings: RenderSettings) -> RenderSettings:
         audio_path=str(Path(settings.audio_path).expanduser()) if settings.audio_path else None,
         output_path=str(Path(settings.output_path).expanduser()),
         timeline_items=timeline_items,
+        style_fx_coverage_mode=normalize_style_fx_coverage_mode(
+            settings.style_fx_coverage_mode
+        ),
+        style_fx_manual_blocks=(
+            settings.style_fx_manual_blocks
+            if isinstance(settings.style_fx_manual_blocks, list)
+            else []
+        ),
     )
 
 def _optimized_output_path(output_path: Path, target_mb: float) -> Path:
@@ -1522,11 +2585,14 @@ def _render_frames(
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
     frame_count: int,
+    source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
+    style_fx_clean_intervals: list[Interval],
     write_frame: FrameWriter,
     write_frame_label: str,
     progress: ProgressCallback,
     log: LogCallback,
+    activity_samples: list[datamosh.DatamoshActivity] | None = None,
 ) -> None:
     source = _TimelineFrameSource(timeline_segments, output_size=settings.output_size, log=log)
     render_duration = playback.output_duration
@@ -1546,6 +2612,13 @@ def _render_frames(
     held_frame: np.ndarray | Image.Image | None = None
     hold_until = -1
     previous_output: Image.Image | None = None
+    phase2_choreographer = _FrameEffectChoreographer(
+        settings.effects,
+        settings.effect_intensity,
+        settings.fps,
+        settings.weird_seed if settings.weird_seed is not None else settings.random_seed,
+        source_transitions,
+    )
     first_output: Image.Image | None = None
     last_source_t = _source_time_for_output(playback, max(0.0, render_duration - (1.0 / max(1, settings.fps))))
     source_frame_seconds = 0.0
@@ -1556,6 +2629,9 @@ def _render_frames(
     transition_seconds = 0.0
     write_seconds = 0.0
     timing_detail = _FrameTimingDetail()
+    codec_previous_luma: np.ndarray | None = None
+    style_fx_clean_index = 0
+    style_fx_was_clean = False
 
     try:
         for index in range(frame_count):
@@ -1563,9 +2639,27 @@ def _render_frames(
             absolute_output_t = settings.output_time_offset + output_t
             style_active = absolute_output_t >= settings.style_begin_time
             timeline_t = _source_time_for_output(playback, output_t)
-            frame_effects = dict(settings.effects) if style_active else {}
+            while (
+                style_fx_clean_index < len(style_fx_clean_intervals)
+                and output_t >= style_fx_clean_intervals[style_fx_clean_index][1]
+            ):
+                style_fx_clean_index += 1
+            style_fx_clean = (
+                style_active
+                and style_fx_clean_index < len(style_fx_clean_intervals)
+                and style_fx_clean_intervals[style_fx_clean_index][0]
+                <= output_t
+                < style_fx_clean_intervals[style_fx_clean_index][1]
+            )
+            if style_fx_clean != style_fx_was_clean:
+                held_frame = None
+                hold_until = -1
+                codec_previous_luma = None
+                phase2_choreographer.reset_temporal_state()
+                style_fx_was_clean = style_fx_clean
+            frame_effects = dict(settings.effects) if style_active and not style_fx_clean else {}
             hit_level = audio_hits[index] if index < len(audio_hits) else 0.0
-            if hit_level > 0.01:
+            if frame_effects and hit_level > 0.01:
                 frame_effects["_reactive_hit"] = True
                 frame_effects["_hit_level"] = hit_level
 
@@ -1628,6 +2722,7 @@ def _render_frames(
                             timing=timing_detail,
                         )
                         normal_render_seconds += max(0.0, time.perf_counter() - normal_started)
+                    phase2_material = output_frame
                 else:
                     if public_source is not None:
                         ansi_source = public_source
@@ -1644,6 +2739,7 @@ def _render_frames(
                             timing=timing_detail,
                         )
                         ansi_prepare_seconds += max(0.0, time.perf_counter() - ansi_started)
+                    phase2_material = ansi_source
                     text_started = time.perf_counter()
                     output_frame = render_text_art_frame(
                         np.asarray(ansi_source),
@@ -1660,6 +2756,47 @@ def _render_frames(
                         timing=timing_detail,
                     )
                     text_render_seconds += max(0.0, time.perf_counter() - text_started)
+
+                if activity_samples is not None and not style_fx_clean:
+                    material_analysis = _FrameMaterialAnalysis(
+                        rgb=_phase2_rgb_copy(phase2_material),
+                        previous_luma=codec_previous_luma,
+                    )
+                    motion_x, motion_y, direction_confidence = (
+                        material_analysis.motion_direction()
+                        if _effect_on(settings.effects, "skrrt")
+                        else (0.0, 0.0, 0.0)
+                    )
+                    scatter_regions = (
+                        material_analysis.scatter_regions()
+                        if _effect_on(settings.effects, "scatter")
+                        else ()
+                    )
+                    activity_samples.append(
+                        datamosh.DatamoshActivity(
+                            frame=index,
+                            absolute_frame=max(
+                                0,
+                                int(round(absolute_output_t * settings.fps)),
+                            ),
+                            motion_activity=material_analysis.motion_activity,
+                            motion_x=motion_x,
+                            motion_y=motion_y,
+                            direction_confidence=direction_confidence,
+                            texture_activity=(
+                                material_analysis.texture_activity
+                                if scatter_regions
+                                else 0.0
+                            ),
+                            edge_activity=(
+                                material_analysis.edge_activity
+                                if scatter_regions
+                                else 0.0
+                            ),
+                            spatial_regions=scatter_regions,
+                        )
+                    )
+                    codec_previous_luma = material_analysis.luma.copy()
 
                 if first_output is None:
                     first_output = output_frame.copy()
@@ -1682,6 +2819,10 @@ def _render_frames(
                     settings.fps,
                     settings.weird_seed,
                     output_frame_index=max(0, int(round(absolute_output_t * settings.fps))),
+                    phase2_choreographer=phase2_choreographer,
+                    phase2_material=phase2_material,
+                    zones=settings.zones,
+                    effect_zone_assignments=settings.effect_zone_assignments,
                 )
                 output_frame = _apply_ending_effect(
                     output_frame,
@@ -1770,6 +2911,178 @@ def _transition_boundaries(segments: list[TimelineSegment], playback: PlaybackPl
     return boundaries
 
 
+def _datamosh_operations(
+    settings: RenderSettings,
+    enabled_modes: tuple[str, ...],
+    eligible_start_frame: int,
+    frame_count: int,
+    absolute_frame_offset: int,
+    transitions: tuple[datamosh.DatamoshTransition, ...],
+    activity: tuple[datamosh.DatamoshActivity, ...],
+    protected_intervals: tuple[tuple[int, int], ...] = (),
+) -> tuple[datamosh.DatamoshOperation, ...]:
+    """Build an explicit deterministic operation spec for the shared codec pass."""
+    seed = settings.weird_seed if settings.weird_seed is not None else settings.random_seed
+    mode_salts = {
+        "datamoshing": datamosh.DATAMOSH_SEED_SALT,
+        "overflow": datamosh.OVERFLOW_SEED_SALT,
+        "skrrt": datamosh.SKRRT_SEED_SALT,
+        "scatter": datamosh.SCATTER_SEED_SALT,
+        "bleed": datamosh.BLEED_SEED_SALT,
+    }
+    ordered_modes = tuple(
+        mode
+        for mode in normalize_codec_layer_order(settings.codec_layer_order)
+        if mode in enabled_modes
+    )
+    normalized_zones, normalized_assignments, _ = normalize_zone_state(
+        list(settings.zones),
+        settings.effect_zone_assignments,
+    )
+    zone_by_id = {zone.id: zone for zone in normalized_zones}
+    skrrt_zone_id = normalized_assignments.get(datamosh.DATAMOSH_MODE_SKRRT)
+    skrrt_zone_box = (
+        rasterize_zone(zone_by_id[skrrt_zone_id], settings.output_size)
+        if skrrt_zone_id is not None
+        else None
+    )
+    return tuple(
+        datamosh.DatamoshOperation(
+            mode=mode,
+            enabled=True,
+            intensity=settings.effect_intensity,
+            seed=seed,
+            salt=salt,
+            order=layer_index * 10,
+            start_frame=eligible_start_frame,
+            end_frame=frame_count,
+            absolute_frame_offset=absolute_frame_offset,
+            transitions=transitions,
+            protected_intervals=protected_intervals,
+            activity=activity if mode in {"overflow", "skrrt", "scatter"} else (),
+            parameters=(
+                ("fps", settings.fps),
+                ("width", settings.output_size[0]),
+                ("height", settings.output_size[1]),
+            ),
+            zone_box=(
+                skrrt_zone_box
+                if mode == datamosh.DATAMOSH_MODE_SKRRT
+                else None
+            ),
+        )
+        for layer_index, mode in enumerate(ordered_modes, start=1)
+        for salt in (mode_salts[mode],)
+    )
+
+
+def _style_fx_clean_frame_intervals(
+    intervals: list[Interval],
+    fps: int,
+    frame_count: int,
+) -> tuple[tuple[int, int], ...]:
+    """Map half-open output-time coverage to the rendered frame indices it contains."""
+    mapped: list[tuple[int, int]] = []
+    for start, end in intervals:
+        start_frame = max(0, min(frame_count, int(math.ceil(start * fps - 1e-9))))
+        end_frame = max(start_frame, min(frame_count, int(math.ceil(end * fps - 1e-9))))
+        if end_frame > start_frame:
+            mapped.append((start_frame, end_frame))
+    return tuple(mapped)
+
+
+def _frames_fully_protected(
+    start_frame: int,
+    end_frame: int,
+    intervals: tuple[tuple[int, int], ...],
+) -> bool:
+    cursor = start_frame
+    for protected_start, protected_end in intervals:
+        if protected_end <= cursor:
+            continue
+        if protected_start > cursor:
+            return False
+        cursor = max(cursor, protected_end)
+        if cursor >= end_frame:
+            return True
+    return cursor >= end_frame
+
+
+def _frame_in_intervals(
+    frame: int,
+    intervals: tuple[tuple[int, int], ...],
+) -> bool:
+    return any(start <= frame < end for start, end in intervals)
+
+
+def _datamosh_transition_targets(
+    segments: list[TimelineSegment],
+    playback: PlaybackPlan,
+    settings: RenderSettings,
+    frame_count: int,
+    absolute_frame_offset: int,
+) -> tuple[datamosh.DatamoshTransition, ...]:
+    """Map anonymous source cuts to the first rendered frame of incoming material."""
+    source_boundaries = [
+        (
+            segment.timeline_start - playback.timeline_start,
+            segments[index - 1].kind,
+            segment.kind,
+        )
+        for index, segment in enumerate(segments[1:], start=1)
+        if 0.0 < segment.timeline_start - playback.timeline_start < playback.source_duration
+    ]
+    mapped: list[tuple[float, str, str]] = []
+    if playback.loop_timeline:
+        loop = max(0.001, playback.source_duration)
+        first_kind = _segment_kind_at(segments, playback.timeline_start)
+        last_kind = _segment_kind_at(segments, max(playback.timeline_start, playback.timeline_end - 0.001))
+        cycle = 0
+        while cycle * loop < playback.output_duration:
+            cycle_start = cycle * loop
+            if cycle > 0:
+                mapped.append((cycle_start, last_kind, first_kind))
+            for boundary, from_kind, to_kind in source_boundaries:
+                output_boundary = cycle_start + boundary
+                if 0.0 < output_boundary < playback.output_duration:
+                    mapped.append((output_boundary, from_kind, to_kind))
+            cycle += 1
+    else:
+        mapped.extend(
+            (
+                boundary / max(0.0001, playback.speed_factor),
+                from_kind,
+                to_kind,
+            )
+            for boundary, from_kind, to_kind in source_boundaries
+        )
+
+    targets: list[datamosh.DatamoshTransition] = []
+    seen_frames: set[int] = set()
+    for transition_index, (output_t, from_kind, to_kind) in enumerate(sorted(mapped)):
+        frame = int(math.ceil(output_t * settings.fps - 1e-9))
+        if frame <= 0 or frame >= frame_count or frame in seen_frames:
+            continue
+        seen_frames.add(frame)
+        targets.append(
+            datamosh.DatamoshTransition(
+                frame=frame,
+                absolute_frame=absolute_frame_offset + frame,
+                from_kind=from_kind,
+                to_kind=to_kind,
+                visual_transition=_transition_name(settings, transition_index),
+            )
+        )
+    return tuple(targets)
+
+
+def _segment_kind_at(segments: list[TimelineSegment], timeline_t: float) -> str:
+    for segment in reversed(segments):
+        if segment.timeline_start <= timeline_t < segment.timeline_end:
+            return segment.kind
+    return segments[0].kind if segments else "video"
+
+
 def _active_transition(output_t: float, boundaries: list[float], duration: float) -> tuple[float, int] | None:
     if duration <= 0:
         return None
@@ -1781,6 +3094,8 @@ def _active_transition(output_t: float, boundaries: list[float], duration: float
 
 def _transition_name(settings: RenderSettings, index: int) -> str:
     mode = settings.transition_mode or "Hard Cut"
+    if mode == "None":
+        mode = "Hard Cut"
     if mode != "Random":
         return mode
     choices = [
@@ -1805,7 +3120,7 @@ def _apply_transition_effect(
     settings: RenderSettings,
     frame_index: int,
 ) -> Image.Image:
-    if settings.transition_mode == "Hard Cut" or not boundaries:
+    if settings.transition_mode in {"Hard Cut", "None"} or not boundaries:
         return image
     duration = 0.10 + 0.34 * max(0.0, min(2.0, settings.transition_intensity))
     active = _active_transition(output_t, boundaries, duration)
@@ -1965,6 +3280,11 @@ def _apply_global_artifact_effects(
     fps: int,
     seed: int | None,
     output_frame_index: int | None = None,
+    phase2_previous: Image.Image | None = None,
+    phase2_choreographer: _FrameEffectChoreographer | None = None,
+    phase2_material: np.ndarray | Image.Image | None = None,
+    zones: tuple[ZoneDefinition, ...] = (),
+    effect_zone_assignments: dict[str, str] | None = None,
 ) -> Image.Image:
     if _effect_on(effects, "motion_melt") and previous is not None:
         image = _apply_motion_melt(image, previous, frame_index, intensity)
@@ -1981,11 +3301,25 @@ def _apply_global_artifact_effects(
         frame_index if output_frame_index is None else output_frame_index,
         fps,
         seed,
+        previous=phase2_previous,
+        choreographer=phase2_choreographer,
+        material=phase2_material,
+        zones=zones,
+        effect_zone_assignments=effect_zone_assignments,
     )
 
 
-def _phase2_effect_rng(seed: int | None, salt: int, frame_index: int) -> np.random.Generator:
-    """Return an independent deterministic RNG stream for one frame effect."""
+def _phase2_effect_salt(effect: str) -> int:
+    return {
+        "pixel_sorting": _PIXEL_SORTING_SALT,
+        "databending": _DATABENDING_SALT,
+        "circuit_bending": _CIRCUIT_BENDING_SALT,
+        "hex_editing": _HEX_EDITING_SALT,
+        "random_noise_bw": _RANDOM_NOISE_BW_SALT,
+    }[effect]
+
+
+def _phase2_effect_seed(seed: int | None, salt: int, frame_index: int) -> int:
     mask = (1 << 64) - 1
     mixed = (int(seed or 0) & mask) ^ (int(salt) & mask)
     mixed ^= ((int(frame_index) & mask) + 0x9E3779B97F4A7C15) & mask
@@ -1993,7 +3327,12 @@ def _phase2_effect_rng(seed: int | None, salt: int, frame_index: int) -> np.rand
     mixed ^= mixed >> 30
     mixed = (mixed * 0x94D049BB133111EB) & mask
     mixed ^= mixed >> 31
-    return np.random.default_rng(mixed)
+    return mixed
+
+
+def _phase2_effect_rng(seed: int | None, salt: int, frame_index: int) -> np.random.Generator:
+    """Return an independent deterministic RNG stream for one frame effect."""
+    return np.random.default_rng(_phase2_effect_seed(seed, salt, frame_index))
 
 
 def _phase2_rgb_copy(frame: np.ndarray | Image.Image) -> np.ndarray:
@@ -2010,40 +3349,52 @@ def _phase2_effect_amount(intensity: float) -> float:
     return max(0.0, min(1.0, float(intensity) / 2.0))
 
 
-def _sort_pixel_line_runs(
+def _phase2_luma(source: np.ndarray) -> np.ndarray:
+    return (
+        source[:, :, 0].astype(np.float32) * 0.2126
+        + source[:, :, 1].astype(np.float32) * 0.7152
+        + source[:, :, 2].astype(np.float32) * 0.0722
+    )
+
+
+def _normalized_signal(values: np.ndarray) -> np.ndarray:
+    signal = np.asarray(values, dtype=np.float32)
+    low = float(np.min(signal))
+    high = float(np.max(signal))
+    if high - low < 1e-6:
+        return np.zeros_like(signal, dtype=np.float32)
+    return (signal - low) / (high - low)
+
+
+def _sort_content_line_runs(
     line: np.ndarray,
-    rng: np.random.Generator,
+    luma: np.ndarray,
+    edge: np.ndarray,
     amount: float,
+    descending: bool,
 ) -> None:
     length = int(line.shape[0])
-    if length < 5:
+    if length < 5 or float(np.ptp(luma)) < 1.0:
         return
-    run_count = 1 + int(round(amount * 2.0))
-    min_run = min(length - 1, max(4, int(length * (0.025 + 0.025 * amount))))
-    max_run = min(length - 1, max(min_run, int(length * (0.10 + 0.34 * amount))))
-    for _ in range(run_count):
-        run_length = int(rng.integers(min_run, max_run + 1))
-        start = int(rng.integers(0, max(1, length - run_length + 1)))
-        segment = line[start : start + run_length]
-        luma = (
-            segment[:, 0].astype(np.float32) * 0.2126
-            + segment[:, 1].astype(np.float32) * 0.7152
-            + segment[:, 2].astype(np.float32) * 0.0722
-        )
-        threshold_center = float(rng.uniform(48.0, 208.0))
-        threshold_radius = 24.0 + 76.0 * amount
-        eligible = np.flatnonzero(np.abs(luma - threshold_center) <= threshold_radius)
-        if eligible.size < 4:
+    lower = float(np.percentile(luma, max(2.0, 32.0 - 24.0 * amount)))
+    upper = float(np.percentile(luma, min(98.0, 68.0 + 24.0 * amount)))
+    eligible = (luma >= lower) & (luma <= upper)
+    positive_edges = edge[edge > 0.5]
+    if positive_edges.size:
+        edge_cut = float(np.percentile(positive_edges, 72.0 + 27.0 * amount))
+        eligible[1:] &= edge[1:] <= edge_cut
+    padded = np.pad(eligible.astype(np.int8), (1, 1))
+    changes = np.diff(padded)
+    starts = np.flatnonzero(changes == 1)
+    ends = np.flatnonzero(changes == -1)
+    min_run = max(4, int(length * (0.008 + 0.012 * (1.0 - amount))))
+    for start, end in zip(starts, ends):
+        if end - start < min_run:
             continue
-        breaks = np.flatnonzero(np.diff(eligible) > 1) + 1
-        groups = [group for group in np.split(eligible, breaks) if group.size >= 4]
-        if not groups:
-            continue
-        group = max(groups, key=lambda values: values.size)
-        ordered = np.argsort(luma[group], kind="stable")
-        if bool(rng.integers(0, 2)):
-            ordered = ordered[::-1]
-        segment[group] = segment[group][ordered]
+        order = np.argsort(luma[start:end], kind="stable")
+        if descending:
+            order = order[::-1]
+        line[start:end] = line[start:end][order]
 
 
 def _apply_pixel_sorting_frame(
@@ -2051,20 +3402,53 @@ def _apply_pixel_sorting_frame(
     intensity: float,
     frame_index: int,
     seed: int | None,
+    analysis: _FrameMaterialAnalysis | None = None,
+    control: _FrameEffectControl | None = None,
 ) -> np.ndarray:
     arr = _phase2_rgb_copy(frame)
     amount = _phase2_effect_amount(intensity)
     height, width = arr.shape[:2]
     if amount <= 0.0 or height < 1 or width < 4:
         return arr
-    rng = _phase2_effect_rng(seed, _PIXEL_SORTING_SALT, frame_index)
-    row_count = min(height, max(1, int(round(height * (0.012 + 0.095 * amount)))))
-    for row in np.atleast_1d(rng.choice(height, size=row_count, replace=False)):
-        _sort_pixel_line_runs(arr[int(row), :, :], rng, amount)
-    if height >= 4 and amount >= 0.28:
-        column_count = min(width, max(1, int(round(width * (0.003 + 0.018 * amount)))))
-        for column in np.atleast_1d(rng.choice(width, size=column_count, replace=False)):
-            _sort_pixel_line_runs(arr[:, int(column), :], rng, amount * 0.8)
+    rng = (
+        np.random.default_rng(control.event_seed)
+        if control is not None
+        else _phase2_effect_rng(seed, _PIXEL_SORTING_SALT, frame_index)
+    )
+    luma = analysis.luma if analysis is not None and analysis.luma.shape == arr.shape[:2] else _phase2_luma(arr)
+    if analysis is not None and analysis.luma.shape == arr.shape[:2]:
+        edge_x, edge_y = analysis.directional_edges()
+    else:
+        edge_x = np.abs(cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3))
+        edge_y = np.abs(cv2.Sobel(luma, cv2.CV_32F, 0, 1, ksize=3))
+    row_energy = edge_x.mean(axis=1) + luma.std(axis=1) * 0.55
+    if control is not None and control.focus_y is not None and control.event_strength > 0.0:
+        row_positions = np.linspace(0.0, 1.0, height, dtype=np.float32)
+        focus_weight = np.exp(-((row_positions - float(control.focus_y)) ** 2) / 0.035)
+        row_energy *= 1.0 + focus_weight * (0.35 + control.event_strength)
+    row_energy += rng.random(height, dtype=np.float32) * max(0.001, float(row_energy.max())) * 0.025
+    row_count = min(height, max(1, int(round(height * (0.008 + 0.27 * amount)))))
+    rows = np.argpartition(row_energy, -row_count)[-row_count:]
+    for row in np.sort(rows):
+        _sort_content_line_runs(
+            arr[int(row)],
+            luma[int(row)],
+            edge_x[int(row)],
+            amount,
+            bool((int(row) + frame_index + int(control.event_seed if control else seed or 0)) & 1),
+        )
+    if height >= 4 and amount >= 0.50:
+        column_energy = edge_y.mean(axis=0) + luma.std(axis=0) * 0.45
+        column_count = min(width, max(1, int(round(width * (0.004 + 0.026 * amount)))))
+        columns = np.argpartition(column_energy, -column_count)[-column_count:]
+        for column in np.sort(columns):
+            _sort_content_line_runs(
+                arr[:, int(column), :],
+                luma[:, int(column)],
+                edge_y[:, int(column)],
+                amount * 0.85,
+                bool((int(column) + frame_index) & 1),
+            )
     return arr
 
 
@@ -2074,48 +3458,75 @@ def _apply_databending_frame(
     frame_index: int,
     fps: int,
     seed: int | None,
+    analysis: _FrameMaterialAnalysis | None = None,
+    control: _FrameEffectControl | None = None,
 ) -> np.ndarray:
     source = _phase2_rgb_copy(frame)
     amount = _phase2_effect_amount(intensity)
     height, width = source.shape[:2]
     if amount <= 0.0 or height < 1 or width < 2:
         return source
-    params = _phase2_effect_rng(seed, _DATABENDING_SALT, 0)
-    phase = frame_index / max(1.0, float(fps))
-    row = np.arange(height, dtype=np.float32)
+    params = (
+        np.random.default_rng(control.event_seed)
+        if control is not None
+        else _phase2_effect_rng(seed, _DATABENDING_SALT, frame_index // max(1, fps // 3))
+    )
+    luma = analysis.luma if analysis is not None and analysis.luma.shape == source.shape[:2] else _phase2_luma(source)
+    row_mean = luma.mean(axis=1)
+    row_texture = luma.std(axis=1)
+    row_signature = np.floor(row_mean * 0.37 + row_texture * 0.63).astype(np.int64)
     x = np.arange(width, dtype=np.int64)[None, :]
     row_index = np.arange(height, dtype=np.int64)[:, None]
-    frequency_a = float(params.uniform(0.018, 0.052))
-    frequency_b = float(params.uniform(0.006, 0.019))
-    speed = float(params.uniform(0.7, 1.6))
-    base_phase = float(params.uniform(0.0, math.tau))
-    amplitude = 1.0 + amount * max(3.0, width * 0.055)
-    flowing_shift = np.rint(
-        np.sin(row * frequency_a + base_phase + phase * speed) * amplitude
-        + np.sin(row * frequency_b - phase * speed * 0.57) * amplitude * 0.42
-    ).astype(np.int64)
+    max_shift = max(2, int(width * (0.012 + 0.08 * amount)))
+    temporal_frame = control.event_frame if control is not None else frame_index
+    temporal_word = int(temporal_frame // max(1, fps // 4))
+    seed_word = int(params.integers(0, 1 << 30))
+    row_offsets = ((row_signature ^ temporal_word ^ seed_word) % (max_shift * 2 + 1)) - max_shift
+    texture_gate = float(np.percentile(row_texture, max(15.0, 68.0 - 38.0 * amount)))
+    active_rows = row_texture >= texture_gate
+    active_rows |= np.abs(row_mean - float(luma.mean())) > (58.0 - 32.0 * amount)
+    row_offsets = np.where(active_rows, row_offsets, 0)
     out = np.empty_like(source)
-    channel_offsets = params.integers(-max(1, int(amplitude)), max(2, int(amplitude) + 1), size=3)
+    channel_source = analysis.rgb if analysis is not None and analysis.rgb.shape == source.shape else source
+    channel_order = np.argsort(channel_source.reshape(-1, 3).mean(axis=0))
+    channel_offsets = (channel_order.astype(np.int64) - 1) * max(1, max_shift // 3)
+    channel_offsets += params.integers(-max(1, max_shift // 5), max(2, max_shift // 5 + 1), size=3)
     for channel in range(3):
-        indices = (x - flowing_shift[:, None] - int(channel_offsets[channel])) % width
+        active_channel_offset = np.where(active_rows, int(channel_offsets[channel]), 0)
+        indices = (x - row_offsets[:, None] - active_channel_offset[:, None]) % width
         out[:, :, channel] = source[row_index, indices, channel]
 
-    band_count = 1 + int(round(amount * 4.0))
-    band_params = _phase2_effect_rng(seed, _DATABENDING_SALT, 1)
-    for band_index in range(band_count):
-        center_phase = float(band_params.uniform(0.0, math.tau))
-        center = int(
-            (0.5 + 0.47 * math.sin(center_phase + phase * (0.55 + band_index * 0.13)))
-            * max(0, height - 1)
-        )
-        band_height = max(1, int(height * (0.012 + amount * float(band_params.uniform(0.025, 0.085)))))
-        top = max(0, min(height - band_height, center - band_height // 2))
-        bottom = min(height, top + band_height)
-        displacement = int(round(math.sin(phase * 1.7 + center_phase) * (2 + width * 0.08 * amount)))
-        band = out[top:bottom].astype(np.int16)
-        feedback = np.roll(band, displacement, axis=1)
-        mixed = np.mod(band * 3 + feedback * 2 + int(band_params.integers(0, 48)), 256)
-        out[top:bottom] = mixed.astype(np.uint8)
+    block_w = max(8, width // 18)
+    block_h = max(4, height // 14)
+    coarse_size = (max(1, math.ceil(width / block_w)), max(1, math.ceil(height / block_h)))
+    coarse_luma = cv2.resize(luma, coarse_size, interpolation=cv2.INTER_AREA)
+    if analysis is not None and analysis.luma.shape == source.shape[:2]:
+        edge_x, _ = analysis.directional_edges()
+    else:
+        edge_x = np.abs(cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3))
+    coarse_edge = cv2.resize(edge_x, coarse_size, interpolation=cv2.INTER_AREA)
+    block_gate = (coarse_luma > np.percentile(coarse_luma, 58.0 - 22.0 * amount))
+    block_gate &= coarse_edge > np.percentile(coarse_edge, max(12.0, 62.0 - 35.0 * amount))
+    mask = cv2.resize(block_gate.astype(np.uint8), (width, height), interpolation=cv2.INTER_NEAREST).astype(bool)
+    rolled = np.roll(source, max(1, max_shift // 2), axis=1)
+    reinterpret = np.stack((rolled[:, :, 1], source[:, :, 2], rolled[:, :, 0]), axis=2)
+    out[mask] = reinterpret[mask]
+
+    band_count = 1 + int(round(amount * 3.0))
+    ranked_rows = np.argsort(row_texture + np.abs(np.diff(row_mean, prepend=row_mean[0])))[::-1]
+    used: list[int] = []
+    for center in ranked_rows:
+        if any(abs(int(center) - prior) < block_h for prior in used):
+            continue
+        used.append(int(center))
+        top = max(0, int(center) - block_h // 2)
+        bottom = min(height, top + block_h)
+        stride = 2 if amount > 0.65 and (len(used) + temporal_word) % 2 else 1
+        offset = int(row_offsets[int(center)])
+        indices = (np.arange(width, dtype=np.int64) * stride + offset) % width
+        out[top:bottom, :, channel_order[0]] = source[top:bottom, indices, channel_order[-1]]
+        if len(used) >= band_count:
+            break
     return out
 
 
@@ -2125,40 +3536,87 @@ def _apply_circuit_bending_frame(
     frame_index: int,
     fps: int,
     seed: int | None,
+    previous: np.ndarray | Image.Image | None = None,
+    analysis: _FrameMaterialAnalysis | None = None,
+    control: _FrameEffectControl | None = None,
 ) -> np.ndarray:
     source = _phase2_rgb_copy(frame)
     amount = _phase2_effect_amount(intensity)
     height, width = source.shape[:2]
     if amount <= 0.0 or height < 1 or width < 2:
         return source
-    params = _phase2_effect_rng(seed, _CIRCUIT_BENDING_SALT, 0)
-    phase = frame_index / max(1.0, float(fps))
+    params = (
+        np.random.default_rng(control.event_seed)
+        if control is not None
+        else _phase2_effect_rng(seed, _CIRCUIT_BENDING_SALT, 0)
+    )
+    temporal_frame = control.event_frame if control is not None else frame_index
+    phase = temporal_frame / max(1.0, float(fps))
     base_phase = float(params.uniform(0.0, math.tau))
     oscillator_speed = float(params.uniform(1.0, 2.1))
     line_frequency = float(params.uniform(0.055, 0.13))
+    luma = analysis.luma if analysis is not None and analysis.luma.shape == source.shape[:2] else _phase2_luma(source)
+    edge = (
+        analysis.edge_magnitude
+        if analysis is not None and analysis.luma.shape == source.shape[:2]
+        else cv2.magnitude(
+            cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3),
+            cv2.Sobel(luma, cv2.CV_32F, 0, 1, ksize=3),
+        )
+    )
+    edge_response = _normalized_signal(cv2.GaussianBlur(edge, (0, 0), 1.2))
+    motion_response = np.zeros_like(luma, dtype=np.float32)
+    previous_arr: np.ndarray | None = None
+    if analysis is not None and analysis.previous_luma is not None:
+        motion_response = analysis.motion
+    if previous is not None:
+        if isinstance(previous, Image.Image):
+            previous_arr = _phase2_rgb_copy(previous.resize((width, height)))
+        else:
+            previous_arr = _phase2_rgb_copy(previous)
+            if previous_arr.shape[:2] != (height, width):
+                previous_arr = cv2.resize(previous_arr, (width, height), interpolation=cv2.INTER_AREA)
+        if analysis is None:
+            motion_response = _normalized_signal(np.abs(luma - _phase2_luma(previous_arr)))
+    bright_response = np.clip((luma - 150.0) / 105.0, 0.0, 1.0)
+    response = np.clip(edge_response * 0.52 + motion_response * 0.32 + bright_response * 0.16, 0.0, 1.0)
+    row_response = _normalized_signal(response.mean(axis=1) + response.max(axis=1) * 0.35)
     rows = np.arange(height, dtype=np.float32)
     amplitude = 1.0 + amount * max(4.0, width * 0.035)
     sync_shift = np.rint(
-        np.sin(rows * line_frequency + base_phase + phase * oscillator_speed) * amplitude
-        + np.sign(np.sin(rows * line_frequency * 0.31 - phase * 0.83)) * amplitude * 0.24
+        (
+            np.sin(rows * line_frequency + base_phase + phase * oscillator_speed)
+            + np.sign(np.sin(rows * line_frequency * 0.31 - phase * 0.83)) * 0.24
+        )
+        * amplitude
+        * (0.10 + row_response * 0.90)
     ).astype(np.int64)
     x = np.arange(width, dtype=np.int64)[None, :]
     row_index = np.arange(height, dtype=np.int64)[:, None]
     indices = (x - sync_shift[:, None]) % width
     out = source[row_index, indices, :].copy()
 
-    roll_amplitude = max(1, int(height * (0.008 + 0.045 * amount)))
-    vertical_roll = int(round(math.sin(base_phase * 0.7 + phase * 0.62) * roll_amplitude))
-    out = np.roll(out, vertical_roll, axis=0)
+    energy_centroid = float((row_response * rows).sum() / max(1e-6, row_response.sum()))
+    roll_amplitude = max(1, int(height * (0.004 + 0.026 * amount)))
+    vertical_roll = int(round(((energy_centroid / max(1, height - 1)) - 0.5) * 2.0 * roll_amplitude))
+    if amount > 0.35:
+        out = np.roll(out, vertical_roll, axis=0)
     chroma_jump = max(1, int(round((1.0 + width * 0.018 * amount) * math.sin(base_phase + phase * 1.31))))
-    out[:, :, 0] = np.roll(out[:, :, 0], chroma_jump, axis=1)
-    out[:, :, 2] = np.roll(out[:, :, 2], -chroma_jump, axis=1)
+    chroma_gate = response > np.percentile(response, max(30.0, 84.0 - 42.0 * amount))
+    shifted_red = np.roll(out[:, :, 0], chroma_jump, axis=1)
+    shifted_blue = np.roll(out[:, :, 2], -chroma_jump, axis=1)
+    out[:, :, 0] = np.where(chroma_gate, shifted_red, out[:, :, 0])
+    out[:, :, 2] = np.where(chroma_gate, shifted_blue, out[:, :, 2])
 
-    echo_shift = max(1, int(2 + width * 0.022 * amount))
-    echo = np.roll(out, echo_shift, axis=1).astype(np.int16)
     signal = out.astype(np.int16)
-    feedback_mix = 0.12 + 0.22 * amount
-    signal = np.rint(signal * (1.0 - feedback_mix) + echo * feedback_mix).astype(np.int16)
+    if previous_arr is not None:
+        feedback_shift = max(1, int(2 + width * 0.018 * amount))
+        feedback = np.roll(previous_arr, feedback_shift, axis=1).astype(np.float32)
+        feedback_mix = (0.08 + 0.30 * amount) * np.clip(response * 1.4, 0.0, 1.0)
+        signal = np.rint(
+            signal.astype(np.float32) * (1.0 - feedback_mix[:, :, None])
+            + feedback * feedback_mix[:, :, None]
+        ).astype(np.int16)
     gain = 1.0 + 0.35 * amount * math.sin(base_phase + phase * 2.2)
     bias = int(round(34.0 * amount * math.sin(base_phase * 1.9 - phase * 1.4)))
     signal = np.clip(np.rint(signal.astype(np.float32) * gain + bias), 0, 255).astype(np.int16)
@@ -2168,14 +3626,20 @@ def _apply_circuit_bending_frame(
     signal[signal >= high_clip] = 255
     out = signal.astype(np.uint8)
 
-    bar_count = 1 + int(round(amount * 2.0))
-    for bar_index in range(bar_count):
-        bar_phase = base_phase + bar_index * 2.17 + phase * (0.77 + bar_index * 0.11)
-        center = int((0.5 + 0.46 * math.sin(bar_phase)) * max(0, height - 1))
+    bar_count = 1 + int(round(amount * 3.0))
+    peak_rows = np.argsort(row_response)[::-1]
+    selected_rows: list[int] = []
+    for center in peak_rows:
+        if any(abs(int(center) - prior) < max(2, height // 24) for prior in selected_rows):
+            continue
+        selected_rows.append(int(center))
         bar_height = max(1, int(height * (0.002 + 0.012 * amount)))
-        top = max(0, center - bar_height // 2)
+        top = max(0, int(center) - bar_height // 2)
         bottom = min(height, top + bar_height)
-        out[top:bottom, :, :] = 255 if math.sin(bar_phase * 1.7) >= 0 else 0
+        source_level = float(luma[int(center)].mean())
+        out[top:bottom, :, :] = 255 if source_level >= 127.5 else 0
+        if len(selected_rows) >= bar_count:
+            break
     if amount > 0.55 and math.sin(base_phase + phase * 0.91) > 0.88 - 0.12 * amount:
         out = np.subtract(255, out, dtype=np.uint8)
     return np.ascontiguousarray(out, dtype=np.uint8)
@@ -2186,44 +3650,81 @@ def _apply_hex_editing_frame(
     intensity: float,
     frame_index: int,
     seed: int | None,
+    analysis: _FrameMaterialAnalysis | None = None,
+    control: _FrameEffectControl | None = None,
 ) -> np.ndarray:
-    arr = _phase2_rgb_copy(frame)
+    source = _phase2_rgb_copy(frame)
+    arr = source.copy()
     amount = _phase2_effect_amount(intensity)
-    flat = arr.reshape(-1)
-    total = int(flat.size)
-    if amount <= 0.0 or total < 6:
+    height, width = arr.shape[:2]
+    if amount <= 0.0 or height < 4 or width < 4:
         return arr
-    rng = _phase2_effect_rng(seed, _HEX_EDITING_SALT, frame_index)
-    mutation_count = 1 + int(round(3.0 + 13.0 * amount))
-    max_span = min(max(3, total // 5), max(3, int(total * (0.0005 + 0.0065 * amount))))
-    for _ in range(mutation_count):
-        span = int(rng.integers(3, max_span + 1))
-        start = int(rng.integers(0, max(1, total - span + 1)))
-        end = start + span
-        operation = int(rng.integers(0, 7))
+    rng = (
+        np.random.default_rng(control.event_seed)
+        if control is not None
+        else _phase2_effect_rng(seed, _HEX_EDITING_SALT, frame_index)
+    )
+    luma = analysis.luma if analysis is not None and analysis.luma.shape == source.shape[:2] else _phase2_luma(source)
+    edge = (
+        analysis.edge_magnitude
+        if analysis is not None and analysis.luma.shape == source.shape[:2]
+        else cv2.magnitude(
+            cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3),
+            cv2.Sobel(luma, cv2.CV_32F, 0, 1, ksize=3),
+        )
+    )
+    block = max(10, int(min(height, width) * (0.025 + 0.040 * amount)))
+    grid_w = max(1, math.ceil(width / block))
+    grid_h = max(1, math.ceil(height / block))
+    coarse_luma = cv2.resize(luma, (grid_w, grid_h), interpolation=cv2.INTER_AREA)
+    coarse_edge = cv2.resize(edge, (grid_w, grid_h), interpolation=cv2.INTER_AREA)
+    score = _normalized_signal(coarse_edge) * 0.72
+    score += _normalized_signal(np.abs(coarse_luma - float(luma.mean()))) * 0.28
+    if control is not None and control.focus_x is not None and control.focus_y is not None:
+        grid_y, grid_x = np.mgrid[0:grid_h, 0:grid_w]
+        focus_x = float(control.focus_x) * max(1, grid_w - 1)
+        focus_y = float(control.focus_y) * max(1, grid_h - 1)
+        focus_distance = (
+            ((grid_x - focus_x) / max(1.0, grid_w * 0.32)) ** 2
+            + ((grid_y - focus_y) / max(1.0, grid_h * 0.32)) ** 2
+        )
+        score += np.exp(-focus_distance).astype(np.float32) * (0.18 + 0.34 * control.event_strength)
+    score += rng.random(score.shape, dtype=np.float32) * 0.025
+    ranked = np.argsort(score.ravel())[::-1]
+    mutation_count = min(len(ranked), max(1, int(round(1.0 + 10.0 * amount))))
+    candidate_pool = ranked[: min(len(ranked), max(mutation_count * 5, 8))]
+    for mutation_index, flat_index in enumerate(ranked[:mutation_count]):
+        target_y, target_x = np.unravel_index(int(flat_index), score.shape)
+        source_flat = int(candidate_pool[(mutation_index * 3 + int(rng.integers(0, len(candidate_pool)))) % len(candidate_pool)])
+        source_y, source_x = np.unravel_index(source_flat, score.shape)
+        ty0, tx0 = int(target_y * block), int(target_x * block)
+        sy0, sx0 = int(source_y * block), int(source_x * block)
+        chunk_h = block * (1 + int(round(amount)))
+        chunk_w = block * (2 + int(round(3.0 * amount)))
+        bh = min(chunk_h, height - ty0, height - sy0)
+        bw = min(chunk_w, width - tx0, width - sx0)
+        if bh <= 0 or bw <= 0:
+            continue
+        operation = (mutation_index + int(rng.integers(0, 4))) % 4
+        source_chunk = source[sy0 : sy0 + bh, sx0 : sx0 + bw].copy()
         if operation == 0:
-            value = np.uint8(rng.integers(1, 256))
-            flat[start:end] = np.bitwise_xor(flat[start:end], value)
+            arr[ty0 : ty0 + bh, tx0 : tx0 + bw] = source_chunk
         elif operation == 1:
-            values = flat[start:end].astype(np.uint16)
-            flat[start:end] = (((values << 4) & 0xF0) | (values >> 4)).astype(np.uint8)
+            repeat_width = max(2, bw // max(2, 5 - int(round(amount * 2))))
+            word = source_chunk[:, :repeat_width]
+            arr[ty0 : ty0 + bh, tx0 : tx0 + bw] = np.tile(
+                word,
+                (1, math.ceil(bw / repeat_width), 1),
+            )[:, :bw]
         elif operation == 2:
-            flat[start:end] = np.uint8(0 if bool(rng.integers(0, 2)) else 255)
-        elif operation == 3:
-            source_start = int(rng.integers(0, max(1, total - span + 1)))
-            flat[start:end] = flat[source_start : source_start + span].copy()
-        elif operation == 4:
-            shift = int(rng.integers(1, max(2, span)))
-            flat[start:end] = np.roll(flat[start:end].copy(), shift)
-        elif operation == 5:
-            delta = int(rng.integers(-112, 113))
-            flat[start:end] = np.mod(flat[start:end].astype(np.int16) + delta, 256).astype(np.uint8)
+            channel = mutation_index % 3
+            damaged = source_chunk[:, :, channel].astype(np.uint16)
+            arr[ty0 : ty0 + bh, tx0 : tx0 + bw, channel] = (
+                ((damaged << 4) & 0xF0) | (damaged >> 4)
+            ).astype(np.uint8)
         else:
-            other = int(rng.integers(0, max(1, total - span + 1)))
-            first = flat[start:end].copy()
-            second = flat[other : other + span].copy()
-            flat[start:end] = second
-            flat[other : other + span] = first
+            offset = max(1, int(round(bw * (0.18 + 0.30 * amount))))
+            arr[ty0 : ty0 + bh, tx0 : tx0 + bw] = np.roll(source_chunk, offset, axis=1)
     return arr
 
 
@@ -2232,19 +3733,119 @@ def _apply_random_noise_bw_frame(
     intensity: float,
     frame_index: int,
     seed: int | None,
+    analysis: _FrameMaterialAnalysis | None = None,
 ) -> np.ndarray:
     source = _phase2_rgb_copy(frame)
     amount = _phase2_effect_amount(intensity)
-    luma = (
-        source[:, :, 0].astype(np.float32) * 0.2126
-        + source[:, :, 1].astype(np.float32) * 0.7152
-        + source[:, :, 2].astype(np.float32) * 0.0722
-    )
+    luma = analysis.luma if analysis is not None and analysis.luma.shape == source.shape[:2] else _phase2_luma(source)
+    if analysis is not None and analysis.luma.shape == source.shape[:2]:
+        texture = analysis.texture
+        edge = analysis.edge_magnitude
+    else:
+        local_mean = cv2.GaussianBlur(luma, (0, 0), 2.0)
+        texture = _normalized_signal(np.abs(luma - local_mean))
+        edge = cv2.magnitude(
+            cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3),
+            cv2.Sobel(luma, cv2.CV_32F, 0, 1, ksize=3),
+        )
+    material_activity = np.clip(texture * 0.60 + _normalized_signal(edge) * 0.40, 0.0, 1.0)
     rng = _phase2_effect_rng(seed, _RANDOM_NOISE_BW_SALT, frame_index)
     stochastic_threshold = rng.random(luma.shape, dtype=np.float32) * 255.0
-    threshold = 127.5 * (1.0 - amount) + stochastic_threshold * amount
+    noise_weight = amount * (0.16 + material_activity * 0.84)
+    threshold = 127.5 * (1.0 - noise_weight) + stochastic_threshold * noise_weight
     binary = np.where(luma >= threshold, np.uint8(255), np.uint8(0))
     return np.repeat(binary[:, :, None], 3, axis=2)
+
+
+def _validate_zone_effect_candidate(
+    candidate: object,
+    expected_shape: tuple[int, int, int],
+    effect: str,
+) -> np.ndarray:
+    if not isinstance(candidate, np.ndarray):
+        raise RenderError(f"Zone {effect} candidate is not a NumPy RGB frame.")
+    if candidate.dtype != np.uint8:
+        raise RenderError(f"Zone {effect} candidate must use uint8 pixels.")
+    if candidate.shape != expected_shape:
+        raise RenderError(
+            f"Zone {effect} candidate shape {candidate.shape!r} does not match {expected_shape!r}."
+        )
+    if not candidate.flags.writeable:
+        raise RenderError(f"Zone {effect} candidate is not writable.")
+    return candidate
+
+
+def _apply_phase2_zone_effect(
+    effect: str,
+    frame: np.ndarray,
+    rectangle: tuple[int, int, int, int],
+    intensity: float,
+    frame_index: int,
+    fps: int,
+    seed: int | None,
+    analysis: _FrameMaterialAnalysis,
+    control: _FrameEffectControl,
+    previous: np.ndarray | None,
+) -> None:
+    """Run one existing effect against a copied ROI and replace only that ROI."""
+    left, top, right, bottom = rectangle
+    try:
+        candidate_input = frame[top:bottom, left:right].copy()
+        if effect == "pixel_sorting":
+            candidate = _apply_pixel_sorting_frame(
+                candidate_input,
+                intensity * control.strength,
+                frame_index,
+                seed,
+                analysis,
+                control,
+            )
+        elif effect == "databending":
+            candidate = _apply_databending_frame(
+                candidate_input,
+                intensity * control.strength,
+                frame_index,
+                fps,
+                seed,
+                analysis,
+                control,
+            )
+        elif effect == "circuit_bending":
+            candidate = _apply_circuit_bending_frame(
+                candidate_input,
+                intensity * control.strength,
+                frame_index,
+                fps,
+                seed,
+                previous,
+                analysis,
+                control,
+            )
+        elif effect == "hex_editing":
+            candidate = _apply_hex_editing_frame(
+                candidate_input,
+                intensity * control.strength,
+                frame_index,
+                seed,
+                analysis,
+                control,
+            )
+        elif effect == "random_noise_bw":
+            candidate = _apply_random_noise_bw_frame(
+                candidate_input,
+                intensity * control.strength,
+                frame_index,
+                seed,
+                analysis,
+            )
+        else:
+            raise RenderError(f"Unsupported Zone effect: {effect}")
+        validated = _validate_zone_effect_candidate(candidate, candidate_input.shape, effect)
+        frame[top:bottom, left:right] = validated
+    except RenderError:
+        raise
+    except Exception as exc:
+        raise RenderError(f"Zone {effect} processing failed: {exc}") from exc
 
 
 def _apply_phase2_frame_effects(
@@ -2254,20 +3855,170 @@ def _apply_phase2_frame_effects(
     frame_index: int,
     fps: int,
     seed: int | None,
+    previous: Image.Image | None = None,
+    choreographer: _FrameEffectChoreographer | None = None,
+    material: np.ndarray | Image.Image | None = None,
+    zones: tuple[ZoneDefinition, ...] = (),
+    effect_zone_assignments: dict[str, str] | None = None,
 ) -> Image.Image:
     if not any(_effect_on(effects, key) for key in PHASE2_FRAME_EFFECT_ORDER):
         return image
-    frame: np.ndarray | Image.Image = image
-    if _effect_on(effects, "pixel_sorting"):
-        frame = _apply_pixel_sorting_frame(frame, intensity, frame_index, seed)
-    if _effect_on(effects, "databending"):
-        frame = _apply_databending_frame(frame, intensity, frame_index, fps, seed)
-    if _effect_on(effects, "circuit_bending"):
-        frame = _apply_circuit_bending_frame(frame, intensity, frame_index, fps, seed)
-    if _effect_on(effects, "hex_editing"):
-        frame = _apply_hex_editing_frame(frame, intensity, frame_index, seed)
-    if _effect_on(effects, "random_noise_bw"):
-        frame = _apply_random_noise_bw_frame(frame, intensity, frame_index, seed)
+    local_choreographer = choreographer
+    if local_choreographer is None:
+        local_choreographer = _FrameEffectChoreographer(effects, intensity, fps, seed)
+        if previous is not None:
+            previous_rgb = _phase2_rgb_copy(previous.resize(image.size))
+            local_choreographer.previous_rgb = previous_rgb
+            local_choreographer.previous_luma = _phase2_luma(previous_rgb)
+    normalized_zones, normalized_assignments, _ = normalize_zone_state(
+        list(zones) if isinstance(zones, (list, tuple)) else zones,
+        effect_zone_assignments,
+    )
+    zone_by_id = {zone.id: zone for zone in normalized_zones}
+    effect_rectangles: dict[str, tuple[int, int, int, int]] = {}
+    for effect, zone_id in normalized_assignments.items():
+        if not _effect_on(effects, effect):
+            continue
+        rectangle = rasterize_zone(zone_by_id[zone_id], image.size)
+        if rectangle is not None:
+            effect_rectangles[effect] = rectangle
+
+    # Full Frame is the compatibility oracle: keep the pre-Zones path byte-for-byte.
+    if not effect_rectangles:
+        analysis = local_choreographer.analysis_for(image if material is None else material)
+        controls = local_choreographer.controls_for(analysis, frame_index)
+        effect_seed = local_choreographer.seed
+        frame: np.ndarray | Image.Image = _phase2_rgb_copy(image)
+        if _effect_on(effects, "pixel_sorting"):
+            control = controls["pixel_sorting"]
+            frame = _apply_pixel_sorting_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                effect_seed,
+                analysis,
+                control,
+            )
+        if _effect_on(effects, "databending"):
+            control = controls["databending"]
+            frame = _apply_databending_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                fps,
+                effect_seed,
+                analysis,
+                control,
+            )
+        if _effect_on(effects, "circuit_bending"):
+            control = controls["circuit_bending"]
+            frame = _apply_circuit_bending_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                fps,
+                effect_seed,
+                local_choreographer.previous_rgb,
+                analysis,
+                control,
+            )
+        if _effect_on(effects, "hex_editing"):
+            control = controls["hex_editing"]
+            frame = _apply_hex_editing_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                effect_seed,
+                analysis,
+                control,
+            )
+        if _effect_on(effects, "random_noise_bw"):
+            control = controls["random_noise_bw"]
+            frame = _apply_random_noise_bw_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                effect_seed,
+                analysis,
+            )
+        local_choreographer.commit(analysis, image)
+        return Image.fromarray(_phase2_rgb_copy(frame), mode="RGB")
+
+    effect_input = _phase2_rgb_copy(image)
+    material_input = _phase2_rgb_copy(image if material is None else material)
+    if material_input.shape[:2] != effect_input.shape[:2]:
+        material_input = cv2.resize(
+            material_input,
+            (effect_input.shape[1], effect_input.shape[0]),
+            interpolation=cv2.INTER_AREA,
+        )
+    analysis = local_choreographer.analysis_for(image if material is None else material)
+    zone_analyses: dict[tuple[int, int, int, int], _FrameMaterialAnalysis] = {}
+    effect_analyses: dict[str, _FrameMaterialAnalysis] = {}
+    for effect, rectangle in effect_rectangles.items():
+        if rectangle not in zone_analyses:
+            if len(zone_analyses) >= MAX_ZONES:
+                raise RenderError("Zone analysis cache exceeded the three-Zone limit.")
+            zone_analyses[rectangle] = local_choreographer.analysis_for_zone(
+                material_input,
+                rectangle,
+            )
+        effect_analyses[effect] = zone_analyses[rectangle]
+    controls = local_choreographer.controls_for(analysis, frame_index, effect_analyses)
+    effect_seed = local_choreographer.seed
+    frame = effect_input.copy()
+    for effect in PHASE2_FRAME_EFFECT_ORDER:
+        if not _effect_on(effects, effect):
+            continue
+        rectangle = effect_rectangles.get(effect)
+        control = controls[effect]
+        if rectangle is not None:
+            previous_zone = (
+                local_choreographer.zone_previous_rgb.get(rectangle)
+                if effect == "circuit_bending"
+                else None
+            )
+            _apply_phase2_zone_effect(
+                effect,
+                frame,
+                rectangle,
+                intensity,
+                frame_index,
+                fps,
+                effect_seed,
+                effect_analyses[effect],
+                control,
+                previous_zone,
+            )
+        elif effect == "pixel_sorting":
+            frame = _apply_pixel_sorting_frame(
+                frame, intensity * control.strength, frame_index, effect_seed, analysis, control
+            )
+        elif effect == "databending":
+            frame = _apply_databending_frame(
+                frame, intensity * control.strength, frame_index, fps, effect_seed, analysis, control
+            )
+        elif effect == "circuit_bending":
+            frame = _apply_circuit_bending_frame(
+                frame,
+                intensity * control.strength,
+                frame_index,
+                fps,
+                effect_seed,
+                local_choreographer.previous_rgb,
+                analysis,
+                control,
+            )
+        elif effect == "hex_editing":
+            frame = _apply_hex_editing_frame(
+                frame, intensity * control.strength, frame_index, effect_seed, analysis, control
+            )
+        else:
+            frame = _apply_random_noise_bw_frame(
+                frame, intensity * control.strength, frame_index, effect_seed, analysis
+            )
+    local_choreographer.commit(analysis, image)
+    local_choreographer.commit_zones(zone_analyses, effect_input)
     return Image.fromarray(_phase2_rgb_copy(frame), mode="RGB")
 
 

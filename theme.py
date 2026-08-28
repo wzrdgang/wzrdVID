@@ -381,10 +381,31 @@ def app_stylesheet() -> str:
 
     QGroupBox#blockDetailPanel,
     QGroupBox#coveragePanel,
+    QGroupBox#styleFxCoveragePanel,
+    QGroupBox#zonesPanel,
     QGroupBox#transitionPanel,
     QGroupBox#endingPanel {{
         background-color: rgba(246, 184, 212, 170);
         background-image: url("{panel_washed}");
+    }}
+
+    QWidget#datamoshModesContainer {{
+        background-color: rgba(255, 232, 200, 224);
+        background-image: none;
+        border: 0;
+        border-radius: 9px;
+    }}
+
+    QWidget#datamoshModesContainer QCheckBox,
+    QWidget#datamoshModesContainer QLabel {{
+        background-color: transparent;
+        background-image: none;
+        border: 0;
+    }}
+
+    QWidget#zoneCanvas {{
+        background-color: transparent;
+        border: 0;
     }}
 
     QGroupBox::title {{
@@ -412,7 +433,7 @@ def app_stylesheet() -> str:
         selection-color: {PALETTE["black"]};
     }}
 
-    QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+    QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QListWidget:focus {{
         background-color: #ffffff;
         background-image: url("{control_patina}");
         border-color: {PALETTE["pink_hot"]};
@@ -461,6 +482,52 @@ def app_stylesheet() -> str:
     QTableWidget::item:selected {{
         background-color: {PALETTE["mint"]};
         background-image: url("{control_patina}");
+    }}
+
+    QListWidget#codecLayerList {{
+        background-color: {PALETTE["off_white"]};
+        background-image: url("{table_static}");
+        border: 3px solid {PALETTE["black"]};
+        border-radius: 13px;
+        color: {PALETTE["black"]};
+        font-family: {MONO_FONT_STACK};
+        font-weight: 900;
+        outline: 0;
+    }}
+
+    QListWidget#zoneList {{
+        background-color: {PALETTE["off_white"]};
+        background-image: url("{table_static}");
+        border: 3px solid {PALETTE["black"]};
+        border-radius: 11px;
+        color: {PALETTE["black"]};
+        font-family: {MONO_FONT_STACK};
+        font-weight: 900;
+        outline: 0;
+    }}
+
+    QListWidget#zoneList::item {{
+        min-height: 20px;
+        padding: 3px 8px;
+        border-bottom: 1px solid {PALETTE["black"]};
+    }}
+
+    QListWidget#zoneList::item:selected {{
+        background-color: {PALETTE["mint"]};
+        color: {PALETTE["black"]};
+    }}
+
+    QListWidget#codecLayerList::item {{
+        min-height: 22px;
+        padding: 4px 9px;
+        border-bottom: 1px solid {PALETTE["black"]};
+        background-image: url("{table_static}");
+    }}
+
+    QListWidget#codecLayerList::item:selected {{
+        background-color: {PALETTE["mint"]};
+        background-image: url("{control_patina}");
+        color: {PALETTE["black"]};
     }}
 
     QTableWidget::indicator {{

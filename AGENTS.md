@@ -34,10 +34,10 @@ Product boundaries:
 
 ## 3. Repo Structure
 
-- `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling, render worker threads, drag/drop and file picker wiring.
+- `app.py`: PySide6 desktop application entry point, UI construction, settings/project JSON handling (including the persistent five-mode codec Layer order), render worker threads, drag/drop and file picker wiring.
 - `app_i18n.py`: lightweight desktop UI localization resources and language fallback helpers.
-- `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, optimization handoff.
-- `datamosh.py`: authentic desktop MPEG-4 Part 2 I/P-VOP parsing/manipulation, deterministic event selection, and safe silent H.264 transcode used only when DATAMOSHING is enabled.
+- `renderer.py`: desktop render pipeline, timeline expansion, frame rendering, ANSI/chunky conversion, effects, bypass intervals, transitions/endings, explicit saved codec Layer dispatch, and optimization handoff.
+- `datamosh.py`: authentic desktop MPEG-4 Part 2 I/P-VOP parsing/manipulation, canonical/persisted-order DATAMOSHING/Overflow/SKRRT/Scatter/Bleed operations, order-independent frozen event plans, deterministic last-writer execution, shared bounded temporal indexing, controlled-stream SKRRT reverse-prediction (Full Frame or Zone-composed full-size auxiliaries) and Scatter fragment preparation, a shared one-I/P-only auxiliary encoding/validation contract, and one safe silent H.264 transcode when any codec mode is enabled.
 - `still_cache.py`: still-image loading and HEIC/HEIF proxy caching under the app-managed `StillCache` directory.
 - `ffmpeg_utils.py`: ffmpeg/ffprobe discovery, probing, encoding, muxing, source audio building, audio mixing, optimization/transcode helpers.
 - `presets.py`: ANSI/chunky style presets and descriptions.
@@ -86,7 +86,7 @@ Generated/build outputs that should not be edited directly:
 High-risk files/directories:
 
 - `renderer.py`: affects output timing, frame conversion, effects, audio planning, bypass logic, optimization path.
-- `datamosh.py`: affects temporary MPEG-4 prediction structure, Style-boundary anchors, frame/duration preservation, loop-tail protection, and the safe pre-audio H.264 intermediate.
+- `datamosh.py`: affects persisted codec Layer ordering and last-writer composition, order-independent operation plans, temporary MPEG-4 prediction structure, bounded temporal indexing/window extraction/SKRRT Zone frame composition/exact frame-clocked fragment assembly/auxiliary encoding, the shared maximum scene-change-threshold and strict one-I/P-only auxiliary validator, material/transition event maps, Style-boundary anchors, frame/duration preservation, loop-tail protection, and the safe pre-audio H.264 intermediate.
 - `still_cache.py`: affects still-image loading, HEIC/HEIF proxy generation, `StillCache` paths, cache keys, and cache cleanup targets.
 - `ffmpeg_utils.py`: affects ffmpeg command construction, audio muxing/mixing, file size optimization, path safety.
 - `app.py`: affects desktop UI, project settings, source timeline handling, render settings, worker threads.
@@ -216,7 +216,7 @@ Deploy/preview:
 | Docs-only | `git status --short --branch`, `git diff --check`, targeted `rg` for required sections/terms. |
 | UI/content-only desktop | Docs-only checks plus `python3 -m py_compile app.py theme.py`; offscreen screenshot if layout/wrapping may change. |
 | UI/content-only Pages | Docs-only checks plus `node --check docs/lite/app.js` if Lite JS changed; local static server and `curl` landing/Lite pages. |
-| Component logic desktop | `python3 -m py_compile app.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke for changed flow where practical. |
+| Component logic desktop | `python3 -m py_compile app.py renderer.py datamosh.py ffmpeg_utils.py presets.py theme.py run.py`; focused smoke for changed flow where practical. Codec Layer changes additionally require old/malformed state migration, duplicate/unknown rejection, same-order determinism, meaningful overlapping order permutations, unchanged per-mode plans/intensity/auxiliary provenance, and source/package render checks. |
 | Lite/browser logic | `node --check docs/lite/app.js`; local static server; browser/headless smoke if practical; grep for forbidden upload APIs when privacy-relevant. Lite audio changes also require source-off/source-only/Add-only/mixed output checks, source-to-visual-cut sync including still silence, and repeated-render/reset graph cleanup. |
 | Apple Lite wrapper groundwork | `python3 apple-lite/scripts/prepare_lite_web_bundle.py`; `plutil -lint apple-lite/WZRDVIDLite/App/Info.plist`; Swift parse/build with the iPhone Simulator SDK if Xcode is installed; `python3 apple-lite/scripts/run_simulator_smoke.py` when simulator UI behavior is in scope; for audio changes require exported-file track and PCM/frequency evidence rather than track count alone; keep generated `LiteWeb/` and `DerivedData/` out of git. |
 | Routing/navigation | Local static server; `curl` changed pages; verify relative asset/link paths. |

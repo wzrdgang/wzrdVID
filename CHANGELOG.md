@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-08-27
+
+### More organic Style corruption
+
+- Reworked Pixel Sorting, Databending, Circuit Bending, Hex Editing, and Random Noise B/W around deterministic, material-responsive scheduling. Corruption now follows source motion, luminance, edges, texture, and transitions through irregular lulls, clusters, damage, and recovery while preserving seeded repeatability and clean Style boundaries.
+
+### DATAMOSH MODES
+
+- Expanded the codec-art palette into five clearly named modes: transition-aware `DATAMOSHING`, recursively accumulating `spILL!`, reverse-prediction `SKRRT`, spatial-fragment `ShShSHa`, and transition-flow `FLOWs`.
+- Strengthened auxiliary-stream validation and fail-closed behavior so SKRRT and ShShSHa accept only their intended single-I-anchor/P-only structures before prediction data reaches the final render.
+
+### Layer
+
+- Added persistent user-controlled ordering for all five DATAMOSH modes. Ordered complete-VOP writers use deterministic last-writer semantics while sharing one controlled MPEG-4 Part 2 encode and one safe H.264/yuv420p transcode.
+- Preserved the historical order for older state, malformed or missing Layer data, and Reset; duplicate or unknown operation identifiers are rejected.
+
+### Style FX Coverage
+
+- Added an independent Style FX Coverage control with full, random-clean, manual-clean, and combined modes. It gates optional Style effects separately from ANSI Coverage and protects temporal clean intervals across frame and codec effects.
+
+### Zones and spatial SKRRT
+
+- Added up to three static named Zones in normalized final-output space with create, rename, duplicate, delete, move, resize, and percentage geometry controls.
+- Added six assignment rows: Pixel Sorting, Databending, Circuit Bending, Hex Editing, and Random Noise B/W remain hard-contained to their assigned rectangle; SKRRT uses authentic spatial reverse prediction with bounded decoded codec leakage and explicit recovery.
+- Advanced newly saved desktop state to schema 6. Schema 3/4/5 state migrates to no Zones/Full Frame, malformed Zone data repairs safely, and ShShSHa plus every other codec mode remain deliberately Zone-ineligible.
+
+### Reliability and presentation
+
+- Fixed spatial-fragment frame-clock alignment for long prepared branches, kept the five DATAMOSH activation controls compact and readable, and gave the activation strip one continuous themed background.
+- Renamed the visible direct-cut transition to `None` while retaining its compatible persisted identity. Source media, audio timing, Preview, Random, Loop, framing, and the final H.264/AAC transport contracts remain unchanged.
+
 ## v0.3.0 — 2026-08-25
 
 - Added a macOS DMG packaging workflow with the conventional `WZRD.VID.app` → `Applications` drag-install layout. The package path validates the ad-hoc app before and after imaging, and isolated replacement testing confirms app-support settings, ImportedMedia, StillCache, Previews, and external recipe files remain outside the replaced bundle.
