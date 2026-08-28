@@ -479,6 +479,8 @@ class DatamoshTransition:
     from_kind: str
     to_kind: str
     visual_transition: str
+    transition_ordinal: int = 0
+    output_time: float | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -3734,6 +3736,7 @@ def apply_datamosh(
     eligible_start_frame: int,
     absolute_frame_offset: int,
     loop_friendly: bool,
+    loop_protected_tail_start: int | None = None,
     video_crf: int,
     video_bitrate: int | None,
     transitions: tuple[DatamoshTransition, ...] = (),
@@ -3755,11 +3758,13 @@ def apply_datamosh(
     controlled_stream = temporary / "controlled_prediction.m4v"
     manipulated_stream = temporary / "manipulated_prediction.m4v"
     gop_size = max(4, min(30, int(round(float(fps)))))
-    protected_tail_start = (
-        _loop_protected_tail_start(frame_count, fps)
-        if loop_friendly
-        else frame_count
-    )
+    protected_tail_start = frame_count
+    if loop_friendly:
+        protected_tail_start = (
+            _loop_protected_tail_start(frame_count, fps)
+            if loop_protected_tail_start is None
+            else max(0, min(frame_count, int(loop_protected_tail_start)))
+        )
     if operations:
         configured_operations = tuple(
             replace(

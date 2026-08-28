@@ -193,6 +193,7 @@ class RenderSettings:
     timeline_items: list[TimelineItem] = field(default_factory=list)
     experimental_frame_pipe: bool = False
     force_legacy_png_staging: bool = False
+    preview_duration: float | None = None
 
 
 @dataclass(frozen=True)
@@ -1105,14 +1106,14 @@ def render_project(
     probe_started = time.perf_counter()
     timeline_segments, timeline_duration = _build_timeline(settings)
     audio_mode = _audio_mode(settings)
-    external_audio = _uses_external_audio(settings)
+    configured_external_audio = _uses_external_audio(settings)
 
     audio_start = settings.audio_start
     audio_end = settings.audio_end
     external_audio_duration: float | None = None
     selected_audio_duration: float | None = None
     selected_audio_clip_duration: float | None = None
-    if external_audio:
+    if configured_external_audio:
         audio_duration = ffmpeg_utils.get_audio_duration(settings.audio_path)
         external_audio_duration = audio_duration
         audio_start, audio_end = ffmpeg_utils.validate_time_range(
@@ -1157,13 +1158,24 @@ def render_project(
             loop_timeline=False,
         )
     _emit_elapsed(log, "Probe/planning stage", probe_started)
-    render_duration = playback.output_duration
+    full_output_duration = playback.output_duration
+    configured_settings = settings
+    configured_audio_start = audio_start
+    configured_audio_end = audio_end
+    render_duration = _render_window_duration(settings, full_output_duration)
+    settings, audio_start, audio_end, external_audio = _preview_audio_execution_settings(
+        settings,
+        audio_start,
+        audio_end,
+        full_output_duration,
+        render_duration,
+    )
     _emit_long_media_warnings(
         timeline_segments,
         playback,
         external_audio_duration=external_audio_duration,
         selected_audio_clip_duration=selected_audio_clip_duration,
-        settings=settings,
+        settings=configured_settings,
         log=log,
     )
     source_count = len({segment.path for segment in timeline_segments})
@@ -1173,13 +1185,13 @@ def render_project(
         f"{ffmpeg_utils.format_duration(playback.source_duration)} selected.",
     )
     if settings.max_video_length is None:
-        _emit(log, f"Max video length: auto/full selected timeline ({ffmpeg_utils.format_duration(render_duration)}).")
+        _emit(log, f"Max video length: auto/full selected timeline ({ffmpeg_utils.format_duration(full_output_duration)}).")
         if settings.random_clip_assembly:
             _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for the selected timeline duration.")
     elif settings.random_clip_assembly:
-        _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(render_duration)}.")
+        _emit(log, f"Random clip assembly: built {len(timeline_segments)} randomized segment(s) for {ffmpeg_utils.format_duration(full_output_duration)}.")
     else:
-        _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(render_duration)}.")
+        _emit(log, f"Max video length: output capped at {ffmpeg_utils.format_duration(full_output_duration)}.")
     if settings.style_begin_time <= 0:
         _emit(log, "Style begins at: 0:00 (first output frame).")
     elif settings.style_begin_time >= settings.output_time_offset + render_duration:
@@ -1209,32 +1221,35 @@ def render_project(
         _emit(log, "Audio: keeping selected source timeline audio when available.")
     else:
         _emit(log, "Audio: silent output.")
-    if external_audio and settings.audio_timeline_start > 0:
-        _emit(log, f"External audio starts in video at {ffmpeg_utils.format_duration(settings.audio_timeline_start)}.")
-    if external_audio and settings.audio_timeline_end is not None:
-        _emit(log, f"External audio stops in video at {ffmpeg_utils.format_duration(settings.audio_timeline_end)}.")
-    if external_audio:
-        trim_end = "auto" if audio_end is None else ffmpeg_utils.format_duration(audio_end)
-        placement_end = "auto/output end" if settings.audio_timeline_end is None else ffmpeg_utils.format_duration(settings.audio_timeline_end)
+    if configured_external_audio and configured_settings.audio_timeline_start > 0:
+        _emit(log, f"External audio starts in video at {ffmpeg_utils.format_duration(configured_settings.audio_timeline_start)}.")
+    if configured_external_audio and configured_settings.audio_timeline_end is not None:
+        _emit(log, f"External audio stops in video at {ffmpeg_utils.format_duration(configured_settings.audio_timeline_end)}.")
+    if configured_external_audio:
+        trim_end = "auto" if configured_audio_end is None else ffmpeg_utils.format_duration(configured_audio_end)
+        placement_end = "auto/output end" if configured_settings.audio_timeline_end is None else ffmpeg_utils.format_duration(configured_settings.audio_timeline_end)
         _emit(
             log,
             "Requested external audio source trim: "
-            f"{ffmpeg_utils.format_duration(audio_start)} to {trim_end}.",
+            f"{ffmpeg_utils.format_duration(configured_audio_start)} to {trim_end}.",
         )
         _emit(
             log,
             "Requested external audio output placement: "
-            f"video {ffmpeg_utils.format_duration(settings.audio_timeline_start)} to {placement_end}.",
+            f"video {ffmpeg_utils.format_duration(configured_settings.audio_timeline_start)} to {placement_end}.",
         )
-    if external_audio and settings.worky_music_mode:
+    if configured_external_audio and settings.worky_music_mode:
         _emit(log, "worky_music_profile_v1: external audio becomes tiny mono broadcast texture.")
-    if settings.match_timeline_to_audio and external_audio:
+    if settings.match_timeline_to_audio and configured_external_audio:
         if playback.loop_timeline:
-            _emit(log, f"Match to music: looping visual timeline to {ffmpeg_utils.format_duration(render_duration)}.")
+            _emit(log, f"Match to music: looping visual timeline to {ffmpeg_utils.format_duration(full_output_duration)}.")
         elif settings.match_timeline_mode == MATCH_TRIM:
-            _emit(log, f"Match to music: trimming visual timeline to {ffmpeg_utils.format_duration(render_duration)}.")
+            _emit(log, f"Match to music: trimming visual timeline to {ffmpeg_utils.format_duration(full_output_duration)}.")
         else:
-            _emit(log, f"Match to music: visual speed factor {playback.speed_factor:.3f}x for {ffmpeg_utils.format_duration(render_duration)} output.")
+            _emit(log, f"Match to music: visual speed factor {playback.speed_factor:.3f}x for {ffmpeg_utils.format_duration(full_output_duration)} output.")
+
+    if configured_external_audio and not external_audio:
+        _emit(log, "Preview window is outside the configured external-audio placement; rendering it without external samples.")
 
     planned_audio = external_audio or source_audio
     target_bitrate = ffmpeg_utils.target_video_bitrate(
@@ -1346,6 +1361,7 @@ def render_project(
                     layout=layout,
                     timeline_segments=timeline_segments,
                     playback=playback,
+                    render_duration=render_duration,
                     frame_count=frame_count,
                     source_transitions=source_transition_targets,
                     bypass_intervals=bypass_intervals,
@@ -1369,6 +1385,7 @@ def render_project(
                     layout=layout,
                     timeline_segments=timeline_segments,
                     playback=playback,
+                    render_duration=render_duration,
                     frame_count=frame_count,
                     source_transitions=source_transition_targets,
                     bypass_intervals=bypass_intervals,
@@ -1386,6 +1403,7 @@ def render_project(
                 layout=layout,
                 timeline_segments=timeline_segments,
                 playback=playback,
+                render_duration=render_duration,
                 frame_count=frame_count,
                 source_transitions=source_transition_targets,
                 bypass_intervals=bypass_intervals,
@@ -1467,6 +1485,12 @@ def render_project(
                     eligible_start_frame=eligible_start_frame,
                     absolute_frame_offset=absolute_frame_offset,
                     loop_friendly=settings.loop_friendly,
+                    loop_protected_tail_start=_preview_loop_protected_tail_start(
+                        full_output_duration,
+                        absolute_frame_offset,
+                        frame_count,
+                        settings.fps,
+                    ),
                     video_crf=settings.video_crf,
                     video_bitrate=target_bitrate,
                     transitions=transition_targets,
@@ -1477,18 +1501,24 @@ def render_project(
                     silent_video = datamosh_result.output_path
 
         source_audio_path: Path | None = None
+        fade_out_duration, fade_out_start = _preview_audio_fade(
+            settings,
+            full_output_duration,
+            render_duration,
+        )
         if source_audio:
             _emit(log, "Building selected source timeline audio.")
             source_audio_started = time.perf_counter()
             try:
                 source_audio_path = ffmpeg_utils.build_timeline_audio(
                     timeline_segments,
-                    playback.timeline_start,
+                    playback.timeline_start + settings.output_time_offset,
                     render_duration,
                     temp_root_path / "source_audio.m4a",
                     temp_root_path / "source_audio_parts",
                     audio_bitrate=settings.audio_bitrate,
-                    fade_out_duration=_audio_fade_duration(settings, render_duration),
+                    fade_out_duration=fade_out_duration,
+                    fade_out_start=fade_out_start,
                     log=log,
                 )
                 _emit_elapsed(log, "Source audio stage", source_audio_started)
@@ -1543,7 +1573,8 @@ def render_project(
                 audio_end,
                 render_duration,
                 audio_bitrate=settings.audio_bitrate,
-                fade_out_duration=_audio_fade_duration(settings, render_duration),
+                fade_out_duration=fade_out_duration,
+                fade_out_start=fade_out_start,
                 audio_offset=settings.audio_timeline_start,
                 audio_output_end=settings.audio_timeline_end,
                 worky_music_mode=settings.worky_music_mode,
@@ -1640,6 +1671,7 @@ def _render_silent_video_with_png_frames(
     layout: TextLayout,
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
+    render_duration: float,
     frame_count: int,
     source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
@@ -1663,6 +1695,7 @@ def _render_silent_video_with_png_frames(
         layout=layout,
         timeline_segments=timeline_segments,
         playback=playback,
+        render_duration=render_duration,
         frame_count=frame_count,
         source_transitions=source_transitions,
         bypass_intervals=bypass_intervals,
@@ -1701,6 +1734,7 @@ def _render_silent_video_with_pipe(
     layout: TextLayout,
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
+    render_duration: float,
     frame_count: int,
     source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
@@ -1734,6 +1768,7 @@ def _render_silent_video_with_pipe(
             layout=layout,
             timeline_segments=timeline_segments,
             playback=playback,
+            render_duration=render_duration,
             frame_count=frame_count,
             source_transitions=source_transitions,
             bypass_intervals=bypass_intervals,
@@ -2012,6 +2047,8 @@ def _validate_settings(settings: RenderSettings) -> None:
         raise ValueError("Style begins at must be non-negative.")
     if settings.output_time_offset < 0:
         raise ValueError("Output timeline offset must be non-negative.")
+    if settings.preview_duration is not None and settings.preview_duration <= 0:
+        raise ValueError("Preview duration must be greater than 0.")
     if settings.random_clip_assembly and settings.match_timeline_to_audio:
         raise ValueError("Random clip assembly cannot be used with Match video length to music.")
     if settings.audio_timeline_start < 0:
@@ -2098,6 +2135,102 @@ def _external_audio_active_duration(settings: RenderSettings, selected_clip_dura
 def _external_audio_match_duration(settings: RenderSettings, selected_clip_duration: float) -> float:
     start = max(0.0, float(settings.audio_timeline_start or 0.0))
     return start + _external_audio_active_duration(settings, selected_clip_duration)
+
+
+def _render_window_duration(settings: RenderSettings, full_output_duration: float) -> float:
+    """Return the local render length after canonical full-output planning."""
+    if settings.preview_duration is None:
+        return full_output_duration
+    available = full_output_duration - settings.output_time_offset
+    if available <= 0.05:
+        raise ValueError("Preview start is outside the planned output timeline.")
+    return min(float(settings.preview_duration), available)
+
+
+def _preview_audio_execution_settings(
+    settings: RenderSettings,
+    audio_start: float,
+    audio_end: float | None,
+    full_output_duration: float,
+    render_duration: float,
+) -> tuple[RenderSettings, float, float | None, bool]:
+    """Rebase configured external audio only after global Preview planning is valid."""
+    if settings.preview_duration is None or not _uses_external_audio(settings):
+        return settings, audio_start, audio_end, _uses_external_audio(settings)
+
+    resolved_audio_end = float(audio_start if audio_end is None else audio_end)
+    source_duration = max(0.0, resolved_audio_end - audio_start)
+    placement_start = max(0.0, float(settings.audio_timeline_start or 0.0))
+    placement_end = placement_start + source_duration
+    if settings.audio_timeline_end is not None:
+        placement_end = min(placement_end, float(settings.audio_timeline_end))
+    placement_end = min(full_output_duration, placement_end)
+
+    window_start = settings.output_time_offset
+    window_end = window_start + render_duration
+    overlap_start = max(window_start, placement_start)
+    overlap_end = min(window_end, placement_end)
+    if overlap_end <= overlap_start:
+        return (
+            replace(
+                settings,
+                audio_path=None,
+                audio_start=0.0,
+                audio_end=None,
+                audio_timeline_start=0.0,
+                audio_timeline_end=None,
+            ),
+            0.0,
+            None,
+            False,
+        )
+
+    local_audio_start = audio_start + overlap_start - placement_start
+    local_audio_end = min(
+        resolved_audio_end,
+        local_audio_start + overlap_end - overlap_start,
+    )
+    local_placement_start = overlap_start - window_start
+    local_placement_end = local_placement_start + local_audio_end - local_audio_start
+    return (
+        replace(
+            settings,
+            audio_start=local_audio_start,
+            audio_end=local_audio_end,
+            audio_timeline_start=local_placement_start,
+            audio_timeline_end=local_placement_end,
+        ),
+        local_audio_start,
+        local_audio_end,
+        True,
+    )
+
+
+def _preview_audio_fade(
+    settings: RenderSettings,
+    full_output_duration: float,
+    render_duration: float,
+) -> tuple[float, float | None]:
+    """Return the canonical fade duration and its Preview-local start."""
+    fade_duration = _audio_fade_duration(settings, full_output_duration)
+    if fade_duration <= 0.05:
+        return 0.0, None
+    local_start = full_output_duration - fade_duration - settings.output_time_offset
+    if local_start >= render_duration or local_start + fade_duration <= 0.0:
+        return 0.0, None
+    return fade_duration, local_start
+
+
+def _preview_loop_protected_tail_start(
+    full_output_duration: float,
+    absolute_frame_offset: int,
+    frame_count: int,
+    fps: int,
+) -> int:
+    """Rebase the canonical Loop-protected frame tail into the render window."""
+    full_frame_count = max(1, math.ceil(full_output_duration * fps))
+    canonical_start = datamosh._loop_protected_tail_start(full_frame_count, fps)
+    return max(0, min(frame_count, canonical_start - absolute_frame_offset))
 
 
 def _randomized_timeline_segments(
@@ -2460,6 +2593,7 @@ def _render_frames(
     layout: TextLayout,
     timeline_segments: list[TimelineSegment],
     playback: PlaybackPlan,
+    render_duration: float,
     frame_count: int,
     source_transitions: tuple[datamosh.DatamoshTransition, ...],
     bypass_intervals: list[Interval],
@@ -2471,8 +2605,7 @@ def _render_frames(
     activity_samples: list[datamosh.DatamoshActivity] | None = None,
 ) -> None:
     source = _TimelineFrameSource(timeline_segments, output_size=settings.output_size, log=log)
-    render_duration = playback.output_duration
-    transition_boundaries = _transition_boundaries(timeline_segments, playback)
+    full_output_duration = playback.output_duration
     audio_hit_started = time.perf_counter()
     audio_hits = _audio_hit_levels(settings, render_duration, frame_count, log)
     if _effect_on(settings.effects, "audio_reactive") and _uses_external_audio(settings):
@@ -2496,7 +2629,10 @@ def _render_frames(
         source_transitions,
     )
     first_output: Image.Image | None = None
-    last_source_t = _source_time_for_output(playback, max(0.0, render_duration - (1.0 / max(1, settings.fps))))
+    last_source_t = _source_time_for_output(
+        playback,
+        max(0.0, full_output_duration - (1.0 / max(1, settings.fps))),
+    )
     source_frame_seconds = 0.0
     normal_render_seconds = 0.0
     public_source_seconds = 0.0
@@ -2513,8 +2649,9 @@ def _render_frames(
         for index in range(frame_count):
             output_t = min(index / settings.fps, max(0.0, render_duration - 0.0001))
             absolute_output_t = settings.output_time_offset + output_t
+            absolute_frame_index = _absolute_output_frame(settings, index)
             style_active = absolute_output_t >= settings.style_begin_time
-            timeline_t = _source_time_for_output(playback, output_t)
+            timeline_t = _source_time_for_output(playback, absolute_output_t)
             while (
                 style_fx_clean_index < len(style_fx_clean_intervals)
                 and output_t >= style_fx_clean_intervals[style_fx_clean_index][1]
@@ -2539,7 +2676,11 @@ def _render_frames(
                 frame_effects["_reactive_hit"] = True
                 frame_effects["_hit_level"] = hit_level
 
-            if style_active and _ending_freezes_source(settings, render_duration, output_t):
+            if style_active and _ending_freezes_source(
+                settings,
+                full_output_duration,
+                absolute_output_t,
+            ):
                 source_started = time.perf_counter()
                 frame_rgb = source.frame_at(last_source_t)
                 source_frame_seconds += max(0.0, time.perf_counter() - source_started)
@@ -2549,9 +2690,16 @@ def _render_frames(
                 source_started = time.perf_counter()
                 frame_rgb = source.frame_at(timeline_t)
                 source_frame_seconds += max(0.0, time.perf_counter() - source_started)
-                if style_active and _effect_on(frame_effects, "stutter_hold") and _starts_stutter_hold(index, settings):
+                if (
+                    style_active
+                    and _effect_on(frame_effects, "stutter_hold")
+                    and _starts_stutter_hold(absolute_frame_index, settings)
+                ):
                     held_frame = frame_rgb.copy()
-                    hold_until = index + _stutter_hold_length(index, settings)
+                    hold_until = index + _stutter_hold_length(
+                        absolute_frame_index,
+                        settings,
+                    )
 
             if not style_active:
                 normal_started = time.perf_counter()
@@ -2651,10 +2799,7 @@ def _render_frames(
                     activity_samples.append(
                         datamosh.DatamoshActivity(
                             frame=index,
-                            absolute_frame=max(
-                                0,
-                                int(round(absolute_output_t * settings.fps)),
-                            ),
+                            absolute_frame=absolute_frame_index,
                             motion_activity=material_analysis.motion_activity,
                             motion_x=motion_x,
                             motion_y=motion_y,
@@ -2682,9 +2827,9 @@ def _render_frames(
                     output_frame,
                     previous_output,
                     output_t,
-                    transition_boundaries,
+                    source_transitions,
                     settings,
-                    index,
+                    absolute_frame_index,
                 )
                 output_frame = _apply_global_artifact_effects(
                     output_frame,
@@ -2694,7 +2839,7 @@ def _render_frames(
                     index,
                     settings.fps,
                     settings.weird_seed,
-                    output_frame_index=max(0, int(round(absolute_output_t * settings.fps))),
+                    output_frame_index=absolute_frame_index,
                     phase2_choreographer=phase2_choreographer,
                     phase2_material=phase2_material,
                     zones=settings.zones,
@@ -2703,13 +2848,18 @@ def _render_frames(
                 output_frame = _apply_ending_effect(
                     output_frame,
                     first_output,
-                    render_duration,
-                    output_t,
+                    full_output_duration,
+                    absolute_output_t,
                     settings,
-                    index,
+                    absolute_frame_index,
                 )
                 if settings.loop_friendly and first_output is not None:
-                    output_frame = _apply_loop_friendly(output_frame, first_output, render_duration, output_t)
+                    output_frame = _apply_loop_friendly(
+                        output_frame,
+                        first_output,
+                        full_output_duration,
+                        absolute_output_t,
+                    )
                 transition_seconds += max(0.0, time.perf_counter() - transition_started)
 
             write_started = time.perf_counter()
@@ -2748,6 +2898,14 @@ def _render_frames(
         source.close()
 
 
+def _absolute_output_frame(settings: RenderSettings, local_frame: int) -> int:
+    """Map a render-window frame to its canonical full-output clock."""
+    return max(
+        0,
+        int(round(settings.output_time_offset * settings.fps)) + int(local_frame),
+    )
+
+
 def _frame_framing_kwargs(settings: RenderSettings) -> dict[str, Any]:
     return {
         "fit_mode": settings.framing_fit_mode,
@@ -2758,33 +2916,6 @@ def _frame_framing_kwargs(settings: RenderSettings) -> dict[str, Any]:
         "letterbox_background": settings.letterbox_background,
         "upper_bias": settings.preserve_upper_bias,
     }
-
-
-def _transition_boundaries(segments: list[TimelineSegment], playback: PlaybackPlan) -> list[float]:
-    boundaries: list[float] = []
-    source_boundaries = [
-        segment.timeline_start - playback.timeline_start
-        for segment in segments[1:]
-        if 0.0 < segment.timeline_start - playback.timeline_start < playback.source_duration
-    ]
-    if playback.loop_timeline:
-        loop = max(0.001, playback.source_duration)
-        cycle = 0
-        while cycle * loop < playback.output_duration:
-            if cycle > 0:
-                boundaries.append(cycle * loop)
-            for boundary in source_boundaries:
-                output_boundary = cycle * loop + boundary
-                if 0.0 < output_boundary < playback.output_duration:
-                    boundaries.append(output_boundary)
-            cycle += 1
-        return sorted(set(round(value, 6) for value in boundaries))
-
-    for boundary in source_boundaries:
-        output_boundary = boundary / max(0.0001, playback.speed_factor)
-        if 0.0 < output_boundary < playback.output_duration:
-            boundaries.append(output_boundary)
-    return boundaries
 
 
 def _datamosh_operations(
@@ -2898,7 +3029,7 @@ def _datamosh_transition_targets(
     frame_count: int,
     absolute_frame_offset: int,
 ) -> tuple[datamosh.DatamoshTransition, ...]:
-    """Map anonymous source cuts to the first rendered frame of incoming material."""
+    """Map canonical source cuts into a full render or rebased Preview window."""
     source_boundaries = [
         (
             segment.timeline_start - playback.timeline_start,
@@ -2935,18 +3066,29 @@ def _datamosh_transition_targets(
 
     targets: list[datamosh.DatamoshTransition] = []
     seen_frames: set[int] = set()
+    window_start_frame = max(0, int(absolute_frame_offset))
+    window_end_frame = window_start_frame + frame_count
+    full_frame_count = max(1, math.ceil(playback.output_duration * settings.fps))
     for transition_index, (output_t, from_kind, to_kind) in enumerate(sorted(mapped)):
-        frame = int(math.ceil(output_t * settings.fps - 1e-9))
-        if frame <= 0 or frame >= frame_count or frame in seen_frames:
+        absolute_frame = int(math.ceil(output_t * settings.fps - 1e-9))
+        if (
+            absolute_frame <= 0
+            or absolute_frame >= full_frame_count
+            or absolute_frame < window_start_frame
+            or absolute_frame >= window_end_frame
+            or absolute_frame in seen_frames
+        ):
             continue
-        seen_frames.add(frame)
+        seen_frames.add(absolute_frame)
         targets.append(
             datamosh.DatamoshTransition(
-                frame=frame,
-                absolute_frame=absolute_frame_offset + frame,
+                frame=absolute_frame - window_start_frame,
+                absolute_frame=absolute_frame,
                 from_kind=from_kind,
                 to_kind=to_kind,
                 visual_transition=_transition_name(settings, transition_index),
+                transition_ordinal=transition_index,
+                output_time=output_t,
             )
         )
     return tuple(targets)
@@ -2957,15 +3099,6 @@ def _segment_kind_at(segments: list[TimelineSegment], timeline_t: float) -> str:
         if segment.timeline_start <= timeline_t < segment.timeline_end:
             return segment.kind
     return segments[0].kind if segments else "video"
-
-
-def _active_transition(output_t: float, boundaries: list[float], duration: float) -> tuple[float, int] | None:
-    if duration <= 0:
-        return None
-    for index, boundary in enumerate(boundaries):
-        if boundary <= output_t < boundary + duration:
-            return (output_t - boundary) / duration, index
-    return None
 
 
 def _transition_name(settings: RenderSettings, index: int) -> str:
@@ -2992,18 +3125,29 @@ def _apply_transition_effect(
     image: Image.Image,
     previous: Image.Image | None,
     output_t: float,
-    boundaries: list[float],
+    transitions: tuple[datamosh.DatamoshTransition, ...],
     settings: RenderSettings,
     frame_index: int,
 ) -> Image.Image:
-    if settings.transition_mode in {"Hard Cut", "None"} or not boundaries:
+    if settings.transition_mode in {"Hard Cut", "None"} or not transitions:
         return image
     duration = 0.10 + 0.34 * max(0.0, min(2.0, settings.transition_intensity))
-    active = _active_transition(output_t, boundaries, duration)
-    if active is None:
+    active_target: datamosh.DatamoshTransition | None = None
+    progress = 0.0
+    for target in transitions:
+        boundary = (
+            target.frame / max(1, settings.fps)
+            if target.output_time is None
+            else target.output_time - settings.output_time_offset
+        )
+        if boundary <= output_t < boundary + duration:
+            active_target = target
+            progress = (output_t - boundary) / duration
+            break
+    if active_target is None:
         return image
-    progress, transition_index = active
-    mode = _transition_name(settings, transition_index)
+    transition_index = active_target.transition_ordinal
+    mode = active_target.visual_transition
     intensity = max(0.0, min(2.0, settings.transition_intensity))
     rng = random.Random((settings.weird_seed or 0) + transition_index * 9176 + frame_index)
     arr = np.array(image, dtype=np.uint8)

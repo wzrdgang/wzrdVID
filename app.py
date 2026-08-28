@@ -4897,13 +4897,12 @@ class MainWindow(QMainWindow):
         timeline_duration = self._timeline_total_duration(strict=True)
         if timeline_duration is None:
             raise ValueError("Add at least one source before previewing.")
-        video_start, video_end = ffmpeg_utils.validate_time_range(
+        ffmpeg_utils.validate_time_range(
             settings.video_start,
             settings.video_end,
             timeline_duration,
             "Timeline",
         )
-        source_duration = video_end - video_start
         render_duration = self._current_render_duration(strict=True)
         if render_duration is None or render_duration <= 0:
             raise ValueError("Timeline trim range is empty.")
@@ -4922,61 +4921,6 @@ class MainWindow(QMainWindow):
             preview_length,
         )
 
-        audio_path = settings.audio_path
-        audio_start = settings.audio_start
-        audio_end = settings.audio_end
-        audio_timeline_start = settings.audio_timeline_start
-        audio_timeline_end = settings.audio_timeline_end
-        if settings.audio_mode in {AUDIO_EXTERNAL, AUDIO_MIX} and settings.audio_path:
-            audio_duration = ffmpeg_utils.get_audio_duration(settings.audio_path)
-            selected_audio_start, selected_audio_end = ffmpeg_utils.validate_time_range(
-                settings.audio_start,
-                settings.audio_end,
-                audio_duration,
-                "Audio",
-            )
-            selected_clip_duration = selected_audio_end - selected_audio_start
-            original_audio_start = max(0.0, float(settings.audio_timeline_start or 0.0))
-            original_audio_end = original_audio_start + selected_clip_duration
-            if settings.audio_timeline_end is not None:
-                original_audio_end = min(original_audio_end, float(settings.audio_timeline_end))
-            original_audio_end = min(render_duration, original_audio_end)
-            preview_end = preview_offset + preview_length
-            overlap_start = max(preview_offset, original_audio_start)
-            overlap_end = min(preview_end, original_audio_end)
-            if overlap_end <= overlap_start:
-                audio_path = None
-                audio_start = 0.0
-                audio_end = None
-                audio_timeline_start = 0.0
-                audio_timeline_end = None
-                self.append_log("Preview segment is outside the selected music placement; rendering preview silent.")
-            else:
-                audio_start = selected_audio_start + max(0.0, overlap_start - original_audio_start)
-                audio_end = min(selected_audio_end, audio_start + (overlap_end - overlap_start))
-                audio_timeline_start = max(0.0, original_audio_start - preview_offset)
-                audio_timeline_end = audio_timeline_start + max(0.0, audio_end - audio_start)
-
-        source_offset = preview_offset
-        source_length = preview_length
-        if settings.match_timeline_to_audio and settings.audio_mode in {AUDIO_EXTERNAL, AUDIO_MIX} and source_duration > 0:
-            mode = settings.match_timeline_mode
-            if mode == MATCH_SPEED:
-                speed_factor = source_duration / max(0.001, render_duration)
-                source_offset = preview_offset * speed_factor
-                source_length = preview_length * speed_factor
-            elif mode == MATCH_LOOP:
-                source_offset = preview_offset % source_duration
-                source_length = min(source_duration, max(preview_length, min(preview_length, source_duration - source_offset)))
-            else:
-                source_offset = preview_offset
-                source_length = preview_length
-
-        preview_video_start = min(video_end - 0.001, video_start + source_offset)
-        preview_video_end = min(video_end, preview_video_start + max(0.05, source_length))
-        if preview_video_end <= preview_video_start:
-            preview_video_end = min(video_end, preview_video_start + 0.05)
-
         self.append_log(
             f"Preview segment: {ffmpeg_utils.format_duration(preview_offset)} to "
             f"{ffmpeg_utils.format_duration(preview_offset + preview_length)} "
@@ -4984,15 +4928,8 @@ class MainWindow(QMainWindow):
         )
         return replace(
             settings,
-            audio_path=audio_path,
             output_path=str(preview_path),
-            video_start=preview_video_start,
-            video_end=preview_video_end,
-            audio_start=audio_start,
-            audio_end=audio_end,
-            audio_timeline_start=audio_timeline_start,
-            audio_timeline_end=audio_timeline_end,
-            max_video_length=preview_length,
+            preview_duration=preview_length,
             target_size_mb=None,
             optimize_enabled=False,
             bypass_mode=BYPASS_MANUAL if shifted_blocks else BYPASS_FULL_ANSI,

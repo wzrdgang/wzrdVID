@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed desktop Preview so Random source selection, transitions, delayed audio, ending/Loop behavior, audio fades, and Stutter timing match the selected interval of the planned full output.
+
 ## v0.4.0 — 2026-08-27
 
 ### More organic Style corruption

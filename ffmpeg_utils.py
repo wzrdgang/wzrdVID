@@ -589,6 +589,7 @@ def mux_audio(
     output_duration: float,
     audio_bitrate: str = "128k",
     fade_out_duration: float = 0.0,
+    fade_out_start: float | None = None,
     audio_offset: float = 0.0,
     audio_output_end: float | None = None,
     worky_music_mode: bool = False,
@@ -625,10 +626,11 @@ def mux_audio(
     if delay_ms and not worky_music_mode:
         audio_chain += f",adelay={delay_ms}:all=1"
     audio_chain += f",apad,atrim=0:{duration_text},asetpts=PTS-STARTPTS"
-    fade_out_duration = max(0.0, min(float(fade_out_duration or 0.0), output_duration))
-    if fade_out_duration > 0.05:
-        fade_start = max(0.0, output_duration - fade_out_duration)
-        audio_chain += f",afade=t=out:st={fade_start:.6f}:d={fade_out_duration:.6f}"
+    audio_chain += _audio_fade_filter_suffix(
+        output_duration,
+        fade_out_duration,
+        fade_out_start,
+    )
     audio_chain += "[aud]"
 
     args = [
@@ -674,6 +676,7 @@ def build_timeline_audio(
     *,
     audio_bitrate: str = "128k",
     fade_out_duration: float = 0.0,
+    fade_out_start: float | None = None,
     log: LogCallback = None,
 ) -> Path | None:
     """Build an AAC source-audio track for a rendered timeline selection.
@@ -733,13 +736,47 @@ def build_timeline_audio(
         "-i",
         str(list_path),
     ]
-    fade_out_duration = max(0.0, min(float(fade_out_duration or 0.0), float(output_duration)))
-    if fade_out_duration > 0.05:
-        fade_start = max(0.0, float(output_duration) - fade_out_duration)
-        args.extend(["-af", f"afade=t=out:st={fade_start:.6f}:d={fade_out_duration:.6f}"])
+    fade_filter = _audio_fade_filter_suffix(
+        float(output_duration),
+        fade_out_duration,
+        fade_out_start,
+    ).lstrip(",")
+    if fade_filter:
+        args.extend(["-af", fade_filter])
     args.extend(["-c:a", "aac", "-b:a", audio_bitrate, "-t", f"{output_duration:.6f}", str(output)])
     run_command(args, log)
     return output
+
+
+def _audio_fade_filter_suffix(
+    output_duration: float,
+    fade_out_duration: float,
+    fade_out_start: float | None,
+) -> str:
+    """Build the existing linear fade at a possibly sliced local position."""
+    duration = max(0.0, float(fade_out_duration or 0.0))
+    if fade_out_start is None:
+        duration = min(duration, float(output_duration))
+    if duration <= 0.05:
+        return ""
+    start = (
+        float(output_duration) - duration
+        if fade_out_start is None
+        else float(fade_out_start)
+    )
+    if start >= output_duration or start + duration <= 0.0:
+        return ""
+    if start >= 0.0:
+        return f",afade=t=out:st={start:.6f}:d={duration:.6f}"
+
+    remaining = duration + start
+    if remaining <= 0.05:
+        return ""
+    initial_gain = max(0.0, min(1.0, remaining / duration))
+    return (
+        f",volume={initial_gain:.8f},"
+        f"afade=t=out:st=0.000000:d={remaining:.6f}"
+    )
 
 
 def mix_external_and_source_audio(

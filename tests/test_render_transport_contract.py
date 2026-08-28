@@ -13,9 +13,10 @@ from unittest import mock
 
 import datamosh
 import ffmpeg_utils
+import numpy as np
 import renderer
 
-from tests.fixtures.codec_helpers import probe, run, sha256_path
+from tests.fixtures.codec_helpers import encode_rgb_frames, probe, run, sha256_path
 
 
 class RenderTransportContractTests(unittest.TestCase):
@@ -50,6 +51,18 @@ class RenderTransportContractTests(unittest.TestCase):
             ]
         )
         cls.source_sha256 = sha256_path(cls.source)
+        cls.random_red = cls.root / "random-red.mp4"
+        cls.random_blue = cls.root / "random-blue.mp4"
+        encode_rgb_frames(
+            [np.full((90, 160, 3), (235, 24, 18), dtype=np.uint8) for _ in range(2)],
+            cls.random_red,
+            fps=2,
+        )
+        encode_rgb_frames(
+            [np.full((90, 160, 3), (18, 28, 235), dtype=np.uint8) for _ in range(2)],
+            cls.random_blue,
+            fps=2,
+        )
         cls.settings = renderer.RenderSettings(
             video_path=str(cls.source),
             output_path=str(cls.root / "placeholder.mp4"),
@@ -188,6 +201,149 @@ class RenderTransportContractTests(unittest.TestCase):
                 any("Muxing selected external audio" in line for line in fallback_logs)
             )
             self.assert_h264_aac(fallback_output)
+        self.assertEqual(sha256_path(self.source), self.source_sha256)
+
+    def test_preview_before_delayed_matched_audio_is_valid_silence_then_crossing_keeps_aac(self) -> None:
+        delayed = replace(
+            self.settings,
+            audio_start=0.0,
+            audio_end=0.4,
+            audio_timeline_start=0.6,
+            audio_timeline_end=1.0,
+            match_timeline_to_audio=True,
+            match_timeline_mode=renderer.MATCH_SPEED,
+            ending_mode="Hard Cut",
+        )
+        before, before_logs = self._render(
+            "preview-before-delayed-audio",
+            replace(
+                delayed,
+                preview_duration=0.4,
+                output_time_offset=0.0,
+            ),
+        )
+        before_media = probe(before)
+        self.assertFalse(
+            any(stream["codec_type"] == "audio" for stream in before_media["streams"])
+        )
+        self.assertTrue(
+            any("outside the configured external-audio placement" in line for line in before_logs)
+        )
+
+        crossing, _crossing_logs = self._render(
+            "preview-crossing-delayed-audio",
+            replace(
+                delayed,
+                preview_duration=0.5,
+                output_time_offset=0.4,
+            ),
+        )
+        crossing_media = probe(crossing)
+        video = next(
+            stream for stream in crossing_media["streams"] if stream["codec_type"] == "video"
+        )
+        audio = next(
+            stream for stream in crossing_media["streams"] if stream["codec_type"] == "audio"
+        )
+        self.assertEqual(video["codec_name"], "h264")
+        self.assertEqual(video["pix_fmt"], "yuv420p")
+        self.assertEqual(audio["codec_name"], "aac")
+        self.assertEqual(sha256_path(self.source), self.source_sha256)
+
+    def test_random_preview_frames_follow_the_canonical_full_render_slice(self) -> None:
+        def color_labels(path: Path) -> list[str]:
+            decoded = run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(path),
+                    "-f",
+                    "rawvideo",
+                    "-pix_fmt",
+                    "rgb24",
+                    "-",
+                ]
+            ).stdout
+            frames = np.frombuffer(decoded, dtype=np.uint8).reshape((-1, 90, 160, 3))
+            return [
+                "red" if float(frame[:, :, 0].mean()) > float(frame[:, :, 2].mean()) else "blue"
+                for frame in frames
+            ]
+
+        source_hashes = {
+            self.random_red: sha256_path(self.random_red),
+            self.random_blue: sha256_path(self.random_blue),
+        }
+        random_settings = replace(
+            self.settings,
+            video_path=str(self.random_red),
+            video_start=0.0,
+            video_end=2.0,
+            audio_path=None,
+            audio_mode=renderer.AUDIO_SILENT,
+            max_video_length=2.0,
+            random_clip_assembly=True,
+            random_min_len=0.5,
+            random_max_len=0.5,
+            random_seed=31,
+            style_begin_time=99.0,
+            effects={},
+            timeline_items=[
+                renderer.TimelineItem(
+                    path=str(self.random_red),
+                    kind="video",
+                    duration=1.0,
+                    trim_start=0.0,
+                    trim_end=1.0,
+                ),
+                renderer.TimelineItem(
+                    path=str(self.random_blue),
+                    kind="video",
+                    duration=1.0,
+                    trim_start=0.0,
+                    trim_end=1.0,
+                ),
+            ],
+        )
+        full, _full_logs = self._render("random-full", random_settings)
+        preview, _preview_logs = self._render(
+            "random-preview",
+            replace(
+                random_settings,
+                output_time_offset=0.5,
+                preview_duration=1.0,
+            ),
+        )
+        full_labels = color_labels(full)
+        preview_labels = color_labels(preview)
+        self.assertEqual(preview_labels, full_labels[1:3])
+        self.assertEqual(len(preview_labels), 2)
+        self.assertEqual(
+            {path: sha256_path(path) for path in source_hashes},
+            source_hashes,
+        )
+
+    def test_preview_codec_loop_uses_the_canonical_protected_tail(self) -> None:
+        preview_settings = replace(
+            self.settings,
+            fps=8,
+            output_time_offset=0.5,
+            preview_duration=0.5,
+            loop_friendly=True,
+            effects={"datamoshing": True},
+        )
+        with mock.patch.object(
+            datamosh,
+            "apply_datamosh",
+            wraps=datamosh.apply_datamosh,
+        ) as codec_mock:
+            output, _logs = self._render("preview-codec-loop", preview_settings)
+        self.assertEqual(codec_mock.call_count, 1)
+        self.assertEqual(codec_mock.call_args.kwargs["loop_protected_tail_start"], 1)
+        self.assert_h264_aac(output)
         self.assertEqual(sha256_path(self.source), self.source_sha256)
 
     def test_datamosh_error_propagates_without_png_retry_and_cleans_temp(self) -> None:

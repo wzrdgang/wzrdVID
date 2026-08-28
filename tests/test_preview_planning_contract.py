@@ -1,8 +1,7 @@
-"""Characterize the accepted full-output/Preview planning contract.
+"""Prove the repaired full-output/Preview planning contract.
 
-Phase 14A deliberately records current production divergences without changing
-the renderer.  Assertions label CURRENT and ACCEPTED values separately so the
-known Preview bugs are not promoted to long-term expected behavior.
+Phase 14A recorded the historical divergences.  These tests now assert that
+production Preview behavior consumes canonical full-output decisions directly.
 """
 
 from __future__ import annotations
@@ -118,56 +117,6 @@ def _slice_records(
     return records
 
 
-def _local_plan_records(
-    segments: list[renderer.TimelineSegment],
-    full_output_offset: float,
-) -> list[dict[str, object]]:
-    records: list[dict[str, object]] = []
-    for segment in segments:
-        records.append(
-            {
-                "source_id": segment.path,
-                "source_start": _round(segment.source_start),
-                "source_end": _round(
-                    segment.source_end
-                    if segment.source_end is not None
-                    else segment.source_start + segment.duration
-                ),
-                "full_output_start": _round(full_output_offset + segment.timeline_start),
-                "full_output_end": _round(full_output_offset + segment.timeline_end),
-                "preview_start": _round(segment.timeline_start),
-                "preview_end": _round(segment.timeline_end),
-                "include_audio": segment.include_audio,
-            }
-        )
-    return records
-
-
-def _sliced_segments(
-    segments: list[renderer.TimelineSegment],
-    window_start: float,
-    window_end: float,
-) -> list[renderer.TimelineSegment]:
-    """Materialize only the plain intersection needed by production cut mapping."""
-    sliced: list[renderer.TimelineSegment] = []
-    for segment in segments:
-        overlap_start = max(window_start, segment.timeline_start)
-        overlap_end = min(window_end, segment.timeline_end)
-        if overlap_end <= overlap_start:
-            continue
-        source_start = segment.source_start + overlap_start - segment.timeline_start
-        sliced.append(
-            replace(
-                segment,
-                timeline_start=overlap_start - window_start,
-                duration=overlap_end - overlap_start,
-                source_start=source_start,
-                source_end=source_start + overlap_end - overlap_start,
-            )
-        )
-    return sliced
-
-
 def _playback(duration: float) -> renderer.PlaybackPlan:
     return renderer.PlaybackPlan(0.0, duration, duration, duration)
 
@@ -185,49 +134,31 @@ def _random_full_plan(
     )
 
 
-def _current_random_preview_plan(
-    segments: list[renderer.TimelineSegment],
-    window_start: float,
-    window_end: float,
-    settings: renderer.RenderSettings,
-) -> list[renderer.TimelineSegment]:
-    """Exercise the current shifted-selection/restarted-seed Preview behavior."""
-    duration = window_end - window_start
-    current_playback = renderer.PlaybackPlan(
-        window_start,
-        window_end,
-        duration,
-        duration,
-    )
-    return renderer._randomized_timeline_segments(
-        segments,
-        current_playback,
-        duration,
-        settings,
-    )
-
-
 def _transition_records(
     full_targets: tuple[datamosh.DatamoshTransition, ...],
-    current_targets: tuple[datamosh.DatamoshTransition, ...],
-    start_frame: int,
-    end_frame: int,
+    preview_targets: tuple[datamosh.DatamoshTransition, ...],
 ) -> list[dict[str, object]]:
-    current_by_absolute_frame = {
-        target.absolute_frame: target.visual_transition for target in current_targets
+    full_by_absolute_frame = {
+        target.absolute_frame: target for target in full_targets
     }
     records: list[dict[str, object]] = []
-    for stable_ordinal, target in enumerate(full_targets):
-        if not start_frame <= target.absolute_frame < end_frame:
-            continue
+    for target in preview_targets:
+        canonical = full_by_absolute_frame[target.absolute_frame]
+        full_output_time = (
+            target.absolute_frame / FPS
+            if target.output_time is None
+            else target.output_time
+        )
+        window_start = (target.absolute_frame - target.frame) / FPS
         records.append(
             {
-                "full_output_time": _round(target.absolute_frame / FPS),
+                "full_output_time": _round(full_output_time),
+                "preview_local_time": _round(full_output_time - window_start),
                 "absolute_frame": target.absolute_frame,
-                "stable_cut_ordinal": stable_ordinal,
-                "full_name": target.visual_transition,
-                "current_preview_name": current_by_absolute_frame.get(target.absolute_frame),
-                "expected_preview_name": target.visual_transition,
+                "preview_local_frame": target.frame,
+                "stable_cut_ordinal": target.transition_ordinal,
+                "full_name": canonical.visual_transition,
+                "preview_name": target.visual_transition,
             }
         )
     return records
@@ -305,7 +236,7 @@ class _PreviewHarness:
         self.logs.append(message)
 
 
-def _collect_current_preview(
+def _collect_preview(
     settings: renderer.RenderSettings,
     window_start: float,
     window_end: float,
@@ -370,39 +301,48 @@ def _tail_policy(
     settings: renderer.RenderSettings,
 ) -> dict[str, object]:
     preview_duration = window[1] - window[0]
-    full_ending_tail = renderer._audio_fade_duration(settings, full_duration)
-    current_ending_tail = renderer._audio_fade_duration(settings, preview_duration)
+    full_ending_tail = min(1.5, full_duration)
     full_loop_start_frame = datamosh._loop_protected_tail_start(
         math.ceil(full_duration * FPS), FPS
     )
-    current_loop_start_frame = datamosh._loop_protected_tail_start(
-        math.ceil(preview_duration * FPS), FPS
+    absolute_start_frame = round(window[0] * FPS)
+    local_codec_start_frame = renderer._preview_loop_protected_tail_start(
+        full_duration,
+        absolute_start_frame,
+        math.ceil(preview_duration * FPS),
+        FPS,
     )
     full_loop_interval = (full_loop_start_frame / FPS, full_duration)
-    current_loop_interval = (current_loop_start_frame / FPS, preview_duration)
+    local_settings = replace(
+        settings,
+        output_time_offset=window[0],
+        preview_duration=preview_duration,
+    )
+    fade_duration, fade_start = renderer._preview_audio_fade(
+        local_settings,
+        full_duration,
+        preview_duration,
+    )
+    audio_fade = None
+    if fade_start is not None:
+        audio_fade = (
+            _round(max(0.0, fade_start)),
+            _round(min(preview_duration, fade_start + fade_duration)),
+        )
+    codec_loop = None
+    if local_codec_start_frame < math.ceil(preview_duration * FPS):
+        codec_loop = (
+            _round(local_codec_start_frame / FPS),
+            _round(preview_duration),
+        )
     return {
         "window": [_round(window[0]), _round(window[1])],
-        "current_ending": (
-            _round(preview_duration - current_ending_tail),
-            _round(preview_duration),
-        ),
-        "expected_ending": _interval_intersection(
+        "ending": _interval_intersection(
             (full_duration - full_ending_tail, full_duration), window
         ),
-        "current_loop_visual": (_round(current_loop_interval[0]), _round(current_loop_interval[1])),
-        "expected_loop_visual": _interval_intersection(full_loop_interval, window),
-        "current_codec_loop_seconds": (
-            _round(current_loop_interval[0]),
-            _round(current_loop_interval[1]),
-        ),
-        "expected_codec_loop_seconds": _interval_intersection(full_loop_interval, window),
-        "current_audio_fade": (
-            _round(preview_duration - current_ending_tail),
-            _round(preview_duration),
-        ),
-        "expected_audio_fade": _interval_intersection(
-            (full_duration - full_ending_tail, full_duration), window
-        ),
+        "loop_visual": _interval_intersection(full_loop_interval, window),
+        "codec_loop_seconds": codec_loop,
+        "audio_fade": audio_fade,
     }
 
 
@@ -591,40 +531,31 @@ class PreviewPlanningContractTests(unittest.TestCase):
             "middle": (6.0, 9.0),
             "final": (14.0, 16.0),
         }
-        accepted = {
+        previews = {
             name: _slice_records(self.random_full, start, end)
             for name, (start, end) in windows.items()
         }
-        current = {
-            name: _local_plan_records(
-                _current_random_preview_plan(
-                    self.three_sources, start, end, self.random_settings
-                ),
-                start,
-            )
-            for name, (start, end) in windows.items()
-        }
-        self.assertEqual(accepted["inside"][0]["source_id"], longest.path)
-        self.assertEqual(len(accepted["one-cut"]), 2)
-        self.assertGreaterEqual(len(accepted["multiple-cuts"]), 4)
-        self.assertEqual(accepted["beginning"][0]["full_output_start"], 0.0)
-        self.assertEqual(accepted["final"][-1]["full_output_end"], 16.0)
-        self.assertTrue(all(current[name] != accepted[name] for name in windows))
+        self.assertEqual(previews["inside"][0]["source_id"], longest.path)
+        self.assertEqual(len(previews["one-cut"]), 2)
+        self.assertGreaterEqual(len(previews["multiple-cuts"]), 4)
+        self.assertEqual(previews["beginning"][0]["full_output_start"], 0.0)
+        self.assertEqual(previews["final"][-1]["full_output_end"], 16.0)
 
-        self.assertNotEqual(current["middle"], accepted["middle"])
+        collected = _collect_preview(self.random_settings, 6.0, 9.0, render_duration=16.0)
+        self.assertEqual(collected.video_start, self.random_settings.video_start)
+        self.assertEqual(collected.video_end, self.random_settings.video_end)
+        self.assertEqual(collected.max_video_length, self.random_settings.max_video_length)
+        self.assertTrue(collected.random_clip_assembly)
+        self.assertEqual(collected.random_seed, self.random_settings.random_seed)
+        self.assertEqual(collected.output_time_offset, 6.0)
+        self.assertEqual(collected.preview_duration, 3.0)
 
         two_source_full = _random_full_plan(self.two_sources, 12.0, self.random_settings)
-        two_source_accepted = _slice_records(two_source_full, 5.0, 8.0)
-        two_source_current = _local_plan_records(
-            _current_random_preview_plan(
-                self.two_sources, 5.0, 8.0, self.random_settings
-            ),
-            5.0,
-        )
-        self.assertNotEqual(two_source_current, two_source_accepted)
+        two_source_preview = _slice_records(two_source_full, 5.0, 8.0)
+        self.assertTrue(two_source_preview)
 
-        self.assertTrue(any(record["include_audio"] for record in accepted["middle"]))
-        for record in accepted["middle"]:
+        self.assertTrue(any(record["include_audio"] for record in previews["middle"]))
+        for record in previews["middle"]:
             self.assertEqual(
                 record["include_audio"],
                 record["source_id"] == "video-a",
@@ -649,46 +580,52 @@ class PreviewPlanningContractTests(unittest.TestCase):
             0,
         )
         self.assertEqual(
-            [(target.absolute_frame, target.visual_transition) for target in full_random],
-            [(120, "CRT Flash"), (240, "Block Dissolve"), (360, "Buffer Underrun")],
+            [
+                (target.absolute_frame, target.transition_ordinal, target.visual_transition)
+                for target in full_random
+            ],
+            [
+                (120, 0, "CRT Flash"),
+                (240, 1, "Block Dissolve"),
+                (360, 2, "Buffer Underrun"),
+            ],
         )
 
         after_earlier_window = (14.0, 18.0)
-        current_after_earlier = renderer._datamosh_transition_targets(
+        after_earlier = renderer._datamosh_transition_targets(
             segments,
-            renderer.PlaybackPlan(14.0, 18.0, 4.0, 4.0),
+            full_playback,
             random_settings,
             4 * FPS,
             14 * FPS,
         )
-        records = _transition_records(full_random, current_after_earlier, 14 * FPS, 18 * FPS)
-        self.assertEqual(records[0]["current_preview_name"], "CRT Flash")
-        self.assertEqual(records[0]["expected_preview_name"], "Buffer Underrun")
+        records = _transition_records(full_random, after_earlier)
+        self.assertEqual(records[0]["stable_cut_ordinal"], 2)
+        self.assertEqual(records[0]["preview_name"], "Buffer Underrun")
+        self.assertEqual(records[0]["preview_name"], records[0]["full_name"])
 
         exactly_at_cut = renderer._datamosh_transition_targets(
             segments,
-            renderer.PlaybackPlan(15.0, 18.0, 3.0, 3.0),
+            full_playback,
             random_settings,
             3 * FPS,
             15 * FPS,
         )
-        exact_records = _transition_records(full_random, exactly_at_cut, 15 * FPS, 18 * FPS)
+        exact_records = _transition_records(full_random, exactly_at_cut)
         self.assertEqual(exact_records[0]["absolute_frame"], 360)
-        self.assertIsNone(exact_records[0]["current_preview_name"])
-        self.assertEqual(exact_records[0]["expected_preview_name"], "Buffer Underrun")
+        self.assertEqual(exact_records[0]["preview_local_frame"], 0)
+        self.assertEqual(exact_records[0]["preview_name"], "Buffer Underrun")
 
         multiple = renderer._datamosh_transition_targets(
             segments,
-            renderer.PlaybackPlan(6.0, 16.0, 10.0, 10.0),
+            full_playback,
             random_settings,
             10 * FPS,
             6 * FPS,
         )
-        multiple_records = _transition_records(full_random, multiple, 6 * FPS, 16 * FPS)
+        multiple_records = _transition_records(full_random, multiple)
         self.assertEqual([record["stable_cut_ordinal"] for record in multiple_records], [1, 2])
-        self.assertTrue(
-            any(record["current_preview_name"] != record["expected_preview_name"] for record in multiple_records)
-        )
+        self.assertTrue(all(record["preview_name"] == record["full_name"] for record in multiple_records))
 
         fixed_settings = replace(random_settings, transition_mode="RGB Burst")
         full_fixed = renderer._datamosh_transition_targets(
@@ -696,26 +633,24 @@ class PreviewPlanningContractTests(unittest.TestCase):
         )
         before_cut = renderer._datamosh_transition_targets(
             segments,
-            renderer.PlaybackPlan(4.0, 8.0, 4.0, 4.0),
+            full_playback,
             fixed_settings,
             4 * FPS,
             4 * FPS,
         )
-        fixed_records = _transition_records(full_fixed, before_cut, 4 * FPS, 8 * FPS)
-        self.assertEqual(fixed_records[0]["current_preview_name"], "RGB Burst")
-        self.assertEqual(fixed_records[0]["expected_preview_name"], "RGB Burst")
+        fixed_records = _transition_records(full_fixed, before_cut)
+        self.assertEqual(fixed_records[0]["preview_name"], "RGB Burst")
+        self.assertEqual(fixed_records[0]["preview_name"], fixed_records[0]["full_name"])
         fixed_exact = renderer._datamosh_transition_targets(
             segments,
-            renderer.PlaybackPlan(5.0, 8.0, 3.0, 3.0),
+            full_playback,
             fixed_settings,
             3 * FPS,
             5 * FPS,
         )
-        fixed_exact_records = _transition_records(
-            full_fixed, fixed_exact, 5 * FPS, 8 * FPS
-        )
-        self.assertIsNone(fixed_exact_records[0]["current_preview_name"])
-        self.assertEqual(fixed_exact_records[0]["expected_preview_name"], "RGB Burst")
+        fixed_exact_records = _transition_records(full_fixed, fixed_exact)
+        self.assertEqual(fixed_exact_records[0]["preview_local_frame"], 0)
+        self.assertEqual(fixed_exact_records[0]["preview_name"], "RGB Burst")
 
         random_playback_targets = renderer._datamosh_transition_targets(
             self.random_full,
@@ -726,26 +661,19 @@ class PreviewPlanningContractTests(unittest.TestCase):
         )
         start_frame = random_playback_targets[0].absolute_frame + 1
         end_frame = min(16 * FPS, random_playback_targets[3].absolute_frame + 1)
-        start_time = start_frame / FPS
-        end_time = end_frame / FPS
-        sliced = _sliced_segments(self.random_full, start_time, end_time)
-        current_random_slice = renderer._datamosh_transition_targets(
-            sliced,
-            _playback(end_time - start_time),
+        random_slice = renderer._datamosh_transition_targets(
+            self.random_full,
+            _playback(16.0),
             random_settings,
             end_frame - start_frame,
             start_frame,
         )
         random_records = _transition_records(
             random_playback_targets,
-            current_random_slice,
-            start_frame,
-            end_frame,
+            random_slice,
         )
         self.assertGreaterEqual(len(random_records), 2)
-        self.assertTrue(
-            any(record["current_preview_name"] != record["expected_preview_name"] for record in random_records)
-        )
+        self.assertTrue(all(record["preview_name"] == record["full_name"] for record in random_records))
 
     def test_delayed_audio_separates_global_intent_from_local_overlap(self) -> None:
         external = _settings(
@@ -764,48 +692,70 @@ class PreviewPlanningContractTests(unittest.TestCase):
             "cross-end": (14.0, 17.0),
             "after": (16.0, 18.0),
         }
-        current = {
-            name: _collect_current_preview(external, *window)
+        configured = {
+            name: _collect_preview(external, *window)
             for name, window in windows.items()
         }
         accepted = {
             name: _external_audio_overlap(*window)
             for name, window in windows.items()
         }
-        self.assertIsNone(current["before"].audio_path)
-        self.assertTrue(current["before"].match_timeline_to_audio)
+        self.assertEqual(configured["before"].audio_path, "audio-main")
+        self.assertTrue(configured["before"].match_timeline_to_audio)
         self.assertFalse(accepted["before"]["local_external_overlap"])
         self.assertTrue(accepted["before"]["full_external_intent"])
-        with self.assertRaisesRegex(ValueError, "requires External only"):
-            renderer._playback_plan(
-                current["before"],
+        playback = renderer._playback_plan(
+                configured["before"],
                 20.0,
-                selected_audio_duration=None,
+                selected_audio_duration=15.0,
             )
+        self.assertEqual(playback.output_duration, 15.0)
+
+        execution: dict[str, renderer.RenderSettings] = {}
+        local_overlap: dict[str, bool] = {}
+        for name, window in windows.items():
+            local, local_start, local_end, has_overlap = renderer._preview_audio_execution_settings(
+                configured[name],
+                0.0,
+                5.0,
+                20.0,
+                window[1] - window[0],
+            )
+            execution[name] = local
+            local_overlap[name] = has_overlap
+            if has_overlap:
+                self.assertEqual(_round(local_start), accepted[name]["audio_source_start"])
+                self.assertEqual(_round(float(local_end)), accepted[name]["audio_source_end"])
+
+        self.assertFalse(local_overlap["before"])
+        self.assertIsNone(execution["before"].audio_path)
+        self.assertEqual(execution["before"].audio_mode, renderer.AUDIO_EXTERNAL)
+        self.assertTrue(execution["before"].match_timeline_to_audio)
+        self.assertFalse(local_overlap["after"])
+        self.assertIsNone(execution["after"].audio_path)
 
         self.assertEqual(
             (
-                current["cross-start"].audio_start,
-                current["cross-start"].audio_end,
-                current["cross-start"].audio_timeline_start,
-                current["cross-start"].audio_timeline_end,
+                execution["cross-start"].audio_start,
+                execution["cross-start"].audio_end,
+                execution["cross-start"].audio_timeline_start,
+                execution["cross-start"].audio_timeline_end,
             ),
             (0.0, 2.0, 1.0, 3.0),
         )
         self.assertEqual(
             (
-                current["inside"].audio_start,
-                current["inside"].audio_end,
-                current["cross-end"].audio_start,
-                current["cross-end"].audio_end,
+                execution["inside"].audio_start,
+                execution["inside"].audio_end,
+                execution["cross-end"].audio_start,
+                execution["cross-end"].audio_end,
             ),
             (1.0, 3.0, 4.0, 5.0),
         )
-        self.assertIsNone(current["after"].audio_path)
 
         for mode in (renderer.AUDIO_EXTERNAL, renderer.AUDIO_MIX):
             for match_enabled in (False, True):
-                preview = _collect_current_preview(
+                preview = _collect_preview(
                     replace(external, audio_mode=mode, match_timeline_to_audio=match_enabled),
                     9.0,
                     12.0,
@@ -820,7 +770,7 @@ class PreviewPlanningContractTests(unittest.TestCase):
             audio_mode=renderer.AUDIO_SOURCE,
             match_timeline_to_audio=False,
         )
-        source_preview = _collect_current_preview(source_only, 2.0, 5.0)
+        source_preview = _collect_preview(source_only, 2.0, 5.0)
         self.assertEqual(source_preview.audio_mode, renderer.AUDIO_SOURCE)
         self.assertIsNone(source_preview.audio_path)
         with self.assertRaisesRegex(ValueError, "requires External only"):
@@ -845,65 +795,56 @@ class PreviewPlanningContractTests(unittest.TestCase):
             for name, window in cases.items()
         }
         for key in ("middle", "before-real-tail"):
-            self.assertIsNone(policies[key]["expected_ending"])
-            self.assertIsNone(policies[key]["expected_loop_visual"])
-            self.assertIsNone(policies[key]["expected_codec_loop_seconds"])
-            self.assertIsNone(policies[key]["expected_audio_fade"])
-            self.assertIsNotNone(policies[key]["current_ending"])
+            self.assertIsNone(policies[key]["ending"])
+            self.assertIsNone(policies[key]["loop_visual"])
+            self.assertIsNone(policies[key]["codec_loop_seconds"])
+            self.assertIsNone(policies[key]["audio_fade"])
 
-        self.assertNotEqual(
-            policies["overlap-real-tail"]["current_ending"],
-            policies["overlap-real-tail"]["expected_ending"],
+        self.assertEqual(policies["overlap-real-tail"]["ending"], (0.5, 1.0))
+        self.assertEqual(policies["overlap-real-tail"]["audio_fade"], (0.5, 1.0))
+        self.assertEqual(policies["overlap-loop-tail"]["loop_visual"], (0.25, 0.5))
+        self.assertEqual(
+            policies["overlap-loop-tail"]["codec_loop_seconds"],
+            policies["overlap-loop-tail"]["loop_visual"],
         )
-        self.assertNotEqual(
-            policies["overlap-loop-tail"]["current_loop_visual"],
-            policies["overlap-loop-tail"]["expected_loop_visual"],
+        self.assertEqual(policies["reaches-end"]["ending"], (0.5, 2.0))
+        self.assertEqual(policies["reaches-end"]["audio_fade"], (0.5, 2.0))
+        self.assertEqual(
+            policies["reaches-end"]["codec_loop_seconds"],
+            policies["reaches-end"]["loop_visual"],
         )
-        for concept in ("ending", "audio_fade"):
-            self.assertEqual(
-                policies["reaches-end"][f"current_{concept}"],
-                policies["reaches-end"][f"expected_{concept}"],
-            )
-        for concept in ("loop_visual", "codec_loop_seconds"):
-            self.assertNotEqual(
-                policies["reaches-end"][f"current_{concept}"],
-                policies["reaches-end"][f"expected_{concept}"],
-            )
-        for concept in (
-            "ending",
-            "loop_visual",
-            "codec_loop_seconds",
-            "audio_fade",
-        ):
-            self.assertEqual(
-                policies["entire-output"][f"current_{concept}"],
-                policies["entire-output"][f"expected_{concept}"],
-            )
+        self.assertEqual(policies["entire-output"]["ending"], (18.5, 20.0))
+        self.assertEqual(policies["entire-output"]["loop_visual"], (19.25, 20.0))
+        self.assertEqual(
+            policies["entire-output"]["codec_loop_seconds"],
+            policies["entire-output"]["loop_visual"],
+        )
+        self.assertEqual(policies["entire-output"]["audio_fade"], (18.5, 20.0))
 
         source = Image.new("RGB", (12, 8), (180, 120, 60))
         first = Image.new("RGB", (12, 8), (20, 30, 40))
-        current_ending = renderer._apply_ending_effect(
-            source, first, 4.0, 3.9, settings, 93
-        )
-        accepted_middle = renderer._apply_ending_effect(
+        middle = renderer._apply_ending_effect(
             source, first, 20.0, 11.9, settings, 285
         )
-        self.assertNotEqual(_frame_digest(current_ending), _frame_digest(source))
-        self.assertEqual(_frame_digest(accepted_middle), _frame_digest(source))
-        self.assertTrue(
-            renderer._ending_freezes_source(
-                replace(settings, ending_mode="Loop Freeze"), 4.0, 3.9
-            )
+        partial_tail = renderer._apply_ending_effect(
+            source, first, 20.0, 18.9, settings, 453
         )
+        self.assertEqual(_frame_digest(middle), _frame_digest(source))
+        self.assertNotEqual(_frame_digest(partial_tail), _frame_digest(source))
         self.assertFalse(
             renderer._ending_freezes_source(
                 replace(settings, ending_mode="Loop Freeze"), 20.0, 11.9
             )
         )
-        current_loop = renderer._apply_loop_friendly(source, first, 4.0, 3.9)
-        accepted_loop = renderer._apply_loop_friendly(source, first, 20.0, 11.9)
-        self.assertNotEqual(_frame_digest(current_loop), _frame_digest(source))
-        self.assertEqual(_frame_digest(accepted_loop), _frame_digest(source))
+        self.assertTrue(
+            renderer._ending_freezes_source(
+                replace(settings, ending_mode="Loop Freeze"), 20.0, 19.9
+            )
+        )
+        middle_loop = renderer._apply_loop_friendly(source, first, 20.0, 11.9)
+        real_loop = renderer._apply_loop_friendly(source, first, 20.0, 19.9)
+        self.assertEqual(_frame_digest(middle_loop), _frame_digest(source))
+        self.assertNotEqual(_frame_digest(real_loop), _frame_digest(source))
 
     def test_style_and_coverage_clocks_are_sliced_but_remain_distinct(self) -> None:
         settings = _settings(
@@ -1025,13 +966,19 @@ class PreviewPlanningContractTests(unittest.TestCase):
         accepted_fresh_preview_hold_active = False
         self.assertTrue(full_hold_active_at_preview_start)
         self.assertFalse(accepted_fresh_preview_hold_active)
-        # Current _render_frames passes the local index; the accepted clock is absolute.
+        preview_stutter = replace(stutter_settings, output_time_offset=0.5)
+        absolute_trigger_frame = renderer._absolute_output_frame(preview_stutter, 10)
+        self.assertEqual(absolute_trigger_frame, 22)
         self.assertNotEqual(
-            renderer._starts_stutter_hold(10, stutter_settings),
+            renderer._starts_stutter_hold(10, preview_stutter),
+            renderer._starts_stutter_hold(absolute_trigger_frame, preview_stutter),
+        )
+        self.assertEqual(
+            renderer._starts_stutter_hold(absolute_trigger_frame, preview_stutter),
             renderer._starts_stutter_hold(22, stutter_settings),
         )
 
-    def test_A_through_P_plain_characterization_oracle_is_deterministic(self) -> None:
+    def test_A_through_X_plain_repaired_evidence_is_deterministic(self) -> None:
         random_inside = self.random_full[2]
         inside_window = (
             random_inside.timeline_start + min(0.05, random_inside.duration / 4.0),
@@ -1078,6 +1025,22 @@ class PreviewPlanningContractTests(unittest.TestCase):
             style_fx_random_percent=45.0,
             style_fx_random_seed=202,
         )
+        middle_tail = _tail_policy(
+            20.0,
+            (8.0, 12.0),
+            _settings(ending_mode="Fade Out", loop_friendly=True),
+        )
+        true_tail = _tail_policy(
+            20.0,
+            (19.0, 20.0),
+            _settings(ending_mode="Fade Out", loop_friendly=True),
+        )
+        full_preview_settings = replace(
+            _settings(ending_mode="Fade Out", loop_friendly=True),
+            preview_duration=20.0,
+            output_time_offset=0.0,
+        )
+        stutter_clock_settings = replace(_settings(), output_time_offset=0.5)
         oracle = {
             "A": _slice_records(self.two_sources, 0.0, 20.0),
             "B": _slice_records(self.two_sources, 7.0, 13.0),
@@ -1105,8 +1068,54 @@ class PreviewPlanningContractTests(unittest.TestCase):
                 random_coverage_settings, 20.0, 5.0, 3.0
             ),
             "P": self.temporal,
+            "Q": middle_tail["loop_visual"],
+            "R": true_tail["loop_visual"],
+            "S": {
+                "visual": true_tail["loop_visual"],
+                "codec": true_tail["codec_loop_seconds"],
+            },
+            "T": middle_tail["audio_fade"],
+            "U": true_tail["audio_fade"],
+            "V": {
+                "local_frame": 10,
+                "absolute_frame": renderer._absolute_output_frame(
+                    stutter_clock_settings,
+                    10,
+                ),
+            },
+            "W": {
+                "prior_luma": self.temporal["fresh_start_state"]["prior_luma"],
+                "prior_rgb": self.temporal["fresh_start_state"]["prior_rgb"],
+                "fresh_repeat_equal": self.temporal["fresh_repeat_equal"],
+            },
+            "X": {
+                "render_duration": renderer._render_window_duration(
+                    full_preview_settings,
+                    20.0,
+                ),
+                "transitions": [
+                    [
+                        target.frame,
+                        target.absolute_frame,
+                        target.transition_ordinal,
+                        target.visual_transition,
+                    ]
+                    for target in renderer._datamosh_transition_targets(
+                        transition_segments,
+                        _playback(15.0),
+                        random_transition_settings,
+                        15 * FPS,
+                        0,
+                    )
+                ],
+                "tail": _tail_policy(20.0, (0.0, 20.0), full_preview_settings),
+            },
         }
-        self.assertEqual(list(oracle), list("ABCDEFGHIJKLMNOP"))
+        self.assertEqual(list(oracle), list("ABCDEFGHIJKLMNOPQRSTUVWX"))
+        self.assertEqual(oracle["S"]["visual"], oracle["S"]["codec"])
+        self.assertIsNone(oracle["T"])
+        self.assertEqual(oracle["V"]["absolute_frame"], 22)
+        self.assertEqual(oracle["X"]["render_duration"], 20.0)
         first = json.dumps(oracle, sort_keys=True, separators=(",", ":"))
         second = json.dumps(oracle, sort_keys=True, separators=(",", ":"))
         self.assertEqual(first, second)
