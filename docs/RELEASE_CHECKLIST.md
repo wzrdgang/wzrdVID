@@ -127,4 +127,18 @@ This records the feature-frozen, locally prepared release candidate. It does not
 - [ ] Human-check Finder DMG presentation and the existing-app **Replace** dialog.
 - [ ] Validate normal browser/Finder quarantine and first-launch behavior; the package remains intentionally ad-hoc signed and unnotarized.
 - [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback when an iPhone and the separately required Apple release context are available.
-- [ ] Commit, push, tag, create a GitHub Release, upload the exact recorded DMG/ZIP bytes, fresh-download verify both hashes, and update public guidance only in a separately authorized publication phase.
+- [x] Commit and push release source `c66d846283f3d2c81863569e3ed8d083545f7681`; tag `v0.4.0`; publish the GitHub Release; upload and fresh-download-verify the exact DMG/ZIP; update public guidance to v0.4.0 DMG-primary with ZIP fallback.
+
+## v0.4.0 Publication Evidence — 2026-08-27
+
+- [x] `main` and `origin/main` contained release source commit `c66d846283f3d2c81863569e3ed8d083545f7681` before tagging.
+- [x] Lightweight tag `v0.4.0` resolves exactly to the release source commit locally and remotely.
+- [x] GitHub Release `WZRD.VID v0.4.0` is published, non-draft, and non-prerelease at https://github.com/wzrdgang/wzrdVID/releases/tag/v0.4.0.
+- [x] GitHub DMG asset ID `533036335`, 82,303,287 bytes, digest `sha256:90383e2eaf877dd9121368a019b3f17a896f51750e4746936f818f45784ead03`.
+- [x] GitHub ZIP asset ID `533036338`, 79,584,462 bytes, digest `sha256:396c3bd70ad91e446f046a488da1ea98d7d3b0878a2192121451934abe3730ff`.
+- [x] Fresh public downloads matched both authoritative hashes; downloaded DMG/ZIP apps remained thin arm64, v0.4.0, ad-hoc/no-Team, strict-valid, link-clean, and matched the approved executable SHA/CDHash and 577-entry manifest.
+- [x] A freshly downloaded ZIP app launched from its temporary extraction with visible title `WZRD.VID v0.4.0`; the exact task PID was stopped and real settings remained byte-identical.
+- [ ] Real packaged-GUI Messages/Photos HEIC/HEIF remains manual.
+- [ ] Physical-iPhone Lite source-audio listening and saved-Photos playback remains manual and separate from the desktop release.
+- [ ] Human Finder DMG presentation and existing-app **Replace** wording remains manual.
+- [ ] Normal browser/Finder quarantine and Gatekeeper first-launch behavior remains manual; command-line public downloads carried provenance but no `com.apple.quarantine`.

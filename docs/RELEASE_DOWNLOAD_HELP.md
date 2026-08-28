@@ -47,9 +47,9 @@ Signed/notarized builds and real auto-update support are planned after Apple Dev
 
 The desktop update checker is a notifier only. It can open the release page, but it does not auto-download, auto-install, or replace your current app.
 
-### Current v0.3.0 DMG workflow
+### Current v0.4.0 DMG workflow
 
-The published v0.3.0 release uses `WZRD.VID-macOS.dmg` as the primary normal-user download and retains `WZRD.VID-macOS.zip` as a fallback packaged app.
+The published v0.4.0 release uses `WZRD.VID-macOS.dmg` as the primary normal-user download and retains `WZRD.VID-macOS.zip` as a fallback packaged app.
 
 The DMG install/update flow is conventional: open the image, drag `WZRD.VID.app` onto its `Applications` shortcut, and choose **Replace** if Finder finds an older app bundle. This replaces only `/Applications/WZRD.VID.app`. WZRD.VID's `settings.json`, `ImportedMedia`, `StillCache`, and `Previews` live under `~/Library/Application Support/WZRD.VID`, and user-exported recipe JSON files live wherever the user saved them, so they remain outside the replaced application bundle.
 
