@@ -162,3 +162,18 @@ This records the locally qualified desktop release candidate. It does not author
 - [ ] Validate normal browser/Finder quarantine and Gatekeeper first-launch behavior; the package remains intentionally ad-hoc signed and unnotarized.
 - [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback only in the separate Apple release context.
 - [x] The qualified release-candidate source is prepared for the exact Phase 20 commit and normal push; tagging, publishing, uploading the exact candidate artifacts, fresh-download verification, and site transition remain separately authorized Phase 20R work.
+
+## v0.5.0 Publication Evidence — 2026-08-28
+
+- [x] Release source commit `921f1a198342a2deb78919359a52b3798630e939` was clean and synchronized on `main`/`origin/main` before publication; the lightweight local and remote `v0.5.0` tag resolves exactly to that commit.
+- [x] GitHub Release `WZRD.VID v0.5.0` is published, non-draft, and non-prerelease at https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0.
+- [x] GitHub DMG asset ID `534605869`, 82,525,127 bytes, digest `sha256:cd4e4c7be0588480e698187ec82bab57682442d37bc9c9a057694ab24b078c85`.
+- [x] GitHub ZIP asset ID `534605868`, 79,605,131 bytes, digest `sha256:e46afcde714ea1378ccae632fedeb814b87f4d5df65a503b1f12372ce5fb05e6`.
+- [x] Fresh public downloads matched both authoritative hashes. The downloaded DMG and ZIP retained the exact executable SHA-256 `3ecaaa86cf2f49f4ab23497fece3f4d907dc73ad09d6305823c7817e6ff86ab4` and 669-entry manifest SHA-256 `bb93b4df08d5ec1419c112f90af77ede0456832d838b3fb3d2039e5b18ca5c75`; both remained thin arm64, v0.5.0, Bundle ID `com.samhowell.wzrdvid`, strict-valid ad-hoc/no-Team packages.
+- [x] `/releases/latest` resolves to v0.5.0. An isolated v0.4.0 source environment resolved the real GitHub API state as v0.5.0/newer, displayed the update, exposed Download Update, made exactly one external-open request to the exact v0.5.0 release, and made no download/install/replacement filesystem mutation. An isolated v0.5.0 environment resolved v0.5.0 as current/no-update and retained its visible warning/log when the opener refused.
+- [x] Site transition commit `52053e8b4e971a4d50f63de5c3ae3aab9a3073a1` (`Publish WZRD.VID v0.5.0 site`) updated the bounded publication copy, exact DMG/ZIP/release links, JSON-LD, install help, and paired rights-safe Source/Style/Output screenshots without changing desktop or Lite runtime behavior.
+- [x] GitHub Pages build `1181352492` built the exact site commit from `main:/docs` in 39,738 ms. Cache-busted live `index.html`, `i18n.js`, and all three screenshots matched committed bytes; `/`, `/lite/`, `/support/`, and `/privacy/` returned HTTP 200, and the live site truthfully reports Published desktop v0.5.0 while preserving Lite as a separate browser product.
+- [ ] Run the packaged GUI test with a suitable real Messages/Photos HEIC/HEIF readable/rejection pair when available (`PACKAGED PRIVATE HEIC: MANUAL / NOT RUN`).
+- [ ] Human-check Finder DMG presentation and the existing-app **Replace** dialog.
+- [ ] Validate normal browser/Finder quarantine and Gatekeeper first-launch behavior; the package remains intentionally ad-hoc signed and unnotarized.
+- [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback only in the separate Apple release context.
