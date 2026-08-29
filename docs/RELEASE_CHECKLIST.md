@@ -142,3 +142,23 @@ This records the feature-frozen, locally prepared release candidate. It does not
 - [ ] Physical-iPhone Lite source-audio listening and saved-Photos playback remains manual and separate from the desktop release.
 - [ ] Human Finder DMG presentation and existing-app **Replace** wording remains manual.
 - [ ] Normal browser/Finder quarantine and Gatekeeper first-launch behavior remains manual; command-line public downloads carried provenance but no `com.apple.quarantine`.
+
+## v0.5.0 Local Preparation Evidence — 2026-08-28
+
+This records the locally qualified desktop release candidate. It does not authorize or claim a tag, GitHub Release, upload, Pages deployment, production signature, notarization, or website transition.
+
+- [x] `VERSION`, desktop fallback, bundled resource, and both macOS bundle version fields report `0.5.0`; desktop schema remains `6` and Apple Lite identity/version/signing remains unchanged.
+- [x] The governed pre-bump 92-test suite passed twice normally and once in reverse-module order; the post-bump source suite, static matrix, exact Material/planning/spILL! oracles, Phase 19B Lite contract, and Apple Lite simulator smoke passed.
+- [x] Source and frozen qualification cover Preview/full-output parity, Static/Drift/Pulse and three-Zone behavior, bounded Circuit history, static-base SKRRT, all codec modes and Layer reversal, frame-pipe/PNG/fallback paths, HEIC/HEIF handling, audio, media identity, failure cleanup, source immutability, and exact selected semantic parity.
+- [x] The single fresh app build is thin arm64 with 205 Mach-O files, zero dangling links, strict deep ad-hoc codesign, no TeamIdentifier, Bundle ID `com.samhowell.wzrdvid`, and executable SHA-256 `3ecaaa86cf2f49f4ab23497fece3f4d907dc73ad09d6305823c7817e6ff86ab4`.
+- [x] Final local DMG: 82,525,127 bytes; SHA-256 `cd4e4c7be0588480e698187ec82bab57682442d37bc9c9a057694ab24b078c85`.
+- [x] Final local ZIP fallback: 79,605,131 bytes; SHA-256 `e46afcde714ea1378ccae632fedeb814b87f4d5df65a503b1f12372ce5fb05e6`.
+- [x] Both independently generated DMGs and the extracted ZIP match the `dist` app's 669-entry manifest SHA-256 `bb93b4df08d5ec1419c112f90af77ede0456832d838b3fb3d2039e5b18ca5c75`; both DMGs mount with only the app and Applications link and detach cleanly.
+- [x] Isolated replacement from the actual published v0.4.0 DMG changes only the app bundle; external settings, ImportedMedia, StillCache, Previews, and recipe files remain hash-identical, and the new app launches from the isolated replacement path.
+- [x] Rights-safe temporary Source/Style/Output screenshot candidates were captured from the accepted frozen candidate; deployed v0.4.0 screenshots remain unchanged.
+- [x] Paste-ready release notes and exact local artifact evidence are recorded in `docs/V0.5.0_RELEASE_NOTES.md` and `docs/V0.5.0_ARTIFACTS.md`.
+- [ ] Run the packaged GUI test with a suitable real Messages/Photos HEIC/HEIF readable/rejection pair when available (`PACKAGED PRIVATE HEIC: MANUAL / NOT RUN`).
+- [ ] Human-check Finder DMG presentation and the existing-app **Replace** dialog.
+- [ ] Validate normal browser/Finder quarantine and Gatekeeper first-launch behavior; the package remains intentionally ad-hoc signed and unnotarized.
+- [ ] Run physical-iPhone Lite source-audio listening and saved-Photos playback only in the separate Apple release context.
+- [x] The qualified release-candidate source is prepared for the exact Phase 20 commit and normal push; tagging, publishing, uploading the exact candidate artifacts, fresh-download verification, and site transition remain separately authorized Phase 20R work.

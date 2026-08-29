@@ -180,14 +180,14 @@ The build script regenerates branding assets, icon assets, UI textures, then pac
 - Five independently enabled **DATAMOSH MODES**: transition-aware **DATAMOSHING**, recursively accumulating **spILL!**, reverse-prediction **SKRRT**, spatial-fragment **ShShSHa**, and transition-flow **FLOWs**.
 - A persistent **Layer** control orders the five DATAMOSH modes. Combined modes share one controlled MPEG-4 Part 2 encode and one safe H.264/yuv420p transcode before normal audio finalization; source media is never modified and temporary prediction streams are never shipped.
 - Independent **Style FX Coverage** can leave random, manual, or combined clean sections without changing ANSI Coverage.
-- Up to three static **Zones** can target Pixel Sorting, Databending, Circuit Bending, Hex Editing, Random Noise B/W, and SKRRT. The five frame effects stay inside their rectangles; SKRRT uses bounded spatial prediction leakage. Other codec modes, including ShShSHa, intentionally remain Full Frame only.
+- Up to three **Zones** can target Pixel Sorting, Databending, Circuit Bending, Hex Editing, Random Noise B/W, and SKRRT. Zones can stay Static or use deterministic Drift/Pulse motion for the five frame effects while remaining hard-contained; SKRRT uses each Zone's saved static base rectangle for bounded spatial prediction leakage. Other codec modes, including ShShSHa, intentionally remain Full Frame only.
 - Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
 - Bypass-normal sections so chosen parts remain regular video instead of ANSI.
 - Transitions and endings for less-abrupt exports.
 - Batch variants for multiple outputs from one timeline.
 - Output-size presets, including 29 MB Text Limit and 32 MB Sweet Spot workflows.
 - Auto-optimize final video size with H.264 `yuv420p`, AAC, and `+faststart`.
-- 5-second and 10-second preview renders before committing to a full export.
+- 5-second and 10-second Preview slices use the same canonical plan as the corresponding full-output interval, including Random source selection, transitions, delayed audio, endings/Loop behavior, fades, Stutter timing, and Zone motion.
 - WZRD.VID Lite includes a browser-safe Random clip assembly checkbox using its 15/30/60-second duration choices.
 - WZRD.VID Lite's global **Include Source Audio** control defaults on, follows source-video sound through normal or random visual cuts, keeps still sections silent on the source bus, and can mix that sound with explicit Add Audio. This does not change the desktop per-source audio controls.
 - PyInstaller macOS app build support.
@@ -233,7 +233,7 @@ This repository includes WZRD.VID UI/demo media only. It intentionally does not 
 5. Set timeline/music trim, optional **Style begins at** time and max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
 6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
 7. Choose ANSI Coverage for normal-video sections and Style FX Coverage for clean optional-effect sections.
-8. Enable any DATAMOSH MODES, arrange their Layer order, and optionally assign the five Material Dynamics effects or SKRRT to one of up to three Zones.
+8. Enable any DATAMOSH MODES, arrange their Layer order, and optionally assign the five Material Dynamics effects or SKRRT to one of up to three Zones. The five Material effects can use Static, Drift, or Pulse Zone geometry; SKRRT keeps the saved static base rectangle.
 9. Pick Output Size and optional Optimize Output target.
 10. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
 11. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
