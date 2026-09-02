@@ -1,55 +1,31 @@
-# Install WZRD.VID on Mac
+# Install WZRD.VID On Mac
 
-The current packaged app is intended for Apple Silicon Macs. Intel Mac users should run from source for now.
+## Current Status
 
-## Download
+Desktop downloads are temporarily unavailable. The historical packaged binaries were withdrawn on September 2, 2026. All 15 release records and source tags remain available for historical reference, but the releases currently contain no DMG or packaged ZIP assets.
 
-1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
-2. Download `WZRD.VID-macOS.dmg`.
-3. Do **not** download `Source code (zip)` unless you want to run/build from source.
+There is therefore no official current desktop package to install from this repository.
 
-`WZRD.VID-macOS.zip` remains available as a fallback packaged-app download. This build is tested primarily on Apple Silicon Macs. Intel Mac users should run from source for now; universal or Intel-native packaging is planned later.
+> Historical binary distribution withdrawn. The source tag and release record remain available for historical reference. Previously granted licenses remain unaffected.
 
-## Install
+## Avoid The Wrong Download
 
-1. Open `WZRD.VID-macOS.dmg`.
-2. Drag `WZRD.VID.app` onto the `Applications` shortcut.
-3. Choose **Replace** when updating an existing installation.
+GitHub's automatic archive of current `main` contains the public documentation and Pages/Lite site snapshot. It is not `WZRD.VID.app`, an installer, or current proprietary desktop development source.
 
-## If macOS Blocks It
+Historical tag archives contain historical source under the license that applied to that copy. They are not packaged Mac applications.
 
-WZRD.VID is currently ad-hoc signed and unnotarized.
+Do not obtain a purported current WZRD.VID installer from an unofficial mirror or third-party package listing.
 
-Right-click `WZRD.VID.app`, choose **Open**, then confirm you want to open it.
+## Existing Installations
 
-## If ffmpeg Is Missing
+Withdrawal does not revoke a lawfully obtained copy or the license that accompanied or applied to it. Existing installations and user-created output remain under their applicable terms.
 
-WZRD.VID needs `ffmpeg` and `ffprobe` for rendering.
+The v0.5.0 desktop update checker opens the latest release record and never downloads, installs, or replaces the application automatically. While releases are assetless, that record does not provide an update package.
 
-Install with Homebrew:
+Existing desktop copies may still require a compatible local `ffmpeg` and `ffprobe` installation for rendering.
 
-```bash
-brew install ffmpeg
-```
+## When Desktop Distribution Resumes
 
-Then open WZRD.VID again.
+Official availability and installation instructions will be posted at [wzrdvid.com](https://wzrdvid.com/) and in a new qualified [GitHub Release](https://github.com/wzrdgang/wzrdVID/releases). Verify the release record, filename, and published integrity information before installing.
 
-## Update
-
-1. Open WZRD.VID.
-2. Check the update status in the app header.
-3. If a newer version is available, click **Download Update**.
-4. Download the latest `WZRD.VID-macOS.dmg`.
-5. Open it and drag `WZRD.VID.app` onto `Applications`.
-6. Choose **Replace**, then use right-click **Open** if macOS blocks the first launch.
-
-There is no automatic updater yet. Signed/notarized builds and real auto-update support are planned after Apple Developer approval.
-
-The update checker only tells you when a newer release exists and opens the download page. It does not auto-download or replace the app.
-
-## Common First-Run Issues
-
-- **I downloaded Source code (zip).** That archive is only for developers. Go back to Releases and download `WZRD.VID-macOS.dmg`; `WZRD.VID-macOS.zip` is the packaged fallback.
-- **macOS says the app is blocked.** Right-click `WZRD.VID.app`, choose **Open**, then confirm.
-- **The app says ffmpeg is missing.** Run `brew install ffmpeg`, then open WZRD.VID again.
-- **I am on an Intel Mac.** Use the source-run instructions in `README.md` for now. The packaged release is currently Apple Silicon-focused.
+For a browser-only experience in the meantime, open [WZRD.VID Lite](https://wzrdvid.com/lite/). Files stay local to the browser and are not uploaded.

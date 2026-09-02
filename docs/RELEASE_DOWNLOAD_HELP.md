@@ -1,138 +1,38 @@
-# Release Download Help
+# Release And Download Help
 
-WZRD.VID has two different GitHub downloads. Normal users want the release asset, not the source-code archive.
+## Desktop Downloads Are Unavailable
 
-## For Normal Apple Silicon Mac Users
+WZRD.VID's 15 historical GitHub release records remain published, but their packaged binary assets have been withdrawn. There is currently no official DMG or packaged application ZIP to download.
 
-Use this path:
+The preserved [v0.5.0 release record](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0) is historical and assetless.
 
-1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
-2. Download **`WZRD.VID-macOS.dmg`** from the release assets.
-3. Open the DMG.
-4. Drag `WZRD.VID.app` onto the `Applications` shortcut.
-5. Choose **Replace** when updating an existing installation.
-6. If macOS blocks it because it is ad-hoc signed and unnotarized, right-click `WZRD.VID.app` and choose **Open**.
-7. If the app says ffmpeg or ffprobe is missing, install ffmpeg:
+> Historical binary distribution withdrawn. The source tag and release record remain available for historical reference. Previously granted licenses remain unaffected.
 
-```bash
-brew install ffmpeg
-```
+## What The GitHub Links Contain
 
-`WZRD.VID-macOS.zip` remains available as a fallback packaged-app download. The packaged app is tested primarily on Apple Silicon Macs. Intel Mac users should run from source until universal or Intel-native packaging exists.
+- **Releases:** historical release records, retirement notices, and GitHub-generated source links. No packaged binary assets are currently attached.
+- **Tags:** immutable historical source snapshots under the licenses that applied to those copies.
+- **Current main archive:** the public documentation, legal, GitHub Pages, WZRD.VID Lite, support, and distribution snapshot. It is not the desktop application or current proprietary desktop development source.
+- **WZRD.VID Lite:** the active browser-only tool at [wzrdvid.com/lite/](https://wzrdvid.com/lite/).
 
-## Wrong ZIP Warning
+A GitHub-generated `.zip` or `.tar.gz` archive is not `WZRD.VID.app` and should not be treated as a Mac installer.
 
-Do **not** use these unless you intentionally want source code:
+## Existing Copies
 
-- GitHub green **Code -> Download ZIP**
-- Release entries named **Source code (zip)**
-- Release entries named **Source code (tar.gz)**
+Binary withdrawal does not revoke existing lawfully obtained copies, historical licenses, or rights previously granted for those copies. The desktop update checker is notification/navigation only; it does not download, install, replace, or remove an application.
 
-Those downloads are the project source files only. They do not include the packaged `WZRD.VID.app`.
+Keep installers you are independently entitled to retain in a secure backup. Do not redistribute them unless the license applying to that copy or a separate written authorization permits redistribution.
 
-If you wanted the packaged app, go back to the latest release and choose `WZRD.VID-macOS.dmg`. The asset named exactly `WZRD.VID-macOS.zip` is the packaged fallback, not GitHub's source archive.
+## Future Official Packages
 
-## Updating WZRD.VID
+When a new qualified package is available, the official website and a new GitHub Release will identify it. Confirm all of the following before installation:
 
-There is no automatic updater yet.
+- the release belongs to `wzrdgang/wzrdVID`;
+- the release is newer than the historical v0.5.0 record;
+- an actual packaged asset is attached;
+- the filename and integrity information match the release documentation; and
+- the website no longer says desktop downloads are unavailable.
 
-1. Open WZRD.VID.
-2. Check the update status in the app header.
-3. If a newer version is available, click **Download Update**.
-4. Download the latest `WZRD.VID-macOS.dmg` release asset.
-5. Open it and drag `WZRD.VID.app` onto `Applications`.
-6. Choose **Replace**, then use right-click **Open** if macOS blocks the first launch.
+Avoid unofficial mirrors, repackaged applications, and third-party package repositories claiming to distribute current WZRD.VID builds.
 
-Signed/notarized builds and real auto-update support are planned after Apple Developer approval.
-
-The desktop update checker is a notifier only. It can open the release page, but it does not auto-download, auto-install, or replace your current app.
-
-### Current v0.5.0 DMG workflow
-
-The published v0.5.0 release uses `WZRD.VID-macOS.dmg` as the primary normal-user download and retains `WZRD.VID-macOS.zip` as a fallback packaged app.
-
-The DMG install/update flow is conventional: open the image, drag `WZRD.VID.app` onto its `Applications` shortcut, and choose **Replace** if Finder finds an older app bundle. This replaces only `/Applications/WZRD.VID.app`. WZRD.VID's `settings.json`, `ImportedMedia`, `StillCache`, and `Previews` live under `~/Library/Application Support/WZRD.VID`, and user-exported recipe JSON files live wherever the user saved them, so they remain outside the replaced application bundle.
-
-The DMG is an install convenience, not an automatic updater, Developer ID signature, notarization, or Gatekeeper bypass. Until signing/notarization changes are separately authorized and validated, first launch may still require right-clicking the app and choosing **Open**.
-
-## Common First-Run Issues
-
-- **Wrong ZIP:** The Source code ZIP is for running/building from source. Normal app users should download `WZRD.VID-macOS.dmg`; `WZRD.VID-macOS.zip` is the packaged fallback.
-- **Unsigned app warning:** Right-click `WZRD.VID.app`, choose **Open**, then confirm.
-- **Missing ffmpeg/ffprobe:** Install with `brew install ffmpeg` on macOS.
-- **Intel Mac:** Run from source for now. The packaged Mac release is currently Apple Silicon-focused.
-
-## Why `dist/` Is Ignored
-
-`dist/` is generated by PyInstaller and can be large. It changes every time the app is rebuilt, so it should not be committed to git. Keeping it ignored makes the repository smaller, cleaner, and easier to clone.
-
-Packaged builds belong in GitHub Releases, not in git history.
-
-## Run From Source
-
-Use this only if you downloaded the source ZIP, cloned the repo, want to modify the code, or are running on Windows/Linux.
-
-macOS/Linux:
-
-```bash
-cd ~/Downloads/wzrdVID-main
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python run.py
-```
-
-Windows PowerShell:
-
-```powershell
-cd $env:USERPROFILE\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python run.py
-```
-
-Windows Command Prompt:
-
-```bat
-cd %USERPROFILE%\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\activate.bat
-pip install -r requirements.txt
-python run.py
-```
-
-## Build Locally
-
-```bash
-cd ~/Downloads/wzrdVID-main
-brew install ffmpeg
-./build_app.sh
-open "dist/WZRD.VID.app"
-```
-
-## Package the Fallback Release ZIP
-
-After building the app locally:
-
-```bash
-scripts/package_release.sh
-```
-
-The script creates:
-
-```text
-WZRD.VID-macOS.zip
-```
-
-Upload that ZIP as the fallback packaged app so users do not confuse it with the source-only Code ZIP.
-
-## Build a DMG Locally
-
-After `./build_app.sh` succeeds:
-
-```bash
-scripts/package_dmg.sh
-```
-
-The script creates and locally validates `WZRD.VID-macOS.dmg`. It does not publish, install into `/Applications`, change signing, or notarize.
+For public support, open an issue at [github.com/wzrdgang/wzrdVID/issues](https://github.com/wzrdgang/wzrdVID/issues).

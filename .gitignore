@@ -1,57 +1,10 @@
-# Python / local env
-.venv/
-__pycache__/
-pycache/
-*.py[cod]
-*$py.class
-
-# macOS / editor
+# Local editor and OS files
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Local incoming demo staging
-demo/
-
-# Build outputs
-dist/
-build/
-*.spec
-.pyinstaller-cache/
-.pip-cache/
-
-# Release packages
-WZRD.VID-macOS.zip
-WZRD.VID-macOS.dmg
-
-# Render/output media
-*.mp4
-*.mov
-*.mp3
-*.wav
-*.m4a
-*.gif
 *.log
 
-
-# Release-safe demo assets
-!assets/demos/
-!assets/demos/*.mp4
-!assets/demos/*.gif
-!assets/screenshots/
-!assets/screenshots/*.png
-!assets/screenshots/*.jpg
-!assets/screenshots/*.jpeg
-!assets/screenshots/*.webp
-!docs/assets/demos/
-!docs/assets/demos/*.mp4
-!docs/assets/demos/*.gif
-!docs/assets/screenshots/
-!docs/assets/screenshots/*.png
-!docs/assets/screenshots/*.jpg
-!docs/assets/screenshots/*.jpeg
-!docs/assets/screenshots/*.webp
-
-# Temp folders
-tmp/
-temp/
+# Local GitHub Pages output
+_site/
+.jekyll-cache/
+.sass-cache/

@@ -1,351 +1,63 @@
 # //wzrdVID
 
 <p align="center">
-  <img src="assets/logo/wzrdvid-github-banner.png"
+  <img src="docs/assets/logo/wzrdvid-github-banner.png"
        alt="//wzrdVID banner"
        width="900">
 </p>
 
 **ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations**
 
-//wzrdVID is a local desktop textmode/glitch/compression-art video engine. It turns videos and photos into strange compressed little objects: ANSI motion, chunky blocks, terminal drift, VHS damage, ugly cuts, audio-reactive hits, and phone-sendable MP4s.
+WZRD.VID is a local-first creative video tool published by AMPYX LLC. This repository is its official public archive, documentation, legal, support, GitHub Pages, and distribution surface. Current desktop application development is private.
 
-It is inspired by ANSI graphics, late-night cable TV, old internet media tools, lo-fi broadcast artifacts, public-access video, tape labels, and underground mixtape utility software. The point is simple: give your clips the worky treatment, remix the pipeline, and ship weird little files.
+## Desktop Download Status
 
-The output is a normal `.mp4`. It visually looks like terminal/video-art output, but it is not a terminal playback file.
+Desktop downloads are temporarily unavailable. All 15 historical release records and tags remain available, but their packaged binary assets have been withdrawn. The latest historical release record is [v0.5.0](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0).
 
+> Historical binary distribution withdrawn. The source tag and release record remain available for historical reference. Previously granted licenses remain unaffected.
 
-## Download the Mac App (Apple Silicon)
+GitHub's automatic archive of current `main` contains this public documentation and site snapshot. It is not the desktop application and does not contain current proprietary desktop development source.
 
-For most people on Apple Silicon macOS, this is the recommended release download:
+Existing lawfully obtained copies are not revoked by the withdrawal. They remain governed by the license that accompanied or applied to that copy.
 
-1. Go to the [latest WZRD.VID release](https://github.com/wzrdgang/wzrdVID/releases/latest).
-2. Download the release asset named `WZRD.VID-macOS.dmg`.
-3. Open the DMG.
-4. Drag `WZRD.VID.app` onto the `Applications` shortcut.
-5. Choose **Replace** when updating an existing installation.
-6. If macOS blocks it because it is ad-hoc signed and unnotarized, right-click `WZRD.VID.app` and choose **Open**.
-7. If WZRD.VID says `ffmpeg` or `ffprobe` is missing, install ffmpeg:
+## Public Repository Contents
 
-```bash
-brew install ffmpeg
-```
+- The public website and browser-only [WZRD.VID Lite](https://wzrdvid.com/lite/) experience under [`docs/`](docs/).
+- Current AMPYX legal terms, notices, and [license history](docs/LICENSE_HISTORY.md).
+- Historical release notes, artifact records, tags, commits, and source history.
+- Public issues, discussions, support, and security-reporting channels.
 
-Important: do **not** download GitHub's **Source code (zip)** or use the green **Code -> Download ZIP** button unless you want to run/build from source. Those ZIPs do not include the packaged Mac app. `WZRD.VID-macOS.zip` remains available as a fallback packaged-app download if you cannot use the DMG.
+The current desktop application source, build system, tests, release engineering, and Apple wrapper are not part of public `main`. Their removal from the current tree did not rewrite commits, tags, release records, or historical licenses.
 
-Current Mac package note: packaged releases are tested primarily on Apple Silicon Macs. Intel Mac users should run from source for now; universal or Intel-native packaging is planned later.
+## WZRD.VID Lite
 
-Short install guide: see [`docs/INSTALL_MAC.md`](docs/INSTALL_MAC.md).
+[Open WZRD.VID Lite](https://wzrdvid.com/lite/) for the public browser-only 15/30/60-second chaos-cut tool. Files remain local to the browser; there is no upload backend.
 
-## Update WZRD.VID
+Lite is a smaller browser instrument, not the private desktop renderer.
 
-There is no automatic updater yet. Signed/notarized builds and real auto-update support are planned after Apple Developer approval.
+## License And Rights
 
-For now:
+Current copies that include or expressly reference the [WZRD.VID Freeware License](LICENSE) are proprietary freeware. They may be used without charge for personal, professional, business, paid-client, and commercial creative work, including monetized user output. The license restricts exploitation and unauthorized redistribution of WZRD.VID itself.
 
-1. Open WZRD.VID.
-2. Check the update status in the app header.
-3. If a newer version is available, click **Download Update**.
-4. Download the latest `WZRD.VID-macOS.dmg` release asset.
-5. Open the DMG and drag `WZRD.VID.app` onto `Applications`.
-6. Choose **Replace**, then use right-click **Open** if macOS blocks the first launch.
+AMPYX does not acquire ownership of user media, projects, or output merely because WZRD.VID processes them. Third-party components remain governed by their own licenses.
 
-The update checker only notifies and opens the release page. It never auto-downloads, replaces, or installs app builds.
+Historical grants remain valid. The root snapshot used AGPL-3.0, and published tags through v0.5.0 used their historical custom source-available terms. See [LICENSE_HISTORY.md](docs/LICENSE_HISTORY.md), [LICENSE_FAQ.md](docs/LICENSE_FAQ.md), [NOTICE.md](NOTICE.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Platform Support
+## Release History
 
-WZRD.VID is currently tested primarily on Apple Silicon macOS.
+- [Release records](https://github.com/wzrdgang/wzrdVID/releases)
+- [Tags](https://github.com/wzrdgang/wzrdVID/tags)
+- [CHANGELOG.md](CHANGELOG.md)
+- [v0.3.0 release notes](docs/V0.3.0_RELEASE_NOTES.md)
+- [v0.4.0 release notes](docs/V0.4.0_RELEASE_NOTES.md)
+- [v0.5.0 release notes](docs/V0.5.0_RELEASE_NOTES.md)
 
-The current packaged Mac app is Apple Silicon-focused. Intel Mac users should run from source until universal or Intel-native packaging exists.
+The root [`VERSION`](VERSION) records `0.5.0`, the latest historical desktop release. It does not announce a currently downloadable package.
 
-Linux and Windows users can usually run from source with Python + ffmpeg. Cross-platform source runs are best-effort/experimental, and packaged Windows/Linux builds are not currently provided.
+## Support And Security
 
-Install ffmpeg/ffprobe for your platform:
+Use [GitHub Issues](https://github.com/wzrdgang/wzrdVID/issues) for bug reports, feature requests, and public support. Use the repository's Discussions area for general project discussion when available.
 
-macOS:
+Report exploitable security issues through a private GitHub security advisory as described in [SECURITY.md](SECURITY.md).
 
-```bash
-brew install ffmpeg
-```
-
-Debian/Ubuntu:
-
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
-
-Fedora:
-
-```bash
-sudo dnf install ffmpeg
-```
-
-Arch:
-
-```bash
-sudo pacman -S ffmpeg
-```
-
-Windows:
-
-```powershell
-winget install Gyan.FFmpeg
-```
-
-Or download from <https://ffmpeg.org/download.html>. Make sure `ffmpeg.exe` and `ffprobe.exe` are on PATH.
-
-See `docs/CROSS_PLATFORM.md` for more source-run details and known caveats.
-
-## Run From Source — Developers / Tinkerers
-
-This is **not** the normal Mac install path. Use this section if you downloaded the GitHub source ZIP, cloned the repo, want to inspect or modify the code, or are running on Windows/Linux.
-
-The GitHub **Source code (zip)** and **Code -> Download ZIP** downloads are source only. They do not contain `WZRD.VID.app`.
-
-Requirements:
-
-- Python 3.10 or newer
-- ffmpeg and ffprobe
-- Python dependencies from `requirements.txt`
-
-macOS/Linux:
-
-```bash
-cd ~/Downloads/wzrdVID-main
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python run.py
-```
-
-Windows PowerShell:
-
-```powershell
-cd $env:USERPROFILE\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python run.py
-```
-
-Windows Command Prompt:
-
-```bat
-cd %USERPROFILE%\Downloads\wzrdVID-main
-py -m venv .venv
-.venv\Scripts\activate.bat
-pip install -r requirements.txt
-python run.py
-```
-
-Convenience launchers are also included:
-
-- macOS/Linux: `./run.sh`
-- Windows: `run_windows.bat`
-
-The app checks for `ffmpeg` and `ffprobe` at startup and shows platform-specific install guidance if either is missing.
-
-## Build The macOS App
-
-```bash
-./build_app.sh
-```
-
-Output:
-
-```text
-dist/WZRD.VID.app
-```
-
-The build script regenerates branding assets, icon assets, UI textures, then packages the app with PyInstaller. The Finder/Dock icon comes from `assets/wzrd_vid.icns`.
-
-## Features
-
-- Multi-source timeline for videos and photos, with drag-and-drop into the Sources / Timeline table.
-- Expanded import support for common video, audio, and image formats, including `.3gp`, `.3g2`, `.mts`, `.m2ts`, `.opus`, `.avif`, `.heic`, and `.heif` where local codecs allow.
-- Photo holds with the same ANSI/chunky/effects pipeline as video, including automatic EXIF orientation correction for phone photos.
-- HEIC/HEIF stills become subtle 3-second motion loops when they can be decoded locally.
-- Music/audio from audio files or video files with audio tracks, selectable by picker or drag-and-drop.
-- **worky’s music mode** for tiny mono broadcast audio texture on external music/audio.
-- Per-source **Include Audio** controls for timeline video rows.
-- Audio modes: Silent, External only, Source audio only, External + selected source audio.
-- Trim controls for timeline and music/audio, plus Music Start In Video / Music End In Video offsets for delayed external audio.
-- Match visual timeline length to selected music by retiming, trimming, or looping.
-- Optional **Max video length** cap and deterministic **Random clip assembly** for building short exports from timeline media.
-- **Style begins at** keeps the opening clean, then starts the full WZRD treatment at an absolute rendered-output timestamp.
-- ANSI/text-art rendering with color sampled from source frames.
-- **PUBLIC ACCESS** renderer for camcorder-dub public-access texture while keeping ANSI Coverage fully adjustable.
-- Chunky block styles, symbol ANSI styles, dither modes, scanlines, RGB split, glitch, VHS wobble, tunnel zoom, stutter holds, motion melt, tape damage, mosaic collapse, and five deterministic Material Dynamics effects: Pixel Sorting, Databending, Circuit Bending, Hex Editing, and Random Noise B/W.
-- Five independently enabled **DATAMOSH MODES**: transition-aware **DATAMOSHING**, recursively accumulating **spILL!**, reverse-prediction **SKRRT**, spatial-fragment **ShShSHa**, and transition-flow **FLOWs**.
-- A persistent **Layer** control orders the five DATAMOSH modes. Combined modes share one controlled MPEG-4 Part 2 encode and one safe H.264/yuv420p transcode before normal audio finalization; source media is never modified and temporary prediction streams are never shipped.
-- Independent **Style FX Coverage** can leave random, manual, or combined clean sections without changing ANSI Coverage.
-- Up to three **Zones** can target Pixel Sorting, Databending, Circuit Bending, Hex Editing, Random Noise B/W, and SKRRT. Zones can stay Static or use deterministic Drift/Pulse motion for the five frame effects while remaining hard-contained; SKRRT uses each Zone's saved static base rectangle for bounded spatial prediction leakage. Other codec modes, including ShShSHa, intentionally remain Full Frame only.
-- Canvas/framing controls for vertical clips: fill/crop, fit/letterbox, smart portrait, stretch, anchors, offsets, crop zoom, and letterbox backgrounds.
-- Bypass-normal sections so chosen parts remain regular video instead of ANSI.
-- Transitions and endings for less-abrupt exports.
-- Batch variants for multiple outputs from one timeline.
-- Output-size presets, including 29 MB Text Limit and 32 MB Sweet Spot workflows.
-- Auto-optimize final video size with H.264 `yuv420p`, AAC, and `+faststart`.
-- 5-second and 10-second Preview slices use the same canonical plan as the corresponding full-output interval, including Random source selection, transitions, delayed audio, endings/Loop behavior, fades, Stutter timing, and Zone motion.
-- WZRD.VID Lite includes a browser-safe Random clip assembly checkbox using its 15/30/60-second duration choices.
-- WZRD.VID Lite's global **Include Source Audio** control defaults on, follows source-video sound through normal or random visual cuts, keeps still sections silent on the source bus, and can mix that sound with explicit Add Audio. This does not change the desktop per-source audio controls.
-- PyInstaller macOS app build support.
-
-## Screenshots / Demos
-
-### Demo Video
-
-[Watch demo video](assets/demos/demo.mp4)
-
-<video src="assets/demos/demo.mp4" controls width="720"></video>
-
-If GitHub does not render the video player, use the direct demo video link above.
-
-### App Screenshots
-
-<p>
-  <a href="assets/screenshots/demo1.png">
-    <img src="assets/screenshots/demo1.png" width="260" alt="WZRD.VID source timeline screenshot">
-  </a>
-  <a href="assets/screenshots/demo2.png">
-    <img src="assets/screenshots/demo2.png" width="260" alt="WZRD.VID style controls screenshot">
-  </a>
-  <a href="assets/screenshots/demo3.png">
-    <img src="assets/screenshots/demo3.png" width="260" alt="WZRD.VID output controls screenshot">
-  </a>
-</p>
-
-### Brand System
-
-<a href="assets/branding/wzrdvid_brand_preview_sheet.png">
-  <img src="assets/branding/wzrdvid_brand_preview_sheet.png" width="520" alt="//wzrdVID brand system preview">
-</a>
-
-This repository includes WZRD.VID UI/demo media only. It intentionally does not include third-party sample footage, commercial music, or copyrighted source media.
-
-## Workflow
-
-1. Add videos and/or photos in **Sources / Timeline**.
-2. Set video trim points or photo hold durations.
-3. Select or drag in optional external music/audio. Video containers such as `.mp4` or `.mov` can be used as audio sources when they contain an audio track.
-4. Choose Audio Mix mode and per-video **Include Audio** rows.
-5. Set timeline/music trim, optional **Style begins at** time and max video length, external audio placement in the video timeline, match-to-music behavior, and Canvas / Framing.
-6. Pick an ANSI/chunky style, dither mode, effects, transitions, and ending mode.
-7. Choose ANSI Coverage for normal-video sections and Style FX Coverage for clean optional-effect sections.
-8. Enable any DATAMOSH MODES, arrange their Layer order, and optionally assign the five Material Dynamics effects or SKRRT to one of up to three Zones. The five Material effects can use Static, Drift, or Pulse Zone geometry; SKRRT keeps the saved static base rectangle.
-9. Pick Output Size and optional Optimize Output target.
-10. Use **Preview 5 Sec** or **Preview 10 Sec** for a quick sample, then **MAKE VIDEO** or **MAKE BATCH**.
-11. Use **Export Recipe** / **Import Recipe** to save and reuse the full setup.
-
-Recipes save timeline items, media paths, trims, Style begins at, max video length/random assembly settings, audio settings, framing, styles, effects, ANSI and Style FX coverage, DATAMOSH Layer order, Zones, seeds, optimization, and batch selections as JSON. They reference media paths only; they do not embed or copy your video, photo, or audio files. Older project preset JSON files still import as recipes.
-
-Advanced per-clip include-section selection remains future work.
-
-New projects default to **CRT Flash** transitions and **Fade Out** endings so exports feel less abrupt. Recipes preserve their saved transition and ending choices.
-
-## Supported Media
-
-- Video timeline sources: `.mp4`, `.mov`, `.m4v`, `.mts`, `.m2ts`, `.avi`, `.mkv`, `.webm`, `.3gp`, `.3g2`.
-- Photo timeline sources: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.gif`, `.bmp`, `.tif`, `.tiff`, `.heic`, `.heif`.
-- External audio/music: `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.opus`, `.aiff`, `.aif`, plus video containers with audio tracks.
-
-Actual decode support still depends on the local Python/Pillow/OpenCV/ffmpeg install. If a file cannot be decoded, WZRD.VID rejects it with a log message instead of silently failing.
-
-Lite can accept many of the same file extensions, but it can only decode what the browser supports. Desktop supports broader ffmpeg-backed media handling; HEIC/HEIF in Lite is browser-limited.
-
-## PUBLIC ACCESS
-
-**PUBLIC ACCESS** is a real renderer profile, not “ANSI off.” It pushes source frames through a public-access/VHS treatment before the ANSI coverage decision: CRT softness, chroma bleed, scanlines, tape wobble, bottom head-switch noise, RF speckle, dropout streaks, and unstable broadcast contrast.
-
-- 0% ANSI: full non-ANSI PUBLIC ACCESS video.
-- 50% ANSI: mixed PUBLIC ACCESS video and PUBLIC ACCESS-treated ANSI sections.
-- 100% ANSI: full ANSI/text-art using PUBLIC ACCESS-treated source frames.
-
-The same idea is available in WZRD.VID Lite as a browser-only preset, with browser-dependent media decoding.
-
-## Audio
-
-Audio Mix modes:
-
-- **Silent**: final MP4 has no audio stream.
-- **External only**: uses the selected audio file or audio track from a selected video container.
-- **Source audio only**: uses checked **Include Audio** timeline video rows; unchecked clips, clips without audio, and photo sections become silence.
-- **External + selected source audio**: mixes external audio with checked source-video audio and muxes AAC into the final MP4.
-
-If no external music is selected and timeline source audio is available, WZRD.VID defaults to source audio. If external audio is selected, it defaults to external only.
-
-External audio can also be placed later in the rendered video with **Music Start In Video**. For example, `0:08` keeps the first eight seconds silent in External-only mode, or lets selected source audio play before the external track enters in mixed mode. **Music End In Video** can stop external audio at a specific output timestamp, or stay `auto`.
-
-**worky’s music mode** processes external music/audio only into a tiny mono broadcast profile: highpassed, lowpassed, lightly compressed, and intentionally small/public-access feeling. Source-video audio stays on the normal path unless it is mixed with that processed external track.
-
-When **Match video length to music** is enabled, external audio is the timing authority. Source audio mixing is disabled for retimed match-to-music renders in this build; the app logs a warning and uses external audio only.
-
-## Output Size And Optimization
-
-ANSI/text-art video has lots of tiny high-contrast detail, so it can compress poorly. WZRD.VID separates character detail from final MP4 size:
-
-- Character width controls the text-art grid.
-- Output Size controls final width, FPS, CRF, and AAC bitrate.
-- Optimize Output can create a separate size-targeted copy.
-
-Built-in output presets include Full Quality, Social Share, Text Message Small, Text Message Tiny, and Custom. Built-in optimization presets include 29 MB Text Limit, 32 MB Sweet Spot, and 50 MB Better Quality.
-
-## Branding System
-
-The //wzrdVID identity is generated by `scripts/generate_branding.py`. It exports a primary wordmark, compact mark, app icon source, monochrome mark, tiny slash mark, SVG masters, and a preview sheet under `assets/branding/`.
-
-Regenerate branding and icons:
-
-```bash
-python3 scripts/generate_branding.py
-python3 scripts/generate_icon.py
-```
-
-## Rights / Branding
-
-WZRD.VID is source-available, not permissive open-source software. It is currently free for personal, noncommercial use. You may inspect the code, run it locally, modify it privately for yourself, and submit contributions back to the official project.
-
-You may not redistribute modified or unmodified builds, sell or repackage the app, submit copies or derivative versions to app stores, use it commercially, host it as a service, or use it as the basis for a competing product without prior written permission.
-
-//wzrdVID branding, logos, icons, artwork, and visual identity are reserved by Sam Howell. You may use the name only to refer to the official project in a truthful and non-misleading way. You may not use the official branding for another product, modified build, paid redistribution, hosted service, or anything implying endorsement without permission.
-
-Commercial licensing, custom builds, integrations, branded redistribution, and support are available by arrangement.
-
-Generated outputs are yours to use subject to your own rights in the media you import. WZRD.VID does not claim ownership of videos, images, or audio you create with the app.
-
-## Not Included
-
-- No copyrighted sample media.
-- No bundled commercial music or video.
-- No rights to media you process.
-
-You are responsible for the rights to any video, photo, or audio you import, render, post, remix, or redistribute.
-
-
-## Troubleshooting
-
-- If the app will not open, right-click `WZRD.VID.app` and choose **Open**. This is common for unsigned or unnotarized local builds.
-- If you are on an Intel Mac and the packaged app will not launch or behaves oddly, use the source-run path for now. The current Mac package is tested primarily on Apple Silicon.
-- If `ffmpeg` or `ffprobe` is missing, install ffmpeg for your platform. macOS: `brew install ffmpeg`; Debian/Ubuntu: `sudo apt install ffmpeg`; Fedora: `sudo dnf install ffmpeg`; Arch: `sudo pacman -S ffmpeg`; Windows: install ffmpeg and add `ffmpeg.exe`/`ffprobe.exe` to PATH.
-- If you are running from source, install requirements first and launch with `python run.py`. macOS/Linux users can also use `./run.sh`; Windows users can use `run_windows.bat`.
-- If you downloaded the GitHub source ZIP and expected an app bundle, use the GitHub Releases download instead. The source ZIP does not include `dist/WZRD.VID.app`.
-- If WZRD.VID says an update is available, download the latest `WZRD.VID-macOS.dmg`, open it, drag the app to `Applications`, and choose **Replace**. Automatic updates are not active yet.
-
-## Contributing
-
-See `CONTRIBUTING.md`. Focused PRs are welcome. Please preserve the app’s identity, performance, readability, and local-first workflow.
-
-## Security
-
-See `SECURITY.md` for vulnerability reporting.
-
-## License
-
-Project license: source-available, not permissive open source, currently free for personal noncommercial use. See `LICENSE`.
-
-Branding/trademarks: reserved. See `NOTICE.md`.
-
-Plain-language license FAQ: see `docs/LICENSE_FAQ.md`.
-
-Third-party notices: see `THIRD_PARTY_NOTICES.md`.
+Outside code contributions are not accepted by default. See [CONTRIBUTING.md](CONTRIBUTING.md).

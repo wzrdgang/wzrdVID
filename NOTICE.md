@@ -1,11 +1,13 @@
 # NOTICE
 
-Copyright (c) 2026 Sam Howell
+Copyright © 2026 AMPYX LLC. All rights reserved.
 
-//wzrdVID and related logos/branding are trademarks and visual identity assets of Sam Howell.
+AMPYX LLC owns the AMPYX-owned portions of WZRD.VID, including the copyrights and other proprietary rights assigned to it, subject to surviving historical licenses, third-party rights, user rights, and applicable law.
 
-WZRD.VID is distributed under the WZRD.VID Source-Available License. It is source-available, not permissive open-source software. The license permits personal, noncommercial use, local modification, learning, experimentation, and contributions back to the official project.
+WZRD.VID, //wzrdVID, and related logos, icons, artwork, branding, and visual identity are proprietary branding of AMPYX LLC to the extent owned by AMPYX LLC. They may function as unregistered or common-law marks. No claim is made that any WZRD.VID mark is federally registered.
 
-The license does not grant permission to redistribute modified or unmodified builds, sell or repackage the app, submit copies or derivative versions to app stores, create hosted/SaaS versions, build competing products from this code, or use //wzrdVID branding, logos, icons, artwork, or visual identity for another product without prior written permission.
+Current copies that include or expressly reference the WZRD.VID Freeware License may be used without charge for personal, professional, and commercial work, including paid client work and monetized user output. That permission does not authorize resale, repackaging, unauthorized redistribution, modified-build distribution, or incorporation of AMPYX-owned proprietary code into another software product or service.
 
-Commercial licensing, branded redistribution, paid integrations, custom builds, and support are available by arrangement.
+AMPYX LLC does not acquire ownership of user media, project files, or output merely because WZRD.VID processes it. Users remain responsible for rights in their source material.
+
+Historical copies remain governed by the licenses under which they were distributed. Third-party components and marks remain governed by their respective licenses and owners. See `LICENSE`, `docs/LICENSE_HISTORY.md`, and `THIRD_PARTY_NOTICES.md`.

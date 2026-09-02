@@ -1,55 +1,89 @@
-WZRD.VID Source-Available License
+WZRD.VID FREEWARE LICENSE
 
-Copyright (c) 2026 Sam Howell
+Copyright © 2026 AMPYX LLC. All rights reserved.
 
-This license applies to the WZRD.VID software source code and related project files, except for third-party components that are governed by their own licenses.
+Effective date of these terms: September 2, 2026.
 
-For clarity, WZRD.VID is source-available software. This is not an open-source, permissive, copyleft, or public-domain license.
+This license applies prospectively to copies of WZRD.VID that include or expressly reference it. It governs only the portions of WZRD.VID owned by AMPYX LLC (the "Software"). Third-party components and historical copies are addressed below.
 
-1. Personal And Noncommercial Use
+WZRD.VID is proprietary freeware. It is not open-source software.
 
-Permission is granted to view, download, install, run, and modify the software for personal, noncommercial use.
+1. Free Personal, Professional, And Commercial Use
 
-You may use the software to learn from the code, experiment locally, make personal modifications, and create your own rendered media outputs, subject to this license and any rights you have in the media you import.
+Subject to these terms, AMPYX LLC grants you a nonexclusive, royalty-free license to download, install, execute, and use the Software without charge.
 
-2. Contributions
+You may use the Software:
 
-You may fork the repository for personal experimentation and submit contributions back to the official WZRD.VID project through pull requests or other contribution channels approved by the project maintainers.
+- for personal projects;
+- for professional work;
+- within a business, agency, studio, production house, or other organization;
+- for paid client projects and services;
+- to create commercial videos, images, audio, and other media; and
+- to publish, sell, license, and monetize media you create with the Software.
 
-By submitting a contribution, you grant Sam Howell and the official WZRD.VID project permission to use, modify, reproduce, distribute, and incorporate that contribution into WZRD.VID and related official project materials.
+You do not need a separate commercial-use license merely because you or your organization earns money while using the Software. You may make reasonable backup copies and internal deployment copies for your own use or use within your organization.
 
-3. No Redistribution Without Permission
+If AMPYX makes source code available with your copy, you may inspect and modify the AMPYX-owned portions for your own personal or internal business use. This permission does not include distribution of source code or modified builds and does not require AMPYX to provide source code.
 
-This license does not grant permission to redistribute modified or unmodified builds of the software without prior written permission from Sam Howell.
+2. User Media, Projects, And Output
 
-This includes, but is not limited to, uploading rebuilt app bundles, distributing modified installers, repackaging the app, mirroring binary builds, publishing derivative versions for others to download, submitting copies or derivative versions to app stores, or rehosting public copies of the software.
+AMPYX does not acquire ownership of your videos, images, audio, project files, rendered output, or other creative work merely because you import it into, process it with, or create it using WZRD.VID.
 
-4. No Commercial Use Without Permission
+You retain whatever rights you otherwise hold in that material. WZRD.VID does not grant you rights in source material, performances, trademarks, or other content that you do not already own or have permission to use. You are responsible for obtaining any rights or clearances your use requires.
 
-This license does not grant permission for commercial use without prior written permission from Sam Howell.
+3. Restrictions On WZRD.VID Itself
 
-Commercial use includes, but is not limited to, selling the software, selling modified versions, paid redistribution, bundling the software in a paid product or service, offering hosted or SaaS versions, using the software as the basis for a competing product, or offering paid integrations based on this code.
+Except as expressly permitted by this license, an applicable third-party license, or separate written authorization from AMPYX LLC, you may not:
 
-Commercial licensing, custom builds, paid integrations, branded redistribution, and support are available by arrangement.
+- sell, rent, lease, or charge others for copies of WZRD.VID itself;
+- redistribute, mirror, rehost, or otherwise make copies of WZRD.VID available to others, except for reasonable backup and internal deployment copies permitted above;
+- repackage WZRD.VID or distribute modified or unmodified builds, installers, source archives, or derivative software;
+- publish WZRD.VID or a modified copy through an app store, software store, package repository, marketplace, download site, or similar distribution channel;
+- sublicense AMPYX-owned proprietary code or incorporate it into another software product or software service;
+- use AMPYX-owned proprietary code to create or operate another software product or software service based on WZRD.VID;
+- remove or alter proprietary notices, or falsely claim authorship or ownership of WZRD.VID; or
+- use the WZRD.VID name, logos, icons, artwork, branding, or visual identity for another product or in a way that falsely implies AMPYX affiliation, sponsorship, or endorsement.
 
-5. Branding And Visual Identity
+These restrictions apply to exploitation of WZRD.VID itself. They do not prohibit ordinary personal, professional, or commercial use of WZRD.VID as a creative tool, including paid services and monetized user output.
 
-This license does not grant permission to use the //wzrdVID name, WZRD.VID name, logos, branding, visual identity, icons, artwork, or brand assets except when referring to the official WZRD.VID project in a truthful and non-misleading way.
+Except to the extent a restriction is prohibited by applicable law or would prevent you from exercising rights granted under an applicable third-party license, you may not reverse engineer, decompile, or disassemble the AMPYX-owned portions of WZRD.VID.
 
-You may not use the //wzrdVID name, logos, branding, visual identity, or assets for another product, competing product, paid redistribution, modified build, hosted service, or anything implying official endorsement without prior written permission from Sam Howell.
+4. Third-Party Components
 
-6. User Outputs
+This license does not govern third-party software, libraries, frameworks, tools, fonts, or assets distributed with or used by WZRD.VID. Those components remain governed by their respective licenses, as identified in THIRD_PARTY_NOTICES.md and, for qualified application bundles, Contents/Resources/Legal/.
 
-The project does not claim ownership of videos, images, audio, or other media outputs generated by users with the software.
+If a third-party license grants rights broader than this license, the third-party license controls for that component. Nothing in this license restricts rights that an applicable third-party license or applicable law permits you to exercise, including required rights to inspect, debug, modify, replace, relink, reverse engineer for interoperability, or redistribute that component. The tested Qt replacement and relinking materials remain available in the bundled Legal resources where applicable.
 
-Users are solely responsible for the media they import, process, render, post, remix, or redistribute, including any rights, permissions, licenses, or clearances required for that media.
+5. Historical Copies And Licenses
 
-7. Third-Party Components
+This license does not revoke, narrow, or replace rights validly granted for historical copies of WZRD.VID. Historical recipients retain the rights provided by the license that accompanied or applied to their copy, including the AGPL-3.0 grant for the root repository snapshot and the custom source-available grants for tagged releases through v0.5.0.
 
-Third-party software, libraries, tools, and assets may be subject to their own licenses. Those licenses apply to their respective components and are not replaced by this license.
+See docs/LICENSE_HISTORY.md for the repository's license history. These freeware terms apply prospectively only to copies that include or expressly reference them.
 
-8. No Warranty
+6. Ownership And Branding
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+As between you and AMPYX LLC, AMPYX LLC retains ownership of the Software and all associated copyrights and other proprietary rights that it owns. WZRD.VID, //wzrdVID, related logos, icons, artwork, and visual identity are proprietary branding of AMPYX LLC to the extent owned by AMPYX LLC.
 
-IN NO EVENT SHALL SAM HOWELL OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF THE SOFTWARE.
+No claim is made here that any mark is federally registered. Third-party names and marks remain the property of their respective owners.
+
+7. No Source-Code Promise
+
+AMPYX LLC has no obligation under this license to provide source code for AMPYX-owned proprietary portions of WZRD.VID. This does not limit source or relinking obligations that apply to third-party components, does not describe historical source availability, and does not withdraw source code already made available under a historical license.
+
+8. Disclaimer Of Warranty
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+9. Limitation Of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, AMPYX LLC AND ITS CONTRIBUTORS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF DATA, PROFITS, REVENUE, BUSINESS, OR GOODWILL, ARISING FROM OR RELATED TO THE SOFTWARE OR THIS LICENSE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, AMPYX LLC'S TOTAL LIABILITY ARISING FROM OR RELATED TO THE SOFTWARE OR THIS LICENSE WILL NOT EXCEED THE AMOUNT YOU PAID AMPYX LLC FOR THE COPY OF THE SOFTWARE GIVING RISE TO THE CLAIM.
+
+Some jurisdictions do not allow certain warranty exclusions or liability limitations, so portions of Sections 8 or 9 may not apply to you.
+
+10. General
+
+This license is governed by the laws of the State of New Mexico, without regard to conflict-of-laws rules, except where applicable law requires otherwise. If any provision is unenforceable, it will be limited only as necessary and the remaining provisions will continue in effect. Failure to enforce a provision is not a waiver.
+
+Broader rights to distribute, repackage, integrate, sublicense, or publish WZRD.VID may be available through a separate written agreement with AMPYX LLC.
