@@ -183,5 +183,24 @@
     </footer>
   </div>
   <script src="i18n.js" defer></script>
+  <script>
+    (() => {
+      const player = document.querySelector('.demo-card video');
+      const playlist = [
+        'assets/demos/demo.mp4',
+        'assets/demos/WZRDVID-0.6.0-App-Preview-Web.mp4'
+      ];
+      let currentVideo = 0;
+
+      player.addEventListener('ended', () => {
+        if (currentVideo >= playlist.length - 1) return;
+        currentVideo += 1;
+        player.src = playlist[currentVideo];
+        player.load();
+        const resumedPlayback = player.play();
+        if (resumedPlayback) resumedPlayback.catch(() => {});
+      });
+    })();
+  </script>
 </body>
 </html>
