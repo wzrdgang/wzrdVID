@@ -7,7 +7,17 @@
   </url>
   <url>
     <loc>https://wzrdvid.com/lite/</loc>
-    <lastmod>2026-06-02</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://wzrdvid.com/lite/support/</loc>
+    <lastmod>2026-09-10</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://wzrdvid.com/lite/privacy/</loc>
+    <lastmod>2026-09-10</lastmod>
+    <priority>0.5</priority>
   </url>
 </urlset>
