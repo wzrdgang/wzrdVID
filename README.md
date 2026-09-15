@@ -12,13 +12,17 @@ WZRD.VID is a local-first creative video tool published by AMPYX LLC. This repos
 
 ## Desktop Release Status
 
-WZRD.VID v0.6.0 for macOS is available free on the Mac App Store: no account, subscription, in-app purchases, advertising, tracking, or cloud dependency.
+WZRD.VID v0.6.0 for macOS is available free from the Mac App Store and as a notarized Direct download: no account, subscription, in-app purchases, advertising, tracking, or cloud dependency.
 
 Download it from the [WZRD.VID Mac App Store product page](https://apps.apple.com/app/id6809168939).
 
-Direct desktop downloads remain unavailable. All 15 historical release records and tags remain available, but their packaged binary assets have been withdrawn. The latest historical release record is [v0.5.0](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0).
+Or download the Apple-notarized Direct release for macOS 15.0 or later:
 
-> Historical binary distribution withdrawn. The source tag and release record remain available for historical reference. Previously granted licenses remain unaffected.
+- [WZRD.VID-macOS.dmg](https://github.com/wzrdgang/wzrdVID/releases/download/v0.6.0/WZRD.VID-macOS.dmg)
+- [WZRD.VID-macOS.zip](https://github.com/wzrdgang/wzrdVID/releases/download/v0.6.0/WZRD.VID-macOS.zip)
+- [WZRD.VID v0.6.0 release details](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.6.0)
+
+Withdrawn historical binaries have not been restored. Their 15 release records and tags remain unchanged, and previously granted licenses remain unaffected.
 
 GitHub's automatic archive of current `main` contains this public documentation and site snapshot. It is not the desktop application and does not contain current proprietary desktop development source.
 
@@ -62,7 +66,7 @@ Historical grants remain valid. The root snapshot used AGPL-3.0, and published t
 - [v0.4.0 release notes](docs/V0.4.0_RELEASE_NOTES.md)
 - [v0.5.0 release notes](docs/V0.5.0_RELEASE_NOTES.md)
 
-The root [`VERSION`](VERSION) records `0.5.0`, the latest historical GitHub desktop release. The current Mac App Store build is v0.6.0; this public archive does not contain or announce a directly downloadable package for it.
+The root [`VERSION`](VERSION) records the current v0.6.0 release available from the Mac App Store and as notarized Direct DMG/ZIP downloads. GitHub's automatic source archives remain public documentation/site snapshots, not desktop application packages or current proprietary desktop source.
 
 ## Support And Security
 

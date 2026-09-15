@@ -7,6 +7,14 @@
 - Expanded browser and Apple Lite with baseline-compatible Effect Strength, bounded ANSI Text Density, and deterministic per-project Reroll Chaos. Medium/Standard preserve the prior Lite look, named local PRNG substreams keep semantic plans repeatable without uploads or persistence, and Clear Project clears the in-memory seed.
 - Hardened Lite recorder finalization so MP4 and WebM paths reject empty output instead of offering a zero-byte download while preserving the existing source-only, Add-only, mixed, and silent audio modes.
 
+## v0.6.0 — 2026-09-15
+
+### AMPYX LLC release availability
+
+- Published WZRD.VID v0.6.0 free on the Mac App Store and as Apple-notarized Direct DMG and ZIP downloads for macOS 15.0 or later.
+- Applied the AMPYX Freeware License to the v0.6.0 Direct distribution while preserving every historical tag, release record, withdrawn binary state, and historical license grant.
+- Kept current proprietary desktop source and release engineering private; the public tag contains only the intentionally minimal documentation, legal, support, and website snapshot.
+
 ## v0.5.0 — 2026-08-28
 
 ### Preview and product handoffs
