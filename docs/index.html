@@ -28,19 +28,30 @@
     "operatingSystem": "macOS",
     "url": "https://wzrdvid.com/",
     "softwareVersion": "0.6.0",
+    "downloadUrl": "https://github.com/wzrdgang/wzrdVID/releases/download/v0.6.0/WZRD.VID-macOS.dmg",
     "description": "Free experimental video-art application for macOS with local timelines, ANSI and text rendering, Material effects, Zones, DATAMOSH, SCATTER, previews, and H.264 export.",
     "creator": {
       "@type": "Organization",
       "name": "AMPYX LLC"
     },
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD",
-      "availability": "https://schema.org/InStock",
-      "url": "https://apps.apple.com/app/id6809168939",
-      "description": "App Store v0.6.0 is available free from Apple. Direct downloads remain unavailable."
-    }
+    "offers": [
+      {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock",
+        "url": "https://apps.apple.com/app/id6809168939",
+        "description": "WZRD.VID v0.6.0 is available free from the Mac App Store."
+      },
+      {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock",
+        "url": "https://github.com/wzrdgang/wzrdVID/releases/tag/v0.6.0",
+        "description": "WZRD.VID v0.6.0 is available free as an Apple-notarized Direct download."
+      }
+    ]
   }
   </script>
 </head>
@@ -63,10 +74,11 @@
         <div class="signal-bug">worky.mode / wzrdgang</div>
       </div>
       <p class="eyebrow" data-i18n="site.eyebrow">ANSI broadcast lab // lo-fi fragment synthesis // public-access hallucinations</p>
-      <p class="release-status" data-i18n="site.store_status_v060">Mac App Store v0.6.0 — available now</p>
+      <p class="release-status" data-i18n="site.store_status_v060">WZRD.VID v0.6.0 — Mac App Store + notarized Direct — Free</p>
       <div class="black-strip"><span data-i18n="site.black_strip">&gt;&gt; source bus quiet // mp4 lane ready _</span> <span>░▒▓</span></div>
       <nav class="button-row" aria-label="Primary actions" data-i18n-aria-label="site.primary_actions">
         <a class="btn btn-primary" href="https://apps.apple.com/app/id6809168939" data-i18n="site.store_cta_v060">Download on the Mac App Store</a>
+        <a class="btn btn-primary" href="#download" data-i18n="site.direct_cta_v060">Direct Download — Free</a>
         <a class="btn btn-secondary" href="lite/" data-i18n="site.try_lite">Try WZRD.VID Lite</a>
         <a class="btn btn-ghost" href="https://github.com/wzrdgang/wzrdVID" data-i18n="site.github">View GitHub</a>
       </nav>
@@ -104,16 +116,26 @@
       <section class="deck-row" aria-label="Download and project info" data-i18n-aria-label="site.download_project_info">
         <article class="deck-card panel-frame" id="download">
           <div class="deck-label" data-i18n="site.download_label">DOWNLOAD DECK</div>
-          <h2 data-i18n="site.download_title_v060">App Store v0.6.0 is live.</h2>
-          <p data-i18n="site.download_body_v060">Download the free macOS app from Apple. It runs locally with no account, tracking, in-app purchases, or cloud dependency.</p>
-          <a class="btn btn-primary full" href="https://apps.apple.com/app/id6809168939" data-i18n="site.store_cta_v060">Download on the Mac App Store</a>
+          <h2 data-i18n="site.download_title_v060">Get WZRD.VID v0.6.0 free.</h2>
+          <p data-i18n="site.download_body_v060">Choose the Mac App Store or the Apple-notarized Direct download for Apple silicon Macs running macOS 15.0 or later. Both are published by AMPYX LLC and run locally.</p>
+          <a class="btn btn-primary full" href="https://apps.apple.com/app/id6809168939" data-i18n="site.store_cta_v060">Mac App Store — Free</a>
           <p class="small-note">Mac App Store destination: <code>https://apps.apple.com/app/id6809168939</code></p>
-          <p class="small-note" data-i18n="site.direct_status_v060">Direct downloads are not currently available. Withdrawn historical binaries have not been restored.</p>
-          <div class="inline-links" aria-label="Historical release record">
-            <a href="https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0" data-i18n="site.release_details">v0.5.0 release details</a>
+          <a class="btn btn-secondary full" href="https://github.com/wzrdgang/wzrdVID/releases/download/v0.6.0/WZRD.VID-macOS.dmg" data-i18n="site.direct_dmg_cta_v060">Direct DMG — Free</a>
+          <p class="small-note" data-i18n="site.direct_status_v060">Direct v0.6.0 is signed for AMPYX LLC, notarized by Apple, and available as a DMG or packaged ZIP.</p>
+          <div class="inline-links" aria-label="Direct release downloads" data-i18n-aria-label="site.download_alternatives">
+            <a href="https://github.com/wzrdgang/wzrdVID/releases/download/v0.6.0/WZRD.VID-macOS.zip" data-i18n="site.direct_zip_cta_v060">Direct ZIP — Free</a>
+            <a href="https://github.com/wzrdgang/wzrdVID/releases/tag/v0.6.0" data-i18n="site.release_details_v060">v0.6.0 release details</a>
           </div>
-          <p class="small-note">The preserved v0.5.0 GitHub release has no packaged binary assets. Its source tag and release record remain available for historical reference.</p>
+          <ol class="install-steps">
+            <li data-i18n="site.install.1_v060">Download WZRD.VID-macOS.dmg from the v0.6.0 release</li>
+            <li data-i18n="site.install.2">Open the DMG</li>
+            <li data-i18n="site.install.3">Drag WZRD.VID.app to Applications</li>
+            <li data-i18n="site.install.4">Choose Replace when updating</li>
+          </ol>
+          <p class="install-warning" data-i18n="site.signing_note_v060">The Direct app is signed with Developer ID Application for AMPYX LLC and notarized by Apple.</p>
+          <p class="small-note" data-i18n="site.update_note_v060">WZRD.VID can check GitHub Releases for a newer Direct version. You choose when to download and replace the app; settings and user data remain outside the app bundle.</p>
           <p class="small-note" data-i18n="site.source_zip_warning">GitHub's automatic main-branch archive contains the public documentation and site snapshot; it is not the desktop app or current proprietary development source.</p>
+          <a class="text-link" href="https://github.com/wzrdgang/wzrdVID/blob/main/docs/RELEASE_DOWNLOAD_HELP.md" data-i18n="site.download_help">Read the detailed download and install help</a>
         </article>
 
         <article class="deck-card panel-frame" id="lite">
@@ -135,7 +157,7 @@
         <article class="deck-card panel-frame" id="source">
           <div class="deck-label" data-i18n="site.license_label">LICENSE DECK</div>
           <h2 data-i18n="site.source_title">Proprietary freeware.</h2>
-          <p data-i18n="site.source_body_v060">The approved v0.6.0 app includes the AMPYX Freeware License and is free for personal, professional, and commercial creative work. Historical copies keep their historical licenses; this public archive is not a packaged-app download.</p>
+          <p data-i18n="site.source_body_v060">The v0.6.0 app includes the AMPYX Freeware License and is free for personal, professional, and commercial creative work. Historical copies keep their historical licenses; GitHub's automatic source archives are not packaged-app downloads.</p>
           <a class="btn btn-secondary full" href="https://github.com/wzrdgang/wzrdVID" data-i18n="site.open_repo">Open GitHub Repo</a>
           <p class="small-note" data-i18n="site.source_note_v060">AMPYX LLC develops and publishes WZRD.VID. Historical copies keep their prior licenses.</p>
         </article>
