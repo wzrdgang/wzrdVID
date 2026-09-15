@@ -12,9 +12,9 @@ WZRD.VID is a local-first creative video tool published by AMPYX LLC. This repos
 
 ## Desktop Release Status
 
-WZRD.VID v0.6.0 for macOS has been approved by Apple and is awaiting the owner's manual release action. It is free to use: no account, subscription, in-app purchases, advertising, tracking, or cloud dependency.
+WZRD.VID v0.6.0 for macOS is available free on the Mac App Store: no account, subscription, in-app purchases, advertising, tracking, or cloud dependency.
 
-The prepared Mac App Store destination is `https://apps.apple.com/app/id6809168939`. Apple does not expose the public product page until release, so this README and [wzrdvid.com](https://wzrdvid.com/) intentionally keep the Store control non-clickable until the owner releases the approved version.
+Download it from the [WZRD.VID Mac App Store product page](https://apps.apple.com/app/id6809168939).
 
 Direct desktop downloads remain unavailable. All 15 historical release records and tags remain available, but their packaged binary assets have been withdrawn. The latest historical release record is [v0.5.0](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0).
 
@@ -62,7 +62,7 @@ Historical grants remain valid. The root snapshot used AGPL-3.0, and published t
 - [v0.4.0 release notes](docs/V0.4.0_RELEASE_NOTES.md)
 - [v0.5.0 release notes](docs/V0.5.0_RELEASE_NOTES.md)
 
-The root [`VERSION`](VERSION) records `0.5.0`, the latest historical GitHub desktop release. The approved App Store build is v0.6.0; this public archive does not contain or announce a downloadable package for it.
+The root [`VERSION`](VERSION) records `0.5.0`, the latest historical GitHub desktop release. The current Mac App Store build is v0.6.0; this public archive does not contain or announce a directly downloadable package for it.
 
 ## Support And Security
 
