@@ -302,6 +302,10 @@ video:focus-visible {
   color: rgba(8, 7, 6, 0.66);
   cursor: default;
 }
+.btn-pending {
+  background-color: var(--pink-hot);
+  cursor: not-allowed;
+}
 .btn.full { width: 100%; }
 
 .intro-deck {

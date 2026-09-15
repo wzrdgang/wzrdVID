@@ -10,9 +10,13 @@
 
 WZRD.VID is a local-first creative video tool published by AMPYX LLC. This repository is its official public archive, documentation, legal, support, GitHub Pages, and distribution surface. Current desktop application development is private.
 
-## Desktop Download Status
+## Desktop Release Status
 
-Desktop downloads are temporarily unavailable. All 15 historical release records and tags remain available, but their packaged binary assets have been withdrawn. The latest historical release record is [v0.5.0](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0).
+WZRD.VID v0.6.0 for macOS has been approved by Apple and is awaiting the owner's manual release action. It is free to use: no account, subscription, in-app purchases, advertising, tracking, or cloud dependency.
+
+The prepared Mac App Store destination is `https://apps.apple.com/app/id6809168939`. Apple does not expose the public product page until release, so this README and [wzrdvid.com](https://wzrdvid.com/) intentionally keep the Store control non-clickable until the owner releases the approved version.
+
+Direct desktop downloads remain unavailable. All 15 historical release records and tags remain available, but their packaged binary assets have been withdrawn. The latest historical release record is [v0.5.0](https://github.com/wzrdgang/wzrdVID/releases/tag/v0.5.0).
 
 > Historical binary distribution withdrawn. The source tag and release record remain available for historical reference. Previously granted licenses remain unaffected.
 
@@ -28,6 +32,12 @@ Existing lawfully obtained copies are not revoked by the withdrawal. They remain
 - Public issues, discussions, support, and security-reporting channels.
 
 The current desktop application source, build system, tests, release engineering, and Apple wrapper are not part of public `main`. Their removal from the current tree did not rewrite commits, tags, release records, or historical licenses.
+
+## What WZRD.VID Does
+
+Bring your own video, images, and audio. Assemble a timeline or randomized source cut, then shape it with ANSI/text rendering, Material effects, moving Zones, DATAMOSH, SCATTER, previews, and local H.264 MP4 export.
+
+WZRD.VID processes media locally on your Mac. AMPYX LLC develops and publishes WZRD.VID.
 
 ## WZRD.VID Lite
 
@@ -52,7 +62,7 @@ Historical grants remain valid. The root snapshot used AGPL-3.0, and published t
 - [v0.4.0 release notes](docs/V0.4.0_RELEASE_NOTES.md)
 - [v0.5.0 release notes](docs/V0.5.0_RELEASE_NOTES.md)
 
-The root [`VERSION`](VERSION) records `0.5.0`, the latest historical desktop release. It does not announce a currently downloadable package.
+The root [`VERSION`](VERSION) records `0.5.0`, the latest historical GitHub desktop release. The approved App Store build is v0.6.0; this public archive does not contain or announce a downloadable package for it.
 
 ## Support And Security
 
